@@ -785,22 +785,39 @@ summary::-webkit-details-marker { display: none; }
 
     <!-- Media -->
     <div class="field-group">
-      <div class="group-title">Media</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+        <div class="group-title" style="margin-bottom:0">Media</div>
+        <span style="font-size:11px; color:var(--mute)">Asset code is camera-only</span>
+      </div>
       <div class="media-previews">
+        <!-- 1. Asset photo: Camera OR File -->
         <div class="media-box">
           <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset photo</div>
-          <div id="prev-photo" style="font-size:10px; color:var(--mute); height:60px; display:grid; place-items:center;">None</div>
-          <input type="file" accept="image/*" id="f-assetPhoto" onchange="previewImg(this, 'prev-photo')" style="font-size:10px; width:100%">
+          <div id="prev-photo" style="font-size:10px; color:var(--mute); height:60px; width:100%; display:grid; place-items:center;">None</div>
+          <div style="display:flex; gap:4px; margin-top:4px">
+            <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="openCameraModal('assetPhoto')">📷 Camera</button>
+            <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="document.getElementById('f-assetPhoto').click()">📁 File</button>
+          </div>
+          <input type="file" accept="image/*" id="f-assetPhoto" onchange="previewImg(this, 'prev-photo')" style="display:none">
         </div>
-        <div class="media-box">
-          <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset code</div>
-          <div id="prev-code" style="font-size:10px; color:var(--mute); height:60px; display:grid; place-items:center;">None</div>
-          <input type="file" accept="image/*" id="f-codePhoto" onchange="previewImg(this, 'prev-code')" style="font-size:10px; width:100%">
+
+        <!-- 2. Asset code: CAMERA ONLY (NO IMPORT OPTION) -->
+        <div class="media-box" style="border-color:var(--acc); background:color-mix(in srgb, var(--acc2) 30%, transparent)">
+          <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset code photo</div>
+          <div id="prev-code" style="font-size:10px; color:var(--mute); height:60px; width:100%; display:grid; place-items:center;">None</div>
+          <button type="button" class="btn primary" style="padding:4px 8px; font-size:10px; margin-top:4px; width:100%" onclick="openCameraModal('assetCodePhoto')">📷 Open Camera</button>
+          <span style="font-size:9.5px; color:var(--mute); margin-top:2px">No file import</span>
         </div>
+
+        <!-- 3. ID card picture: Camera OR File -->
         <div class="media-box">
-          <div style="font-size:11px; font-weight:600; margin-bottom:4px">ID picture</div>
-          <div id="prev-id" style="font-size:10px; color:var(--mute); height:60px; display:grid; place-items:center;">None</div>
-          <input type="file" accept="image/*" id="f-idPhoto" onchange="previewImg(this, 'prev-id')" style="font-size:10px; width:100%">
+          <div style="font-size:11px; font-weight:600; margin-bottom:4px">ID card picture</div>
+          <div id="prev-id" style="font-size:10px; color:var(--mute); height:60px; width:100%; display:grid; place-items:center;">None</div>
+          <div style="display:flex; gap:4px; margin-top:4px">
+            <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="openCameraModal('idCardPicture')">📷 Camera</button>
+            <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="document.getElementById('f-idPhoto').click()">📁 File</button>
+          </div>
+          <input type="file" accept="image/*" id="f-idPhoto" onchange="previewImg(this, 'prev-id')" style="display:none">
         </div>
       </div>
     </div>
@@ -818,6 +835,24 @@ summary::-webkit-details-marker { display: none; }
   <div class="drawer-footer">
     <button type="button" class="btn" onclick="closeDrawer()">Cancel</button>
     <button type="submit" form="add-asset-form" class="btn primary">Save asset</button>
+  </div>
+</div>
+
+<!-- Live Camera Modal -->
+<div id="camera-modal" class="drawer-backdrop" style="display:none; align-items:center; justify-content:center; z-index:200;">
+  <div style="background:var(--surf); border:1px solid var(--line); border-radius:14px; width:92%; max-width:480px; overflow:hidden; box-shadow:0 12px 36px rgba(0,0,0,0.3)">
+    <div style="padding:12px 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center">
+      <strong id="camera-modal-title" style="font-size:14px">📷 Camera Viewfinder</strong>
+      <button onclick="closeCameraModal()" style="font-size:18px; color:var(--mute)">&times;</button>
+    </div>
+    <div style="background:#000; position:relative; min-height:260px; display:flex; align-items:center; justify-content:center">
+      <video id="camera-video" playsinline autoplay muted style="width:100%; height:260px; object-fit:cover"></video>
+      <div style="position:absolute; inset:20px; border:2px dashed rgba(255,255,255,0.6); border-radius:8px; pointer-events:none"></div>
+    </div>
+    <div style="padding:12px 16px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; background:var(--surf)">
+      <button type="button" class="btn" onclick="closeCameraModal()">Cancel</button>
+      <button type="button" class="btn primary" onclick="captureCameraPhoto()">Capture Photo</button>
+    </div>
   </div>
 </div>
 
@@ -890,6 +925,71 @@ const assetTypes = [
 let assets = [];
 let currentCategoryFilter = null;
 let uploadedPhotoData = null;
+let uploadedCodeData = null;
+let uploadedIdData = null;
+let currentCameraTarget = null;
+let cameraStream = null;
+
+async function openCameraModal(target) {
+  currentCameraTarget = target;
+  const modal = document.getElementById('camera-modal');
+  modal.style.display = 'flex';
+  modal.classList.add('open');
+  const title = document.getElementById('camera-modal-title');
+  if (target === 'assetCodePhoto') {
+    title.innerText = '📷 Scan Asset Code (Camera Only)';
+  } else if (target === 'assetPhoto') {
+    title.innerText = '📷 Capture Asset Photo';
+  } else {
+    title.innerText = '📷 Capture ID Card Picture';
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: target === 'assetCodePhoto' ? { ideal: 'environment' } : 'user' }
+    });
+    const video = document.getElementById('camera-video');
+    video.srcObject = cameraStream;
+  } catch (err) {
+    toast('Camera access unavailable: ' + (err.message || 'Permission denied'));
+  }
+}
+
+function closeCameraModal() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const modal = document.getElementById('camera-modal');
+  modal.style.display = 'none';
+  modal.classList.remove('open');
+  currentCameraTarget = null;
+}
+
+function captureCameraPhoto() {
+  const video = document.getElementById('camera-video');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+  if (currentCameraTarget === 'assetCodePhoto') {
+    uploadedCodeData = dataUrl;
+    document.getElementById('prev-code').innerHTML = `<img src="${dataUrl}">`;
+    toast('Asset code photo captured via camera!');
+  } else if (currentCameraTarget === 'assetPhoto') {
+    uploadedPhotoData = dataUrl;
+    document.getElementById('prev-photo').innerHTML = `<img src="${dataUrl}">`;
+    toast('Asset photo captured via camera!');
+  } else if (currentCameraTarget === 'idCardPicture') {
+    uploadedIdData = dataUrl;
+    document.getElementById('prev-id').innerHTML = `<img src="${dataUrl}">`;
+    toast('ID card picture captured via camera!');
+  }
+  closeCameraModal();
+}
 
 function renderCategories() {
   const catMap = {};

@@ -56,6 +56,24 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     })
   })
 
+  it('Media inputs: Asset photo and ID card offer Camera and File; Asset code is camera-only', async () => {
+    render(<App />)
+
+    const addAssetBtns = screen.getAllByRole('button', { name: /add asset/i })
+    fireEvent.click(addAssetBtns[0])
+
+    // Asset photo and ID card offer both Camera and File
+    const cameraBtns = screen.getAllByRole('button', { name: /📷 Camera/i })
+    expect(cameraBtns).toHaveLength(2)
+
+    const fileBtns = screen.getAllByRole('button', { name: /📁 File/i })
+    expect(fileBtns).toHaveLength(2)
+
+    // Asset code photo is strictly camera-only with no file option
+    expect(screen.getByRole('button', { name: /📷 Open Camera/i })).toBeInTheDocument()
+    expect(screen.getByText(/No file import/i)).toBeInTheDocument()
+  })
+
   it('PART 1: Saving a new physical asset validates, prepends to gallery, and displays toast', async () => {
     render(<App />)
 
