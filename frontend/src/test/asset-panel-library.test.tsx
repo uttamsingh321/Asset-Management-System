@@ -248,4 +248,22 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     expect(autoCategorize('Godrej ergonomic desk', '')).toBe('Furniture & Fixtures')
     expect(autoCategorize('SKF 6204-2RS bearing', '')).toBe('Spares & Consumables')
   })
+
+  test('Notifications feature a visible cross close button to dismiss alerts', async () => {
+    const { toast } = await import('sonner')
+    render(<App />)
+
+    toast.success('All asset types removed from library')
+
+    await waitFor(() => {
+      expect(screen.getByText('All asset types removed from library')).toBeInTheDocument()
+    })
+
+    // Sonner close button has data-close-button="true" or aria-label="Close toast"
+    const closeBtn = document.querySelector('[data-close-button="true"], [aria-label="Close toast"]')
+    expect(closeBtn).toBeInTheDocument()
+    if (closeBtn) {
+      fireEvent.click(closeBtn)
+    }
+  })
 })

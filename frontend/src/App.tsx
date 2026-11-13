@@ -136,7 +136,7 @@ export function App() {
 
   return (
     <>
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" richColors closeButton />
 
       {/* Mobile Drawer Backdrop */}
       {isDrawerOpen && (

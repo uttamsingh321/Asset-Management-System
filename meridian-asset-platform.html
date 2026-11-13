@@ -515,7 +515,7 @@ summary::-webkit-details-marker { display: none; }
   right: 24px;
   background: var(--ink);
   color: var(--surf);
-  padding: 10px 18px;
+  padding: 10px 12px 10px 16px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
@@ -525,10 +525,30 @@ summary::-webkit-details-marker { display: none; }
   transition: all 0.25s;
   z-index: 200;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 #toast.show {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
+}
+#toast-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0.75;
+  transition: opacity 0.15s, background 0.15s;
+}
+#toast-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.18);
 }
 </style>
 </head>
@@ -907,7 +927,10 @@ summary::-webkit-details-marker { display: none; }
   </div>
 </div>
 
-<div id="toast" role="status"></div>
+<div id="toast" role="status">
+  <span id="toast-text"></span>
+  <button id="toast-close" type="button" onclick="closeToast(event)" aria-label="Dismiss notification">&times;</button>
+</div>
 
 <script>
 // SVG Illustration Generator (12 types, 120x90, soft teal background)
@@ -1535,11 +1558,25 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
 }
 
+let toastTimer = null;
 function toast(msg) {
   const t = document.getElementById('toast');
-  t.innerText = msg;
+  const txt = document.getElementById('toast-text');
+  if (txt) {
+    txt.innerText = msg;
+  } else {
+    t.innerText = msg;
+  }
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => closeToast(), 4000);
+}
+
+function closeToast(e) {
+  if (e) e.stopPropagation();
+  const t = document.getElementById('toast');
+  if (t) t.classList.remove('show');
+  if (toastTimer) clearTimeout(toastTimer);
 }
 
 // Initial Boot
