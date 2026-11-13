@@ -774,6 +774,28 @@ summary::-webkit-details-marker { display: none; }
     <!-- Location -->
     <div class="field-group">
       <div class="group-title">Location</div>
+      <div class="form-row">
+        <label>Company <span class="req">*</span></label>
+        <select id="f-company" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line); background:var(--surf); color:var(--ink); padding:0 10px; font-size:13px; font-weight:600">
+          <option value="IIPL" selected>🏢 IIPL</option>
+          <option value="Padget">🏭 Padget</option>
+        </select>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label>Building <span class="req">*</span></label>
+          <select id="f-building" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line); background:var(--surf); color:var(--ink); padding:0 10px; font-size:13px; font-weight:600">
+            <option value="C39" selected>C39</option>
+            <option value="D197">D197</option>
+            <option value="D198">D198</option>
+            <option value="D199">D199</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Floor</label>
+          <input type="text" id="f-floor" placeholder="e.g. 1st Floor / xxx">
+        </div>
+      </div>
       <div class="form-row-grid">
         <div class="form-row">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
@@ -789,16 +811,6 @@ summary::-webkit-details-marker { display: none; }
           </div>
         </div>
         <div class="form-row">
-          <label>Building</label>
-          <input type="text" id="f-building" placeholder="e.g. Block B">
-        </div>
-      </div>
-      <div class="form-row-grid">
-        <div class="form-row">
-          <label>Floor</label>
-          <input type="text" id="f-floor" placeholder="e.g. 4th Floor">
-        </div>
-        <div class="form-row">
           <label>Current location</label>
           <input type="text" id="f-currentLocation" placeholder="e.g. Bay 14 Desk 4A">
         </div>
@@ -808,15 +820,23 @@ summary::-webkit-details-marker { display: none; }
     <!-- Ownership -->
     <div class="field-group">
       <div class="group-title">Ownership</div>
+      <div class="form-row">
+        <label>Belong to which dept <span class="req">*</span></label>
+        <input type="text" id="f-currentDepartment" placeholder="e.g. IT, SMT Operations, Quality Control">
+      </div>
       <div class="form-row-grid">
         <div class="form-row">
-          <label>Current department</label>
-          <input type="text" id="f-currentDepartment" placeholder="e.g. Platform Engineering">
+          <label>In Charge ID</label>
+          <input type="text" id="f-inChargeId" placeholder="e.g. EMP-102">
         </div>
         <div class="form-row">
-          <label>Submitter</label>
-          <input type="text" id="f-submitter" placeholder="e.g. Submitter name">
+          <label>In Charge Name</label>
+          <input type="text" id="f-inChargeName" placeholder="e.g. Rajesh Kumar">
         </div>
+      </div>
+      <div class="form-row">
+        <label>Submitter / Logged by</label>
+        <input type="text" id="f-submitter" placeholder="e.g. Submitter name">
       </div>
     </div>
 
@@ -1526,10 +1546,11 @@ function renderGallery() {
           <h3>${a.currentDescription || a.assetCode}</h3>
           <div class="sub" style="margin-top:4px">
             <div><strong>Serial:</strong> ${a.serialNumber}</div>
-            <div><strong>Category:</strong> ${a.currentCategory}</div>
-            <div><strong>Location:</strong> ${a.plant} ${a.building ? '· ' + a.building : ''}</div>
-            <div><strong>Condition:</strong> ${a.assetCondition}</div>
-            <div><strong>Date:</strong> ${a.date || a.purchaseDate || 'N/A'}</div>
+            <div><strong>Company:</strong> <span style="font-weight:700; color:var(--acc)">${a.company || 'IIPL'}</span></div>
+            <div><strong>Facility:</strong> Building <b>${a.building || 'C39'}</b> · Floor <b>${a.floor || '1st'}</b></div>
+            <div><strong>Dept:</strong> ${a.currentDepartment || a.department || 'Operations'}</div>
+            <div><strong>In Charge:</strong> ${a.whoInCharge || ((a.inChargeName ? (a.inChargeId ? a.inChargeId + ' · ' : '') + a.inChargeName : '') || a.submitter || 'Unassigned')}</div>
+            <div><strong>Condition:</strong> ${a.assetCondition || 'Good'}</div>
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--mute)">
@@ -1715,12 +1736,16 @@ function handleSaveAsset(e) {
     previousCategory: document.getElementById('f-previousCategory').value.trim(),
     currentDescription: document.getElementById('f-currentDescription').value.trim() || effectiveCode,
     previousDescription: document.getElementById('f-previousDescription').value.trim(),
+    company: document.getElementById('f-company')?.value || 'IIPL',
     plant: effectivePlant,
-    building: document.getElementById('f-building').value.trim(),
-    floor: document.getElementById('f-floor').value.trim(),
+    building: document.getElementById('f-building').value.trim() || 'C39',
+    floor: document.getElementById('f-floor').value.trim() || '1st Floor',
     currentLocation: document.getElementById('f-currentLocation').value.trim(),
-    currentDepartment: document.getElementById('f-currentDepartment').value.trim(),
-    submitter: document.getElementById('f-submitter').value.trim(),
+    currentDepartment: document.getElementById('f-currentDepartment').value.trim() || 'Operations',
+    submitter: document.getElementById('f-submitter').value.trim() || 'Staff',
+    inChargeId: document.getElementById('f-inChargeId')?.value.trim() || '',
+    inChargeName: document.getElementById('f-inChargeName')?.value.trim() || '',
+    whoInCharge: (document.getElementById('f-inChargeId')?.value.trim() && document.getElementById('f-inChargeName')?.value.trim()) ? `${document.getElementById('f-inChargeId').value.trim()} · ${document.getElementById('f-inChargeName').value.trim()}` : (document.getElementById('f-inChargeName')?.value.trim() || document.getElementById('f-submitter').value.trim() || 'Operations Staff'),
     assetCondition: effectiveCond,
     movementReason: document.getElementById('f-movementReason').value.trim(),
     remarks: combinedRemarks,

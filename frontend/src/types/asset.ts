@@ -19,15 +19,19 @@ export interface Asset {
   previousCategory?: string
   previousDescription?: string
 
-  // Location
+  // Location & Entity
+  company?: 'IIPL' | 'Padget' | string
   plant: string
-  building?: string
+  building?: 'C39' | 'D197' | 'D198' | 'D199' | string
   floor?: string
   currentLocation?: string
 
-  // Ownership
+  // Ownership & Responsible In-charge
   currentDepartment?: string
   submitter?: string
+  inChargeId?: string
+  inChargeName?: string
+  whoInCharge?: string
 
   // Asset Status
   assetCondition: string

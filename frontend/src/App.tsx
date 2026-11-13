@@ -27,6 +27,10 @@ export function App() {
   })
   const [aiAnswer, setAiAnswer] = React.useState<string>('')
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+  const [dashCompanyFilter, setDashCompanyFilter] = React.useState<'All' | 'IIPL' | 'Padget'>('All')
+  const [dashBuildingFilter, setDashBuildingFilter] = React.useState<string>('All')
+  const [dashSearchQuery, setDashSearchQuery] = React.useState<string>('')
+  const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string; code: string } | null>(null)
   const addAssetButtonRef = React.useRef<HTMLButtonElement>(null)
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
@@ -49,6 +53,43 @@ export function App() {
     if (hour < 18) return 'Good afternoon'
     return 'Good evening'
   }, [])
+
+  const filteredDashboardAssets = React.useMemo(() => {
+    if (assets.length === 0) return []
+    return assets.filter((a) => {
+      // Company filter: IIPL or Padget
+      if (dashCompanyFilter !== 'All') {
+        const comp = a.company || (a.location?.includes('Padget') ? 'Padget' : 'IIPL')
+        if (comp !== dashCompanyFilter) return false
+      }
+      // Building filter: C39, D197, D198, D199
+      if (dashBuildingFilter !== 'All') {
+        const bldg = a.building || 'C39'
+        if (bldg !== dashBuildingFilter) return false
+      }
+      // Search query
+      if (dashSearchQuery.trim()) {
+        const q = dashSearchQuery.toLowerCase()
+        const text = [
+          a.assetCode,
+          a.name,
+          a.currentDescription,
+          a.company,
+          a.building,
+          a.floor,
+          a.currentDepartment,
+          a.department,
+          a.inChargeId,
+          a.inChargeName,
+          a.assignedTo,
+          a.submitter,
+          a.serialNumber,
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!text.includes(q)) return false
+      }
+      return true
+    })
+  }, [assets, dashCompanyFilter, dashBuildingFilter, dashSearchQuery])
 
   const userInitials = React.useMemo(() => {
     return (
@@ -627,6 +668,282 @@ export function App() {
                   </div>
                 </div>
 
+                {/* Facility Assets Register - IIPL & Padget Deployed Units (C39, D197, D198, D199) */}
+                <section className="card" style={{ marginTop: '20px', padding: '20px' }} aria-label="Facility Assets Register">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--line)]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🏢</span>
+                        <h2 className="text-base font-bold text-[var(--ink)]">
+                          Facility Assets Register
+                        </h2>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-[var(--acc)]/10 text-[var(--acc)]">
+                          {filteredDashboardAssets.length} of {assets.length} Deployed
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--mute)] mt-1">
+                        Enterprise tracking across <b>IIPL</b> & <b>Padget</b> facilities (Buildings: <b>C39, D197, D198, D199</b>)
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Search */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={dashSearchQuery}
+                          onChange={(e) => setDashSearchQuery(e.target.value)}
+                          placeholder="Search code, dept, in-charge..."
+                          className="text-xs py-1.5 pl-7 pr-4 rounded-lg border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] focus:outline-none focus:border-[var(--acc)] w-48 md:w-56"
+                        />
+                        <span className="absolute left-2 top-1.5 text-xs text-[var(--mute)]">🔍</span>
+                        {dashSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setDashSearchQuery('')}
+                            className="absolute right-2 top-1 text-xs text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Company Filter */}
+                      <div className="flex items-center rounded-lg border border-[var(--line)] p-0.5 bg-[var(--surf)]" title="Filter by Company">
+                        {(['All', 'IIPL', 'Padget'] as const).map((comp) => (
+                          <button
+                            key={comp}
+                            type="button"
+                            onClick={() => setDashCompanyFilter(comp)}
+                            className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                              dashCompanyFilter === comp
+                                ? 'bg-[var(--acc)] text-white shadow-xs'
+                                : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                            }`}
+                          >
+                            {comp === 'All' ? 'All Co.' : comp}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Building Filter */}
+                      <div className="flex items-center rounded-lg border border-[var(--line)] p-0.5 bg-[var(--surf)]" title="Filter by Building">
+                        {(['All', 'C39', 'D197', 'D198', 'D199'] as const).map((bldg) => (
+                          <button
+                            key={bldg}
+                            type="button"
+                            onClick={() => setDashBuildingFilter(bldg)}
+                            className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                              dashBuildingFilter === bldg
+                                ? 'bg-[var(--acc)] text-white shadow-xs'
+                                : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                            }`}
+                          >
+                            {bldg === 'All' ? 'All Bldgs' : bldg}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="btn p text-xs py-1 px-3"
+                      >
+                        + Add Asset
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Asset Table */}
+                  {filteredDashboardAssets.length > 0 ? (
+                    <div className="overflow-x-auto mt-3">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
+                            <th className="py-2.5 px-3">Picture</th>
+                            <th className="py-2.5 px-3">Asset Code</th>
+                            <th className="py-2.5 px-3">Company</th>
+                            <th className="py-2.5 px-3">Building</th>
+                            <th className="py-2.5 px-3">Floor</th>
+                            <th className="py-2.5 px-3">Belong to Dept</th>
+                            <th className="py-2.5 px-3">Who in Charge (ID, Name)</th>
+                            <th className="py-2.5 px-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--line)]">
+                          {filteredDashboardAssets.map((asset) => {
+                            const comp = asset.company || (asset.location?.includes('Padget') ? 'Padget' : 'IIPL')
+                            const bldg = asset.building || 'C39'
+                            const flr = asset.floor || 'Ground Floor'
+                            const dept = asset.currentDepartment || asset.department || 'Operations'
+                            const inChargeDisplayId = asset.inChargeId || 'ID Pending'
+                            const inChargeDisplayName = asset.inChargeName || asset.submitter || asset.assignedTo || 'Unassigned Staff'
+
+                            return (
+                              <tr key={asset.id} className="hover:bg-[var(--surf2)]/50 transition-colors">
+                                {/* Picture */}
+                                <td className="py-2.5 px-3">
+                                  {asset.assetPhoto ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewImage({
+                                        url: asset.assetPhoto!,
+                                        title: asset.currentDescription || asset.name,
+                                        code: asset.assetCode
+                                      })}
+                                      className="cursor-pointer group relative block"
+                                      title="Click to view picture"
+                                    >
+                                      <img
+                                        src={asset.assetPhoto}
+                                        alt={asset.assetCode}
+                                        className="w-10 h-10 object-cover rounded-md border border-[var(--line)] shadow-xs group-hover:scale-105 transition-transform"
+                                      />
+                                    </button>
+                                  ) : (
+                                    <div
+                                      className="w-10 h-10 rounded-md bg-[var(--surf2)] border border-[var(--line)] flex items-center justify-center text-base"
+                                      title="No photo uploaded"
+                                    >
+                                      📦
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Asset Code */}
+                                <td className="py-2.5 px-3">
+                                  <div className="font-mono font-bold text-[var(--ink)] text-xs">
+                                    {asset.assetCode}
+                                  </div>
+                                  <div className="text-[11px] text-[var(--mute)] truncate max-w-[150px]" title={asset.currentDescription || asset.name}>
+                                    {asset.currentDescription || asset.name}
+                                  </div>
+                                </td>
+
+                                {/* Company: IIPL or Padget */}
+                                <td className="py-2.5 px-3">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                      comp === 'Padget'
+                                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                                    }`}
+                                  >
+                                    <span>{comp === 'Padget' ? '🏭' : '🏢'}</span>
+                                    <span>{comp}</span>
+                                  </span>
+                                </td>
+
+                                {/* Building: C39, D197, D198, D199 */}
+                                <td className="py-2.5 px-3">
+                                  <span className="inline-flex items-center gap-1 font-semibold text-xs text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] bg-[var(--surf)]">
+                                    <span>🏛️</span>
+                                    <span>{bldg}</span>
+                                  </span>
+                                </td>
+
+                                {/* Floor */}
+                                <td className="py-2.5 px-3 text-xs text-[var(--ink)]">
+                                  <span className="inline-flex items-center gap-1 text-[var(--mute)]">
+                                    <span>📍</span>
+                                    <span className="font-medium text-[var(--ink)]">{flr}</span>
+                                  </span>
+                                </td>
+
+                                {/* Belong to which dept */}
+                                <td className="py-2.5 px-3">
+                                  <span className="inline-block px-2 py-0.5 rounded bg-[var(--acc)]/10 text-[var(--acc)] font-medium text-xs">
+                                    {dept}
+                                  </span>
+                                </td>
+
+                                {/* Who in charge (ID, name) */}
+                                <td className="py-2.5 px-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-[var(--surf2)] border border-[var(--line)] text-xs flex items-center justify-center font-bold text-[var(--acc)] shrink-0">
+                                      👤
+                                    </div>
+                                    <div>
+                                      <div className="font-semibold text-xs text-[var(--ink)]">
+                                        {inChargeDisplayName}
+                                      </div>
+                                      <div className="text-[10.5px] font-mono text-[var(--mute)]">
+                                        ID: <span className="font-bold text-[var(--ink)]">{inChargeDisplayId}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Action: Bin delete */}
+                                <td className="py-2.5 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAsset(asset.id)}
+                                    className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors cursor-pointer border border-transparent hover:border-red-500/20"
+                                    title={`Delete asset ${asset.assetCode}`}
+                                    aria-label={`Delete asset ${asset.assetCode}`}
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 px-4">
+                      <div className="text-3xl mb-2">🏢</div>
+                      <h3 className="text-sm font-bold text-[var(--ink)]">
+                        {assets.length === 0
+                          ? 'Zero Assets Registered in Dashboard'
+                          : 'No matching assets found for active filters'}
+                      </h3>
+                      <p className="text-xs text-[var(--mute)] max-w-md mx-auto mt-1 mb-4">
+                        {assets.length === 0
+                          ? 'Add equipment or import an Excel spreadsheet to view real-time facility deployments for IIPL and Padget across buildings C39, D197, D198, and D199.'
+                          : 'Try clearing your search term or switching the Company and Building filters.'}
+                      </p>
+                      <div className="flex items-center justify-center gap-2">
+                        {assets.length === 0 ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddModalOpen(true)}
+                              className="btn p text-xs"
+                            >
+                              + Add First Asset
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCurrentHash('library')
+                                window.location.hash = '#library'
+                              }}
+                              className="btn text-xs"
+                            >
+                              📥 Import Spreadsheet
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDashSearchQuery('')
+                              setDashCompanyFilter('All')
+                              setDashBuildingFilter('All')
+                            }}
+                            className="btn text-xs"
+                          >
+                            Reset Filters
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </section>
+
                 {/* 12-Column Responsive Grid */}
                 <div className="grid">
                   {/* Cost Overview Line Chart */}
@@ -981,6 +1298,40 @@ export function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox / Picture Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="bg-[var(--surf)] border border-[var(--line)] rounded-xl max-w-lg w-full p-4 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--line)]">
+              <div>
+                <h3 className="font-bold text-sm text-[var(--ink)]">{previewImage.code}</h3>
+                <p className="text-xs text-[var(--mute)]">{previewImage.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="w-7 h-7 rounded-full bg-[var(--surf2)] hover:bg-[var(--line)] flex items-center justify-center text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="rounded-lg overflow-hidden border border-[var(--line)] bg-black/5 flex items-center justify-center max-h-[70vh]">
+              <img
+                src={previewImage.url}
+                alt={previewImage.code}
+                className="max-h-[65vh] w-auto object-contain mx-auto"
+              />
+            </div>
           </div>
         </div>
       )}

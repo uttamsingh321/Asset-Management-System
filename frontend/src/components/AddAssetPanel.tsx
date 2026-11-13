@@ -31,6 +31,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const [currentDescription, setCurrentDescription] = React.useState('')
   const [previousDescription, setPreviousDescription] = React.useState('')
 
+  const [company, setCompany] = React.useState<'IIPL' | 'Padget'>('IIPL')
+  const [inChargeId, setInChargeId] = React.useState('')
+  const [inChargeName, setInChargeName] = React.useState('')
   const [plant, setPlant] = React.useState('')
   const [plantUnavailable, setPlantUnavailable] = React.useState(false)
   const [plantReason, setPlantReason] = React.useState('')
@@ -304,20 +307,28 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       unavailNotes.length > 0 ? `[Unavailable Data Reasons: ${unavailNotes.join('; ')}]` : ''
     ].filter(Boolean).join(' — ')
 
+    const whoInCharge = (inChargeId.trim() && inChargeName.trim())
+      ? `${inChargeId.trim()} · ${inChargeName.trim()}`
+      : (inChargeName.trim() || submitter.trim() || 'Operations Staff')
+
     const newAsset: Asset = {
       id: `AST-${Date.now().toString().slice(-6)}`,
+      company,
       assetCode: effectiveAssetCode,
       serialNumber: effectiveSerialNumber,
       currentCategory: currentCategory.trim() || 'General Equipment',
       previousCategory: previousCategory.trim(),
       currentDescription: currentDescription.trim() || effectiveAssetCode,
       previousDescription: previousDescription.trim(),
-      plant: effectivePlant,
-      building: building.trim(),
-      floor: floor.trim(),
-      currentLocation: currentLocation.trim() || effectivePlant,
+      plant: effectivePlant || `${company} Central Plant`,
+      building: building.trim() || 'C39',
+      floor: floor.trim() || '1st Floor',
+      currentLocation: currentLocation.trim() || `${building.trim() || 'C39'} - ${floor.trim() || '1st Floor'}`,
       currentDepartment: currentDepartment.trim() || 'Operations',
-      submitter: submitter.trim() || 'Staff',
+      submitter: inChargeName.trim() || submitter.trim() || 'Staff',
+      inChargeId: inChargeId.trim() || undefined,
+      inChargeName: inChargeName.trim() || undefined,
+      whoInCharge,
       assetCondition: effectiveAssetCondition,
       movementReason: movementReason.trim(),
       remarks: combinedRemarks,
@@ -340,8 +351,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       purchaseDate: date,
       purchaseCost: 0,
       currentValue: 0,
-      assignedTo: submitter.trim() || 'Unassigned',
-      location: [effectivePlant, building.trim(), floor.trim()].filter(Boolean).join(' - ') || currentLocation.trim(),
+      assignedTo: whoInCharge,
+      location: [company, building.trim() || 'C39', floor.trim() || '1st Floor'].filter(Boolean).join(' · '),
     }
 
     onSave(newAsset)
@@ -358,14 +369,17 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     setPreviousCategory('')
     setCurrentDescription('')
     setPreviousDescription('')
+    setCompany('IIPL')
     setPlant('')
     setPlantUnavailable(false)
     setPlantReason('')
-    setBuilding('')
+    setBuilding('C39')
     setFloor('')
     setCurrentLocation('')
     setCurrentDepartment('')
     setSubmitter('')
+    setInChargeId('')
+    setInChargeName('')
     setAssetCondition('')
     setAssetConditionUnavailable(false)
     setAssetConditionReason('')
@@ -715,13 +729,82 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
             </div>
           </section>
 
-          {/* Location */}
+          {/* Company & Facility Location */}
           <section className="space-y-4 pt-3 border-t border-[var(--line)]">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
               Location
             </h3>
             <div className="space-y-4">
+              {/* Company Selector: IIPL or Padget */}
+              <div>
+                <label style={labelStyle}>Company <span className="text-[var(--bad)]">*</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['IIPL', 'Padget'] as const).map((comp) => (
+                    <button
+                      key={comp}
+                      type="button"
+                      onClick={() => setCompany(comp)}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                        company === comp
+                          ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
+                          : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      <span>{comp === 'IIPL' ? '🏢' : '🏭'}</span>
+                      <span>{comp}</span>
+                      {company === comp && <span className="text-[10px] ml-1">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Building: C39, D197, D198, D199 */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>
+                    Building <span className="text-[var(--bad)]">*</span>
+                  </label>
+                  <span className="text-[11px] text-[var(--mute)]">Select C39, D197, D198, or D199</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {(['C39', 'D197', 'D198', 'D199'] as const).map((bldg) => (
+                    <button
+                      key={bldg}
+                      type="button"
+                      onClick={() => setBuilding(bldg)}
+                      className={`py-1.5 px-2 rounded-lg border text-xs font-bold transition-all cursor-pointer text-center ${
+                        building === bldg
+                          ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
+                          : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {bldg}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  id="field-building"
+                  type="text"
+                  value={building}
+                  onChange={(e) => setBuilding(e.target.value)}
+                  placeholder="e.g. C39, D197, D198, D199"
+                  style={inputStyle}
+                />
+              </div>
+
               <div style={grid2Style}>
+                <div>
+                  <label htmlFor="field-floor" style={labelStyle}>Floor</label>
+                  <input
+                    id="field-floor"
+                    type="text"
+                    value={floor}
+                    onChange={(e) => setFloor(e.target.value)}
+                    placeholder="e.g. 1st Floor / xxx"
+                    style={inputStyle}
+                  />
+                </div>
+
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label htmlFor="field-plant" style={{ ...labelStyle, marginBottom: 0 }}>
@@ -821,69 +904,75 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     </div>
                   )}
                 </div>
-
-                <div>
-                  <label style={labelStyle}>Building</label>
-                  <input
-                    type="text"
-                    value={building}
-                    onChange={(e) => setBuilding(e.target.value)}
-                    placeholder="e.g. Block B Tech Wing"
-                    style={inputStyle}
-                  />
-                </div>
               </div>
 
-              <div style={grid2Style}>
-                <div>
-                  <label style={labelStyle}>Floor</label>
-                  <input
-                    type="text"
-                    value={floor}
-                    onChange={(e) => setFloor(e.target.value)}
-                    placeholder="e.g. 4th Floor"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Current location</label>
-                  <input
-                    type="text"
-                    value={currentLocation}
-                    onChange={(e) => setCurrentLocation(e.target.value)}
-                    placeholder="e.g. Bay 14 Desk 4A"
-                    style={inputStyle}
-                  />
-                </div>
+              <div>
+                <label style={labelStyle}>Specific area / Desk / Bay</label>
+                <input
+                  type="text"
+                  value={currentLocation}
+                  onChange={(e) => setCurrentLocation(e.target.value)}
+                  placeholder="e.g. Bay 14 Desk 4A"
+                  style={inputStyle}
+                />
               </div>
             </div>
           </section>
 
-          {/* Ownership */}
+          {/* Ownership & Department */}
           <section className="space-y-4 pt-3 border-t border-[var(--line)]">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
               Ownership
             </h3>
-            <div style={grid2Style}>
+            <div className="space-y-4">
               <div>
-                <label style={labelStyle}>Current department</label>
+                <label htmlFor="field-currentDepartment" style={labelStyle}>Belong to which dept <span className="text-[var(--bad)]">*</span></label>
                 <input
+                  id="field-currentDepartment"
                   type="text"
                   value={currentDepartment}
                   onChange={(e) => setCurrentDepartment(e.target.value)}
-                  placeholder="e.g. Platform Engineering"
+                  placeholder="e.g. IT, SMT Operations, Quality Control, Maintenance, Engineering"
                   style={inputStyle}
                 />
               </div>
 
               <div>
-                <label style={labelStyle}>Submitter</label>
+                <label style={labelStyle}>Who in charge (ID, Name)</label>
+                <div style={grid2Style}>
+                  <div>
+                    <input
+                      id="field-inChargeId"
+                      type="text"
+                      value={inChargeId}
+                      onChange={(e) => setInChargeId(e.target.value)}
+                      placeholder="Emp ID: e.g. EMP-102"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      id="field-inChargeName"
+                      type="text"
+                      value={inChargeName}
+                      onChange={(e) => {
+                        setInChargeName(e.target.value)
+                        if (!submitter) setSubmitter(e.target.value)
+                      }}
+                      placeholder="Name: e.g. Rajesh Kumar"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Submitter / Logged by</label>
                 <input
                   type="text"
                   value={submitter}
                   onChange={(e) => setSubmitter(e.target.value)}
-                  placeholder="e.g. Submitter name"
+                  placeholder="e.g. Submitter name or registry staff"
                   style={inputStyle}
                 />
               </div>

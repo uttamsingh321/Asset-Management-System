@@ -310,13 +310,97 @@ export async function parseExcelOrCsvFile(
         'srno',
       ]) || `SN-${String(Math.abs(hashString(assetCode) % 1000000)).padStart(6, '0')}`
 
-      const plant = findRowValue(row, ['plant', 'site', 'facility', 'factory', 'premises']) || 'Main Operations Center'
-      const building = findRowValue(row, ['building', 'block', 'wing'])
-      const floor = findRowValue(row, ['floor', 'level'])
-      const currentLocation = findRowValue(row, ['location', 'currentlocation', 'room', 'bay', 'desk', 'area']) || 'Storage Area'
+      const rawCompany = findRowValue(row, [
+        'company',
+        'entity',
+        'organization',
+        'org',
+        'comp',
+        'co',
+        'client',
+        'firm',
+      ])
+      let company = 'IIPL'
+      if (rawCompany) {
+        if (/padget/i.test(rawCompany)) company = 'Padget'
+        else if (/iipl/i.test(rawCompany)) company = 'IIPL'
+        else company = rawCompany
+      } else {
+        const combined = `${name} ${row['plant'] || ''} ${row['remarks'] || ''}`.toLowerCase()
+        if (combined.includes('padget')) company = 'Padget'
+      }
 
-      const department = findRowValue(row, ['department', 'currentdepartment', 'dept', 'costcenter', 'team']) || 'Operations'
-      const submitter = findRowValue(row, ['submitter', 'assignedto', 'user', 'owner', 'employee', 'staff']) || 'Enterprise Registry'
+      const plant = findRowValue(row, ['plant', 'site', 'facility', 'factory', 'premises']) || `${company} Central Plant`
+      const rawBuilding = findRowValue(row, ['building', 'bldg', 'block', 'wing', 'premise', 'structure'])
+      let building = rawBuilding || 'C39'
+      if (rawBuilding) {
+        const cleanB = rawBuilding.toUpperCase().replace(/\s+/g, '')
+        if (cleanB.includes('C39') || cleanB === 'C-39') building = 'C39'
+        else if (cleanB.includes('D197') || cleanB === 'D-197') building = 'D197'
+        else if (cleanB.includes('D198') || cleanB === 'D-198') building = 'D198'
+        else if (cleanB.includes('D199') || cleanB === 'D-199') building = 'D199'
+      }
+
+      const floor = findRowValue(row, ['floor', 'flr', 'level', 'storey', 'story']) || 'Ground Floor'
+      const currentLocation = findRowValue(row, ['location', 'currentlocation', 'room', 'bay', 'desk', 'area']) || `${building} - ${floor}`
+
+      const department = findRowValue(row, [
+        'department',
+        'currentdepartment',
+        'dept',
+        'belongtowhichdept',
+        'belongstodept',
+        'belongingdept',
+        'costcenter',
+        'team',
+        'division',
+      ]) || 'Operations'
+
+      const explicitInChargeId = findRowValue(row, [
+        'inchargeid',
+        'empid',
+        'employeeid',
+        'staffid',
+        'chargeid',
+        'custodianid',
+        'incharge_id',
+        'emp_id',
+      ])
+
+      const explicitInChargeName = findRowValue(row, [
+        'inchargename',
+        'personincharge',
+        'whoincharge',
+        'incharge',
+        'chargename',
+        'employeename',
+        'staffname',
+        'custodian',
+        'owner',
+        'assignedto',
+        'submitter',
+        'user',
+      ])
+
+      let inChargeId = explicitInChargeId
+      let inChargeName = explicitInChargeName
+
+      if (!inChargeId && inChargeName) {
+        const idMatch1 = inChargeName.match(/^([A-Z0-9_-]{3,12})\s*[-:·,]\s*(.+)$/i)
+        const idMatch2 = inChargeName.match(/^(.+?)\s*\(([A-Z0-9_-]{3,12})\)$/i)
+        if (idMatch1) {
+          inChargeId = idMatch1[1].trim()
+          inChargeName = idMatch1[2].trim()
+        } else if (idMatch2) {
+          inChargeName = idMatch2[1].trim()
+          inChargeId = idMatch2[2].trim()
+        }
+      }
+
+      if (!inChargeId) inChargeId = `EMP-${String(Math.abs(hashString(assetCode) % 900) + 100)}`
+      if (!inChargeName) inChargeName = 'Operations Staff'
+      const whoInCharge = `${inChargeId} · ${inChargeName}`
+      const submitter = inChargeName
 
       const assetCondition = findRowValue(row, ['assetcondition', 'condition', 'health', 'state']) || 'Operational - Good'
       const movementReason = findRowValue(row, ['movementreason', 'reason', 'purpose']) || 'Bulk inventory import'
@@ -331,6 +415,7 @@ export async function parseExcelOrCsvFile(
         'photourl',
         'imageurl',
         'img',
+        'pic',
       ]) || undefined
 
       const statusRaw = findRowValue(row, ['status', 'assetstatus', 'state']).toLowerCase()
@@ -340,8 +425,8 @@ export async function parseExcelOrCsvFile(
       else if (statusRaw.includes('retir') || statusRaw.includes('dispos')) status = 'Retired'
 
       const purchaseCost = Number(findRowValue(row, ['cost', 'purchasecost', 'price', 'value', 'amount'])) || 0
-      const assignedTo = submitter || findRowValue(row, ['assignedto', 'assignee', 'user', 'owner']) || 'Unassigned'
-      const location = [plant, building, currentLocation].filter(Boolean).join(' - ') || 'Main Operations Center'
+      const assignedTo = whoInCharge
+      const location = [company, building, floor].filter(Boolean).join(' · ')
 
       // Extract date from Excel sheet if present; fallback to today's date
       const rawDateVal = findRowRawValue(row, [
@@ -373,6 +458,7 @@ export async function parseExcelOrCsvFile(
 
       const asset: Asset = {
         id: `import-${Date.now()}-${r}`,
+        company,
         assetCode,
         serialNumber,
         currentCategory: category,
@@ -385,6 +471,9 @@ export async function parseExcelOrCsvFile(
         currentLocation: currentLocation || undefined,
         currentDepartment: department,
         submitter,
+        inChargeId,
+        inChargeName,
+        whoInCharge,
         assetCondition,
         movementReason,
         remarks,

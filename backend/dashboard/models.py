@@ -39,14 +39,17 @@ class Asset(models.Model):
     previous_description = models.TextField(blank=True)
 
     # Location
+    company = models.CharField(max_length=64, blank=True, default="IIPL")
     plant = models.CharField(max_length=128, blank=True)
     building = models.CharField(max_length=128, blank=True)
     floor = models.CharField(max_length=64, blank=True)
     current_location = models.CharField(max_length=255, blank=True)
 
-    # Ownership
+    # Ownership & Personnel in Charge
     current_department = models.CharField(max_length=128, blank=True)
     submitter = models.CharField(max_length=128, blank=True)
+    in_charge_id = models.CharField(max_length=64, blank=True)
+    in_charge_name = models.CharField(max_length=128, blank=True)
 
     # Asset Status
     asset_condition = models.CharField(max_length=128, blank=True)
@@ -79,13 +82,17 @@ class Asset(models.Model):
             "previousCategory": self.previous_category,
             "currentDescription": self.current_description,
             "previousDescription": self.previous_description,
+            "company": self.company or "IIPL",
             "plant": self.plant,
-            "building": self.building,
-            "floor": self.floor,
+            "building": self.building or "C39",
+            "floor": self.floor or "1st Floor",
             "currentLocation": self.current_location,
             "department": self.department or self.current_department,
-            "currentDepartment": self.current_department,
+            "currentDepartment": self.current_department or self.department,
             "submitter": self.submitter,
+            "inChargeId": self.in_charge_id,
+            "inChargeName": self.in_charge_name,
+            "whoInCharge": f"{self.in_charge_id} · {self.in_charge_name}" if (self.in_charge_id and self.in_charge_name) else (self.in_charge_name or self.assigned_to or self.submitter),
             "status": self.status,
             "assetCondition": self.asset_condition,
             "movementReason": self.movement_reason,
