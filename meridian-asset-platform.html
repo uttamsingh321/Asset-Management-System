@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Meridian · Asset Management Platform</title>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root {
   --bg: #f4f6f9;
@@ -586,7 +587,13 @@ summary::-webkit-details-marker { display: none; }
         <div class="sub">Asset types and templates: categories, models and specifications. Physical assets live in the Asset Gallery.</div>
       </div>
       <div style="display:flex; gap:8px;">
-        <button class="btn" onclick="toast('Import assets dialog triggered')">Import assets</button>
+        <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelImport(event)">
+        <button class="btn" onclick="triggerFileImport()" title="Import Excel (.xlsx, .xls) or CSV (.csv) file">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle; margin-right:4px; display:inline">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Import assets
+        </button>
         <button class="btn primary" onclick="showTab('gallery')">Open Asset Gallery</button>
       </div>
     </div>
@@ -864,6 +871,42 @@ summary::-webkit-details-marker { display: none; }
   </div>
 </div>
 
+<!-- Import Progress & Auto-Categorization Modal -->
+<div id="import-modal" class="drawer-backdrop" style="display:none; align-items:center; justify-content:center; z-index:210;">
+  <div style="background:var(--surf); border:1px solid var(--line); border-radius:16px; width:92%; max-width:520px; overflow:hidden; box-shadow:0 16px 40px rgba(0,0,0,0.3); padding:20px">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px">
+      <div style="display:flex; align-items:center; gap:8px">
+        <span style="font-size:20px">📊</span>
+        <strong id="import-modal-title" style="font-size:15px">Importing & Auto-Categorizing Assets</strong>
+      </div>
+      <button id="import-close-btn" onclick="closeImportModal()" style="font-size:18px; color:var(--mute); display:none">&times;</button>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px">
+        <span id="import-file-label" style="font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px">File</span>
+        <span id="import-percent-label" style="font-weight:700; color:var(--acc)">0%</span>
+      </div>
+      <div style="background:var(--surf2); height:10px; border-radius:99px; overflow:hidden; border:1px solid var(--line)">
+        <div id="import-progress-bar" style="background:linear-gradient(90deg, var(--acc), #20a39e); height:100%; width:0%; transition:width 0.2s"></div>
+      </div>
+      <div id="import-status-text" style="font-size:12px; color:var(--mute); margin-top:6px">Initializing spreadsheet parser...</div>
+    </div>
+
+    <div id="import-summary-box" style="display:none; border-top:1px solid var(--line); padding-top:12px">
+      <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:8px">
+        <span>Auto-Sorted Categories</span>
+        <span id="import-total-count" style="color:var(--acc)">0 units</span>
+      </div>
+      <div id="import-breakdown-list" style="max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-bottom:12px"></div>
+      <div style="display:flex; gap:8px">
+        <button type="button" class="btn primary" style="flex:1" onclick="closeImportModal(); showTab('gallery')">View in Asset Gallery &rarr;</button>
+        <button type="button" class="btn" onclick="closeImportModal(); showTab('library')">View Asset Types</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast" role="status"></div>
 
 <script>
@@ -1109,11 +1152,219 @@ function deleteAssetType(id) {
   toast('Asset type deleted.');
 }
 
-function importStandardTemplates() {
-  assetTypes = [...sampleAssetTemplates];
-  renderCategories();
-  renderAssetTypes();
-  toast(`Imported ${sampleAssetTemplates.length} standard equipment templates!`);
+function triggerFileImport() {
+  const input = document.getElementById('importFileInput');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+function closeImportModal() {
+  const modal = document.getElementById('import-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function autoCategorize(name, description, rawCategory) {
+  const cleanRaw = (rawCategory || '').trim();
+  if (cleanRaw && !['general', 'unassigned', 'unknown', 'misc', 'miscellaneous', 'other'].includes(cleanRaw.toLowerCase())) {
+    return cleanRaw;
+  }
+  const text = `${name || ''} ${description || ''}`.toLowerCase();
+  if (/\b(mouse|mice|trackpad|touchpad|magic mouse|mx master|trackball|pointing device)\b/.test(text)) return 'Mice & Pointers';
+  if (/\b(keyboard|keypad|magic keyboard|mechanical keyboard|qwerty)\b/.test(text)) return 'Keyboards';
+  if (/\b(laptop|macbook|thinkpad|notebook|chromebook|latitude|precision|probook|elitebook|zenbook|yoga)\b/.test(text)) return 'Laptops';
+  if (/\b(computer|desktop|pc|workstation|tower|optiplex|imac|mac mini|mac studio|mac pro|server|blade)\b/.test(text)) return 'Computers';
+  if (/\b(monitor|display|ultrasharp|screen|oled|led monitor|lcd|projector|tft|curved monitor)\b/.test(text)) return 'Monitors & Displays';
+  if (/\b(tablet|ipad|galaxy tab|smartphone|iphone|pixel|mobile|phone|handheld|surface pro)\b/.test(text)) return 'Tablets & Mobile';
+  if (/\b(printer|scanner|barcode|label printer|zebra|honeywell|laserjet|deskjet|thermal printer)\b/.test(text)) return 'Printers & Scanners';
+  if (/\b(switch|router|access point|firewall|cisco|gateway|modem|ethernet|poe|patch panel|rack)\b/.test(text)) return 'Networking';
+  if (/\b(press|cnc|mill|lathe|hydraulic|grinder|welder|drill|machinery|vmc|conveyor|injection)\b/.test(text)) return 'Heavy Machinery';
+  if (/\b(van|truck|tata|forklift|vehicle|car|fleet|lorry|trailer|pickup|transporter)\b/.test(text)) return 'Fleet & Vehicles';
+  if (/\b(chiller|hvac|air condition|ac unit|compressor|generator|cooling|ventilation|air handler)\b/.test(text)) return 'HVAC & Facility';
+  if (/\b(desk|chair|table|workstation|cabinet|godrej|furniture|pedestal|bookshelf|drawer)\b/.test(text)) return 'Furniture & Fixtures';
+  if (/\b(bearing|skf|valve|gasket|pump|filter|belt|gear|fuse|fitting|flange)\b/.test(text)) return 'Spares & Consumables';
+  if (/\b(camera|headset|headphones|microphone|speaker|webcam|soundbar|mic)\b/.test(text)) return 'Audio/Visual';
+  return cleanRaw || 'General Equipment';
+}
+
+function inferManufacturer(name) {
+  const lower = (name || '').toLowerCase();
+  if (lower.includes('apple') || lower.includes('macbook') || lower.includes('ipad')) return 'Apple';
+  if (lower.includes('dell') || lower.includes('ultrasharp') || lower.includes('optiplex')) return 'Dell';
+  if (lower.includes('hp') || lower.includes('probook') || lower.includes('laserjet')) return 'HP';
+  if (lower.includes('lenovo') || lower.includes('thinkpad')) return 'Lenovo';
+  if (lower.includes('cisco')) return 'Cisco';
+  if (lower.includes('logitech')) return 'Logitech';
+  if (lower.includes('samsung')) return 'Samsung';
+  if (lower.includes('tata')) return 'Tata Motors';
+  if (lower.includes('godrej')) return 'Godrej Interio';
+  if (lower.includes('skf')) return 'SKF';
+  return 'Enterprise Supplier';
+}
+
+async function handleExcelImport(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const modal = document.getElementById('import-modal');
+  modal.style.display = 'flex';
+  document.getElementById('import-modal-title').innerText = 'Importing & Auto-Categorizing Assets';
+  document.getElementById('import-file-label').innerText = `${file.name} (${Math.round(file.size / 1024)} KB)`;
+  document.getElementById('import-percent-label').innerText = '5%';
+  document.getElementById('import-progress-bar').style.width = '5%';
+  document.getElementById('import-status-text').innerText = 'Reading file contents...';
+  document.getElementById('import-close-btn').style.display = 'none';
+  document.getElementById('import-summary-box').style.display = 'none';
+
+  try {
+    let rows = [];
+
+    if (window.XLSX && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+      const data = await file.arrayBuffer();
+      document.getElementById('import-percent-label').innerText = '25%';
+      document.getElementById('import-progress-bar').style.width = '25%';
+      document.getElementById('import-status-text').innerText = 'Parsing Excel workbook sheets...';
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+    } else {
+      // CSV fallback
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length > 1) {
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+        for (let i = 1; i < lines.length; i++) {
+          const vals = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+          const rowObj = {};
+          headers.forEach((h, idx) => { rowObj[h] = vals[idx] || ''; });
+          rows.push(rowObj);
+        }
+      }
+    }
+
+    const totalRows = rows.length;
+    if (totalRows === 0) {
+      throw new Error('Spreadsheet contains no data rows.');
+    }
+
+    const categoryBreakdown = {};
+    const newAssets = [];
+    const newTypesMap = {};
+    const chunkSize = 2000;
+    const today = new Date().toISOString().split('T')[0];
+
+    for (let i = 0; i < totalRows; i += chunkSize) {
+      const end = Math.min(i + chunkSize, totalRows);
+      const pct = Math.min(95, Math.round(30 + ((i / totalRows) * 65)));
+      document.getElementById('import-percent-label').innerText = `${pct}%`;
+      document.getElementById('import-progress-bar').style.width = `${pct}%`;
+      document.getElementById('import-status-text').innerText = `Sorting rows ${i + 1} to ${end} of ${totalRows}...`;
+
+      for (let r = i; r < end; r++) {
+        const row = rows[r];
+        const keys = Object.keys(row);
+        const getVal = (candidates) => {
+          for (const cand of candidates) {
+            const clean = cand.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const k = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === clean);
+            if (k && row[k] !== undefined && String(row[k]).trim() !== '') return String(row[k]).trim();
+          }
+          return '';
+        };
+
+        const name = getVal(['name', 'assetname', 'itemname', 'description', 'model', 'equipment', 'item']) || `Equipment Item #${r + 1}`;
+        const rawCategory = getVal(['category', 'currentcategory', 'type', 'group', 'classification']);
+        const category = autoCategorize(name, '', rawCategory);
+        const assetCode = getVal(['assetcode', 'code', 'tag', 'assettag', 'id']) || `AST-IMP-${String(r + 1).padStart(5, '0')}`;
+        const serialNumber = getVal(['serialnumber', 'serialno', 'serial', 'sn']) || `SN-${Math.floor(100000 + Math.random() * 900000)}`;
+        const plant = getVal(['plant', 'site', 'facility']) || 'Main Operations Center';
+        const building = getVal(['building', 'block', 'wing']);
+        const floor = getVal(['floor', 'level']);
+        const currentLocation = getVal(['location', 'currentlocation', 'room', 'bay']) || 'Storage Area';
+        const department = getVal(['department', 'currentdepartment', 'dept']) || 'Operations';
+        const submitter = getVal(['submitter', 'assignedto', 'user', 'owner']) || 'Enterprise Registry';
+        const assetCondition = getVal(['assetcondition', 'condition', 'health']) || 'Operational - Good';
+        const movementReason = getVal(['movementreason', 'reason']) || 'Bulk inventory import';
+        const remarks = getVal(['remarks', 'notes', 'comments']) || `Imported from ${file.name}`;
+        const assetPhoto = getVal(['assetphoto', 'photo', 'image', 'picture']) || undefined;
+
+        categoryBreakdown[category] = (categoryBreakdown[category] || 0) + 1;
+
+        newAssets.push({
+          assetCode,
+          serialNumber,
+          currentCategory: category,
+          currentDescription: name,
+          plant,
+          building,
+          floor,
+          currentLocation,
+          currentDepartment: department,
+          submitter,
+          assetCondition,
+          movementReason,
+          remarks,
+          assetPhoto,
+          date: today
+        });
+
+        const typeKey = `${name.toLowerCase()}:::${category.toLowerCase()}`;
+        if (!newTypesMap[typeKey]) {
+          const manufacturer = getVal(['manufacturer', 'make', 'brand', 'vendor']) || inferManufacturer(name);
+          newTypesMap[typeKey] = {
+            id: Date.now() + Object.keys(newTypesMap).length,
+            name,
+            category,
+            manufacturer,
+            specs: {
+              'Category': category,
+              'Manufacturer': manufacturer,
+              'Auto-classified': 'Yes',
+              'Registered on': today
+            }
+          };
+        }
+      }
+
+      if (i + chunkSize < totalRows) {
+        await new Promise(res => setTimeout(res, 0));
+      }
+    }
+
+    // Merge into state
+    assets = [...newAssets, ...assets];
+    const newTypes = Object.values(newTypesMap);
+    const existingTypeKeys = new Set(assetTypes.map(t => `${t.name.toLowerCase()}:::${t.category.toLowerCase()}`));
+    const freshTypes = newTypes.filter(t => !existingTypeKeys.has(`${t.name.toLowerCase()}:::${t.category.toLowerCase()}`));
+    assetTypes = [...freshTypes, ...assetTypes];
+
+    renderCategories();
+    renderAssetTypes();
+    renderGallery();
+
+    document.getElementById('import-percent-label').innerText = '100%';
+    document.getElementById('import-progress-bar').style.width = '100%';
+    document.getElementById('import-status-text').innerText = `Done! Imported ${newAssets.length.toLocaleString()} items across ${Object.keys(categoryBreakdown).length} categories.`;
+    document.getElementById('import-modal-title').innerText = 'Import & Auto-Categorization Complete';
+    document.getElementById('import-close-btn').style.display = 'block';
+    document.getElementById('import-summary-box').style.display = 'block';
+    document.getElementById('import-total-count').innerText = `${newAssets.length.toLocaleString()} units`;
+
+    const breakdownHtml = Object.entries(categoryBreakdown).map(([cat, count]) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:var(--surf2); border-radius:6px; font-size:12px">
+        <span style="font-weight:600">${cat}</span>
+        <span class="chip" style="font-weight:700">${count.toLocaleString()} assets</span>
+      </div>
+    `).join('');
+    document.getElementById('import-breakdown-list').innerHTML = breakdownHtml;
+
+    toast(`Successfully imported ${newAssets.length.toLocaleString()} assets!`);
+  } catch (err) {
+    console.error(err);
+    alert('Import failed: ' + err.message);
+    closeImportModal();
+  }
 }
 
 function renderGallery() {

@@ -31,12 +31,13 @@ export function App() {
   })
   const searchInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Sync to local storage
+  // Sync to local storage safely with quota protection
   React.useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(assets))
+      const safeSubset = assets.length > 2000 ? assets.slice(0, 2000) : assets
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSubset))
     } catch (err) {
-      console.error('Failed to sync assets', err)
+      console.warn('Failed to sync assets to localStorage', err)
     }
   }, [assets])
 
@@ -116,6 +117,10 @@ export function App() {
     if (assets.length === 0) return
     setAssets([])
     toast.success('All physical assets removed from registry')
+  }
+
+  const handleImportAssets = (importedAssets: Asset[]) => {
+    setAssets((prev) => [...importedAssets, ...prev])
   }
 
   const isDashboard = currentHash === 'dashboard'
@@ -629,6 +634,7 @@ export function App() {
                 onOpenAddAsset={() => setIsAddModalOpen(true)}
                 onDeleteAsset={handleDeleteAsset}
                 onClearAllAssets={handleClearAllAssets}
+                onImportAssets={handleImportAssets}
                 addAssetButtonRef={addAssetButtonRef}
               />
             ) : activePage ? (

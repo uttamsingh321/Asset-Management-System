@@ -1,10 +1,13 @@
 import * as React from 'react'
 import type { Asset, AssetTypeTemplate } from '@/types/asset'
-import { initialAssetTypes, sampleAssetTemplates } from '@/data/assetLibraryData'
+import { initialAssetTypes } from '@/data/assetLibraryData'
 import { AssetIllustration } from '@/components/AssetIllustrations'
+import { parseExcelOrCsvFile, type ImportSummary } from '@/lib/excelImporter'
 import { toast } from 'sonner'
 
 const STORAGE_KEY_TYPES = 'meridian_asset_types'
+const GALLERY_PAGE_SIZE = 24
+const TYPES_PAGE_SIZE = 15
 
 interface AssetLibraryViewProps {
   assets: Asset[]
@@ -13,6 +16,7 @@ interface AssetLibraryViewProps {
   onOpenAddAsset: () => void
   onDeleteAsset?: (id: string) => void
   onClearAllAssets?: () => void
+  onImportAssets?: (importedAssets: Asset[], importedAssetTypes: AssetTypeTemplate[]) => void
   addAssetButtonRef?: React.RefObject<HTMLButtonElement | null>
 }
 
@@ -23,6 +27,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
   onOpenAddAsset,
   onDeleteAsset,
   onClearAllAssets,
+  onImportAssets,
   addAssetButtonRef,
 }) => {
   const [assetTypes, setAssetTypes] = React.useState<AssetTypeTemplate[]>(() => {
@@ -33,21 +38,35 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
       return initialAssetTypes
     }
   })
-  const [filterCategory, setFilterCategory] = React.useState<string | null>(null)
 
-  // Sync types to localStorage
+  // Sync types to localStorage safely
   React.useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_TYPES, JSON.stringify(assetTypes))
+      localStorage.setItem(STORAGE_KEY_TYPES, JSON.stringify(assetTypes.slice(0, 500)))
     } catch (err) {
-      console.error('Failed to sync asset types to storage', err)
+      console.warn('Failed to sync asset types to storage', err)
     }
   }, [assetTypes])
+
+  // Filter & Search states
+  const [filterCategory, setFilterCategory] = React.useState<string | null>(null)
+  const [gallerySearch, setGallerySearch] = React.useState('')
+  const [galleryPage, setGalleryPage] = React.useState(1)
+  const [typesSearch, setTypesSearch] = React.useState('')
+  const [typesPage, setTypesPage] = React.useState(1)
 
   // Quick-add row states
   const [newTypeName, setNewTypeName] = React.useState('')
   const [newCategory, setNewCategory] = React.useState('')
   const [newManufacturer, setNewManufacturer] = React.useState('')
+
+  // Excel / CSV Import states
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [isImporting, setIsImporting] = React.useState(false)
+  const [importProgress, setImportProgress] = React.useState(0)
+  const [importMessage, setImportMessage] = React.useState('')
+  const [importFileName, setImportFileName] = React.useState('')
+  const [importSummary, setImportSummary] = React.useState<ImportSummary | null>(null)
 
   // Compute category stats
   const categoryStats = React.useMemo(() => {
@@ -60,7 +79,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     })
 
     assets.forEach((a) => {
-      const cat = a.currentCategory || 'General'
+      const cat = a.currentCategory || a.category || 'General Equipment'
       const existing = map.get(cat) || { typesCount: 0, assetsCount: 0 }
       existing.assetsCount += 1
       map.set(cat, existing)
@@ -83,20 +102,20 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
   // Assets without a matched type
   const unlinkedAssetsCount = React.useMemo(() => {
     const knownNames = new Set(assetTypes.map((t) => t.name.toLowerCase()))
-    return assets.filter((a) => !knownNames.has(a.currentDescription.toLowerCase())).length
+    return assets.filter((a) => !knownNames.has((a.currentDescription || a.name || '').toLowerCase())).length
   }, [assetTypes, assets])
 
   // Count physical assets matching a type
   const countInGallery = (type: AssetTypeTemplate) => {
     const tName = type.name.toLowerCase()
-    return assets.filter(
-      (a) =>
-        a.currentDescription.toLowerCase().includes(tName) ||
-        tName.includes(a.currentDescription.toLowerCase()) ||
-        a.currentCategory.toLowerCase() === type.category.toLowerCase()
-    ).length
+    return assets.filter((a) => {
+      const desc = (a.currentDescription || a.name || '').toLowerCase()
+      const cat = (a.currentCategory || a.category || '').toLowerCase()
+      return desc.includes(tName) || tName.includes(desc) || cat === type.category.toLowerCase()
+    }).length
   }
 
+  // Quick-add new type
   const handleAddType = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTypeName.trim()) {
@@ -135,20 +154,221 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     toast.success('All asset types removed from library')
   }
 
-  const handleImportTemplates = () => {
-    setAssetTypes(sampleAssetTemplates)
-    toast.success(`Imported ${sampleAssetTemplates.length} standard equipment specification templates`)
+  // Trigger file selection for Excel / CSV import
+  const handleTriggerFileImport = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+      fileInputRef.current.click()
+    }
   }
+
+  // File import execution (handles up to 10k-100k rows asynchronously)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImportFileName(file.name)
+    setIsImporting(true)
+    setImportProgress(5)
+    setImportMessage(`Reading spreadsheet ${file.name}...`)
+    setImportSummary(null)
+
+    try {
+      const result = await parseExcelOrCsvFile(file, (progress, message) => {
+        setImportProgress(progress)
+        setImportMessage(message)
+      })
+
+      // Merge newly extracted types with existing templates
+      setAssetTypes((prev) => {
+        const existingNames = new Set(prev.map((t) => `${t.name.toLowerCase()}:::${t.category.toLowerCase()}`))
+        const fresh = result.assetTypes.filter(
+          (t) => !existingNames.has(`${t.name.toLowerCase()}:::${t.category.toLowerCase()}`)
+        )
+        return [...fresh, ...prev]
+      })
+
+      // Notify parent app of new assets
+      if (onImportAssets) {
+        onImportAssets(result.assets, result.assetTypes)
+      }
+
+      setImportSummary(result.summary)
+      toast.success(
+        `Successfully imported ${result.summary.importedCount.toLocaleString()} assets across ${result.summary.categoriesCount} categories!`
+      )
+    } catch (err: any) {
+      console.error('Import error:', err)
+      toast.error(err?.message || 'Failed to import spreadsheet file.')
+      setIsImporting(false)
+    }
+  }
+
+  // Filtered Assets for Gallery
+  const filteredAssets = React.useMemo(() => {
+    return assets.filter((asset) => {
+      const matchesCategory = !filterCategory || (asset.currentCategory || asset.category) === filterCategory
+      if (!matchesCategory) return false
+
+      if (!gallerySearch.trim()) return true
+      const q = gallerySearch.toLowerCase()
+      return (
+        asset.assetCode.toLowerCase().includes(q) ||
+        asset.serialNumber.toLowerCase().includes(q) ||
+        asset.currentDescription.toLowerCase().includes(q) ||
+        (asset.currentCategory || '').toLowerCase().includes(q) ||
+        (asset.plant || '').toLowerCase().includes(q) ||
+        (asset.currentLocation || '').toLowerCase().includes(q) ||
+        (asset.currentDepartment || '').toLowerCase().includes(q) ||
+        (asset.submitter || '').toLowerCase().includes(q)
+      )
+    })
+  }, [assets, filterCategory, gallerySearch])
+
+  // Paged Assets
+  const totalGalleryPages = Math.max(1, Math.ceil(filteredAssets.length / GALLERY_PAGE_SIZE))
+  const pagedAssets = React.useMemo(() => {
+    const start = (galleryPage - 1) * GALLERY_PAGE_SIZE
+    return filteredAssets.slice(start, start + GALLERY_PAGE_SIZE)
+  }, [filteredAssets, galleryPage])
+
+  // Filtered Types for Library
+  const filteredTypes = React.useMemo(() => {
+    return assetTypes.filter((type) => {
+      const matchesCategory = !filterCategory || type.category === filterCategory
+      if (!matchesCategory) return false
+
+      if (!typesSearch.trim()) return true
+      const q = typesSearch.toLowerCase()
+      return (
+        type.name.toLowerCase().includes(q) ||
+        type.category.toLowerCase().includes(q) ||
+        type.manufacturer.toLowerCase().includes(q) ||
+        Object.entries(type.specs).some(([k, v]) => `${k} ${v}`.toLowerCase().includes(q))
+      )
+    })
+  }, [assetTypes, filterCategory, typesSearch])
+
+  // Paged Types
+  const totalTypesPages = Math.max(1, Math.ceil(filteredTypes.length / TYPES_PAGE_SIZE))
+  const pagedTypes = React.useMemo(() => {
+    const start = (typesPage - 1) * TYPES_PAGE_SIZE
+    return filteredTypes.slice(start, start + TYPES_PAGE_SIZE)
+  }, [filteredTypes, typesPage])
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input for Excel / CSV Import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        onChange={handleFileChange}
+        className="hidden"
+        aria-label="Import Excel or CSV file"
+      />
+
+      {/* Import Progress & Categorization Modal */}
+      {isImporting && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="import-title"
+        >
+          <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📊</span>
+                <h3 id="import-title" className="text-base font-bold text-[var(--ink)]">
+                  {importSummary ? 'Import & Auto-Categorization Complete' : 'Importing & Auto-Categorizing Assets'}
+                </h3>
+              </div>
+              {importSummary && (
+                <button
+                  onClick={() => setIsImporting(false)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--mute)] hover:bg-[var(--surf2)] transition"
+                  aria-label="Close dialog"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between text-xs text-[var(--mute)]">
+                <span className="font-medium text-[var(--ink)] truncate max-w-[260px]">{importFileName}</span>
+                <span className="font-semibold text-[var(--acc)]">{importProgress}%</span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-[var(--surf2)] h-3 rounded-full overflow-hidden border border-[var(--line)]">
+                <div
+                  className="bg-gradient-to-r from-[var(--acc)] to-[#20a39e] h-full rounded-full transition-all duration-300"
+                  style={{ width: `${importProgress}%` }}
+                />
+              </div>
+
+              <div className="text-xs text-[var(--mute)] animate-pulse">{importMessage}</div>
+            </div>
+
+            {/* Categorization Breakdown Result */}
+            {importSummary && (
+              <div className="space-y-3 pt-2 border-t border-[var(--line)]">
+                <div className="text-xs font-semibold text-[var(--ink)] flex items-center justify-between">
+                  <span>Auto-Sorted Categories</span>
+                  <span className="text-[var(--acc)]">
+                    {importSummary.importedCount.toLocaleString()} total units
+                  </span>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                  {Object.entries(importSummary.categoryBreakdown).map(([cat, count]) => (
+                    <div
+                      key={cat}
+                      className="flex items-center justify-between text-xs p-2 rounded-lg bg-[var(--surf2)]/70 border border-[var(--line)]"
+                    >
+                      <span className="font-medium text-[var(--ink)]">{cat}</span>
+                      <span className="font-bold text-[var(--acc)] px-2 py-0.5 rounded bg-[var(--acc2)]">
+                        {count.toLocaleString()} assets
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setIsImporting(false)
+                      setActiveSubTab('gallery')
+                    }}
+                    className="flex-1 py-2 text-xs font-semibold rounded-lg bg-[var(--acc)] text-white hover:opacity-90 transition"
+                  >
+                    View in Asset Gallery →
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsImporting(false)
+                      setActiveSubTab('library')
+                    }}
+                    className="px-4 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] hover:bg-[var(--line)] transition"
+                  >
+                    View Asset Types
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeSubTab === 'gallery' ? (
         /* ================= PART 1: ASSET GALLERY VIEW ================= */
         <div className="space-y-6">
           <div className="top">
             <div>
               <h1>Asset Gallery</h1>
-              <div className="sub">{assets.length} assets registered across categories</div>
+              <div className="sub">{assets.length.toLocaleString()} assets registered across categories</div>
             </div>
             <div className="btns">
               {assets.length > 0 && (
@@ -156,7 +376,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                   className="btn"
                   style={{ color: 'var(--bad)', borderColor: 'var(--line)' }}
                   onClick={onClearAllAssets}
-                  title="Remove all registered dummy assets"
+                  title="Remove all registered assets"
                   aria-label="Clear all assets"
                 >
                   <svg
@@ -179,15 +399,21 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               )}
               <button
                 className="btn"
-                onClick={() => {
-                  if (assets.length === 0) {
-                    toast.warning('No assets recorded to export.')
-                    return
-                  }
-                  toast.success('Exporting physical asset registry')
-                }}
+                onClick={handleTriggerFileImport}
+                title="Import Excel (.xlsx, .xls) or CSV (.csv) file"
               >
-                Export
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Import assets
               </button>
               <button
                 ref={addAssetButtonRef}
@@ -203,102 +429,215 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
           <div className="kpis">
             <div className="card k">
               <div className="l">Total assets</div>
-              <div className="v">{assets.length}</div>
+              <div className="v">{assets.length.toLocaleString()}</div>
               <div className="d">0 this month</div>
             </div>
             <div className="card k">
               <div className="l">Assigned</div>
               <div className="v">
-                {assets.filter((a) => a.assignedTo && a.assignedTo !== 'Unassigned').length}
+                {assets.filter((a) => a.submitter || (a.assignedTo && a.assignedTo !== 'Unassigned')).length.toLocaleString()}
               </div>
-              <div className="d">0% in use</div>
+              <div className="d">
+                {assets.length > 0
+                  ? `${Math.round(
+                      (assets.filter((a) => a.submitter || (a.assignedTo && a.assignedTo !== 'Unassigned')).length /
+                        assets.length) *
+                        100
+                    )}% in use`
+                  : '0% in use'}
+              </div>
             </div>
             <div className="card k">
               <div className="l">In storage</div>
               <div className="v">
-                {assets.filter((a) => !a.assignedTo || a.assignedTo === 'Unassigned').length}
+                {assets.filter((a) => !a.submitter && (!a.assignedTo || a.assignedTo === 'Unassigned')).length.toLocaleString()}
               </div>
-              <div className="d">0 sites</div>
+              <div className="d">{new Set(assets.map((a) => a.plant).filter(Boolean)).size} sites</div>
             </div>
             <div className="card k">
               <div className="l">Retired this year</div>
               <div className="v">
-                {assets.filter((a) => a.status === 'Retired').length}
+                {assets.filter((a) => a.status === 'Retired').length.toLocaleString()}
               </div>
               <div className="d">Disposal value $0</div>
+            </div>
+          </div>
+
+          {/* Search, Filter Bar and Pagination */}
+          <div className="card p-3 flex flex-wrap items-center justify-between gap-3 bg-[var(--surf)] border border-[var(--line)]">
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={gallerySearch}
+                  onChange={(e) => {
+                    setGallerySearch(e.target.value)
+                    setGalleryPage(1)
+                  }}
+                  placeholder="Search assets by code, serial, name, category, plant..."
+                  className="w-full px-3 py-1.5 pl-8 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
+                />
+                <span className="absolute left-2.5 top-2 text-xs text-[var(--mute)]">🔍</span>
+              </div>
+              {gallerySearch && (
+                <button
+                  onClick={() => {
+                    setGallerySearch('')
+                    setGalleryPage(1)
+                  }}
+                  className="text-xs text-[var(--mute)] hover:text-[var(--ink)]"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter dropdown */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--mute)]">Category:</span>
+              <select
+                value={filterCategory || ''}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value ? e.target.value : null)
+                  setGalleryPage(1)
+                }}
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
+              >
+                <option value="">All Categories ({assets.length})</option>
+                {categoryStats.map((c) => (
+                  <option key={c.category} value={c.category}>
+                    {c.category} ({c.assetsCount})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
           {/* Responsive Grid with Recently Updated & By Category */}
           <div className="grid">
             <section className="card c8">
-              <h2>Recently updated</h2>
-              {assets.length === 0 ? (
+              <div className="flex items-center justify-between pb-2">
+                <div className="flex items-center gap-2">
+                  <h2>Recently updated</h2>
+                  <span className="text-xs text-[var(--mute)]">
+                    Showing {pagedAssets.length} of {filteredAssets.length.toLocaleString()}
+                  </span>
+                </div>
+                {totalGalleryPages > 1 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      onClick={() => setGalleryPage((p) => Math.max(1, p - 1))}
+                      disabled={galleryPage === 1}
+                      className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40"
+                    >
+                      ← Prev
+                    </button>
+                    <span>
+                      Page {galleryPage} of {totalGalleryPages}
+                    </span>
+                    <button
+                      onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))}
+                      disabled={galleryPage === totalGalleryPages}
+                      className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {filteredAssets.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <div className="text-3xl">📦</div>
                   <div className="text-xs text-[var(--mute)]">
-                    No physical assets registered yet. Click "Add asset" to record equipment.
+                    {assets.length === 0
+                      ? 'No physical assets registered yet. Click "Add asset" or "Import assets" to load inventory.'
+                      : 'No assets match the search criteria.'}
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  {assets.map((asset) => (
+                  {pagedAssets.map((asset) => (
                     <div
                       key={asset.id}
-                      className="border border-[var(--line)] rounded-xl p-3 bg-[var(--surf2)]/50 hover:bg-[var(--surf2)] transition space-y-2"
+                      className="border border-[var(--line)] rounded-xl p-3 bg-[var(--surf2)]/50 hover:bg-[var(--surf2)] transition space-y-2 relative group"
                     >
-                      <div className="w-full flex justify-center bg-[var(--surf)] rounded-lg overflow-hidden p-2 border border-[var(--line)]/50">
-                        <AssetIllustration
-                          name={asset.currentDescription || asset.name}
-                          category={asset.currentCategory}
-                          photoUrl={asset.assetPhoto}
-                          alt={`${asset.assetCode} image`}
-                          width="100%"
-                          height={110}
-                        />
-                      </div>
-
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <span className="font-mono text-xs font-bold text-[var(--acc)]">
-                            {asset.assetCode}
-                          </span>
-                          <h4 className="text-sm font-semibold truncate">
-                            {asset.currentDescription || asset.name}
-                          </h4>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="pill ok shrink-0">{asset.status}</span>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteAsset && onDeleteAsset(asset.id)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--bad)] hover:bg-red-500/10 transition"
-                            aria-label={`Delete asset ${asset.assetCode}`}
-                            title="Delete asset"
+                      {/* Delete bin button */}
+                      {onDeleteAsset && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteAsset(asset.id)}
+                          className="absolute top-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--bad)] hover:bg-red-500/10 transition z-10"
+                          aria-label={`Delete asset ${asset.assetCode}`}
+                          title="Delete asset"
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
                           >
-                            <svg
-                              width="15"
-                              height="15"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                            >
-                              <path
-                                d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                            <path
+                              d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      )}
+
+                      <div className="w-full flex justify-center bg-[var(--surf)] rounded-lg overflow-hidden p-2 border border-[var(--line)]/50">
+                        {asset.assetPhoto ? (
+                          <img
+                            src={asset.assetPhoto}
+                            alt={`${asset.name} photo`}
+                            className="w-full h-32 object-cover rounded"
+                          />
+                        ) : (
+                          <AssetIllustration
+                            name={asset.currentDescription || asset.name}
+                            category={asset.currentCategory || asset.category}
+                            alt={`${asset.name} illustration`}
+                            width={160}
+                            height={120}
+                          />
+                        )}
                       </div>
 
-                      <div className="text-xs text-[var(--mute)] space-y-0.5">
-                        <div><strong>SN:</strong> {asset.serialNumber}</div>
-                        <div><strong>Loc:</strong> {asset.location || asset.plant}</div>
-                        <div><strong>Cond:</strong> {asset.assetCondition}</div>
-                        <div><strong>Dept:</strong> {asset.currentDepartment} ({asset.submitter})</div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[var(--acc)]">{asset.assetCode}</span>
+                          <span
+                            className={`pill ${
+                              asset.status === 'Active'
+                                ? 'ok'
+                                : asset.status === 'Maintenance'
+                                ? 'w'
+                                : 'text-[var(--mute)]'
+                            }`}
+                          >
+                            {asset.status || 'Active'}
+                          </span>
+                        </div>
+                        <div className="font-semibold text-xs line-clamp-1 text-[var(--ink)]">
+                          {asset.currentDescription || asset.name}
+                        </div>
+                        <div className="text-[11px] text-[var(--mute)]">
+                          SN: {asset.serialNumber || 'N/A'}
+                        </div>
+                        <div className="text-[11px] text-[var(--mute)]">
+                          Loc: {asset.plant} {asset.building ? `· ${asset.building}` : ''}{' '}
+                          {asset.currentLocation ? `· ${asset.currentLocation}` : ''}
+                        </div>
+                        <div className="text-[11px] text-[var(--mute)]">
+                          Cond: {asset.assetCondition || 'Good'}
+                        </div>
+                        <div className="text-[11px] text-[var(--mute)]">
+                          Dept: {asset.currentDepartment || 'N/A'}{' '}
+                          {asset.submitter ? `(${asset.submitter})` : ''}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -306,37 +645,55 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               )}
             </section>
 
+            {/* Category breakdown sidebar */}
             <section className="card c4">
               <h2>By category</h2>
-              {categoryStats.length > 0 && assets.length > 0 ? (
-                categoryStats.map((item) => (
-                  <div key={item.category} className="row" style={{ display: 'block' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="t">{item.category}</span>
-                      <span>{item.assetsCount}</span>
-                    </div>
-                    <div className="bar">
-                      <i style={{ width: `${item.percentage}%` }} />
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+              {categoryStats.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[var(--mute)]">
                   No category breakdown data available.
+                </div>
+              ) : (
+                <div className="space-y-2 pt-2">
+                  {categoryStats.map((item) => (
+                    <div
+                      key={item.category}
+                      onClick={() =>
+                        setFilterCategory((prev) => (prev === item.category ? null : item.category))
+                      }
+                      className={`p-2 rounded-lg cursor-pointer transition ${
+                        filterCategory === item.category ? 'bg-[var(--acc2)]' : 'hover:bg-[var(--surf2)]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-semibold">{item.category}</span>
+                        <span className="text-[var(--mute)]">{item.assetsCount.toLocaleString()} units</span>
+                      </div>
+                      <div className="w-full bg-[var(--surf2)] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[var(--acc)] h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${
+                              assets.length > 0 ? Math.round((item.assetsCount / assets.length) * 100) : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
           </div>
         </div>
       ) : (
-        /* ================= PART 2: ASSET LIBRARY ================= */
+        /* ================= PART 2: ASSET LIBRARY VIEW ================= */
         <div className="space-y-6">
-          {/* Header */}
-          <div className="top mb-0">
+          <div className="top">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Asset Library</h1>
+              <h1>Asset Library</h1>
               <div className="sub">
-                Asset types and templates: categories, models and specifications. Physical assets live in the Asset Gallery.
+                Asset types and templates: categories, models and specifications. Physical assets live in the Asset
+                Gallery.
               </div>
             </div>
             <div className="btns">
@@ -367,8 +724,20 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               )}
               <button
                 className="btn"
-                onClick={handleImportTemplates}
+                onClick={handleTriggerFileImport}
+                title="Import Excel (.xlsx, .xls) or CSV (.csv) file"
               >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 Import assets
               </button>
               <button
@@ -422,21 +791,21 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
             </div>
             <div className="card k">
               <div className="l">Asset types</div>
-              <div className="v">{assetTypes.length}</div>
+              <div className="v">{assetTypes.length.toLocaleString()}</div>
               <div className="d">
                 <span className="pill ok">Standard</span> models
               </div>
             </div>
             <div className="card k">
               <div className="l">Specification fields</div>
-              <div className="v">{totalSpecsCount}</div>
+              <div className="v">{totalSpecsCount.toLocaleString()}</div>
               <div className="d">
                 <span className="pill ok">Structured</span> parameters
               </div>
             </div>
             <div className="card k">
               <div className="l">Assets without a type</div>
-              <div className="v">{unlinkedAssetsCount}</div>
+              <div className="v">{unlinkedAssetsCount.toLocaleString()}</div>
               <div className="d">
                 <span className="pill w">{unlinkedAssetsCount === 0 ? 'All linked' : 'Pending match'}</span>
               </div>
@@ -499,7 +868,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               <div className="space-y-3">
                 {categoryStats.length === 0 ? (
                   <div className="py-8 text-center text-xs text-[var(--mute)]">
-                    No categories defined yet.
+                    No categories defined yet. Import a spreadsheet or add a type.
                   </div>
                 ) : (
                   categoryStats.map((item) => (
@@ -532,86 +901,121 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
 
             {/* Right Panel: Asset types as expandable rows (details/summary) */}
             <div className="lg:col-span-8 card space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Asset types</h2>
-                <span className="text-xs text-[var(--mute)]">
-                  {filterCategory ? `Filter: ${filterCategory}` : `${assetTypes.length} types registered`}
-                </span>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold">Asset types</h2>
+                  <div className="text-xs text-[var(--mute)]">
+                    {filterCategory ? `Filter: ${filterCategory}` : `${assetTypes.length} types registered`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={typesSearch}
+                    onChange={(e) => {
+                      setTypesSearch(e.target.value)
+                      setTypesPage(1)
+                    }}
+                    placeholder="Search types..."
+                    className="px-2.5 py-1 text-xs rounded border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)]"
+                  />
+                  {totalTypesPages > 1 && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <button
+                        onClick={() => setTypesPage((p) => Math.max(1, p - 1))}
+                        disabled={typesPage === 1}
+                        className="px-1.5 py-0.5 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40"
+                      >
+                        ‹
+                      </button>
+                      <span>
+                        {typesPage}/{totalTypesPages}
+                      </span>
+                      <button
+                        onClick={() => setTypesPage((p) => Math.min(totalTypesPages, p + 1))}
+                        disabled={typesPage === totalTypesPages}
+                        className="px-1.5 py-0.5 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40"
+                      >
+                        ›
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="divide-y divide-[var(--line)]">
-                {assetTypes.length === 0 ? (
+                {filteredTypes.length === 0 ? (
                   <div className="py-12 text-center space-y-2">
                     <div className="text-3xl">📚</div>
                     <div className="text-xs text-[var(--mute)]">
-                      No asset types defined yet. Use the Quick-add form above to register an equipment template.
+                      {assetTypes.length === 0
+                        ? 'No asset types defined yet. Click "Import assets" or use the Quick-add form above to register an equipment template.'
+                        : 'No asset types match your search filter.'}
                     </div>
                   </div>
                 ) : (
-                  assetTypes
-                    .filter((t) => (!filterCategory ? true : t.category === filterCategory))
-                    .map((type) => {
-                      const galleryCount = countInGallery(type)
+                  pagedTypes.map((type) => {
+                    const galleryCount = countInGallery(type)
 
-                      return (
-                        <details
-                          key={type.id}
-                          className="group py-3 cursor-pointer outline-none transition"
-                        >
-                          {/* Collapsed Row Summary */}
-                          <summary className="flex items-center justify-between gap-4 list-none select-none">
-                            <div className="flex items-center gap-3">
-                              {/* 56px thumbnail */}
-                              <div className="w-14 h-11 shrink-0 overflow-hidden rounded bg-[var(--surf2)] flex items-center justify-center">
-                                <AssetIllustration
-                                  name={type.name}
-                                  category={type.category}
-                                  alt={`${type.name} thumbnail`}
-                                  width={56}
-                                  height={44}
-                                />
+                    return (
+                      <details
+                        key={type.id}
+                        className="group py-3 cursor-pointer outline-none transition"
+                      >
+                        {/* Collapsed Row Summary */}
+                        <summary className="flex items-center justify-between gap-4 list-none select-none">
+                          <div className="flex items-center gap-3">
+                            {/* 56px thumbnail */}
+                            <div className="w-14 h-11 shrink-0 overflow-hidden rounded bg-[var(--surf2)] flex items-center justify-center">
+                              <AssetIllustration
+                                name={type.name}
+                                category={type.category}
+                                alt={`${type.name} thumbnail`}
+                                width={56}
+                                height={44}
+                              />
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold group-hover:text-[var(--acc)] transition">
+                                {type.name}
                               </div>
-                              <div>
-                                <div className="text-sm font-semibold group-hover:text-[var(--acc)] transition">
-                                  {type.name}
-                                </div>
-                                <div className="text-xs text-[var(--mute)]">
-                                  {type.manufacturer} · {type.category} · {Object.keys(type.specs).length} specs
-                                </div>
+                              <div className="text-xs text-[var(--mute)]">
+                                {type.manufacturer} · {type.category} · {Object.keys(type.specs).length} specs
                               </div>
                             </div>
+                          </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="pill ok">
-                                {galleryCount} in Gallery
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteType(type.id, e)}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--bad)] hover:bg-red-500/10 transition"
-                                aria-label={`Delete type ${type.name}`}
-                                title="Delete type"
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="pill ok">
+                              {galleryCount} in Gallery
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteType(type.id, e)}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--bad)] hover:bg-red-500/10 transition"
+                              aria-label={`Delete type ${type.name}`}
+                              title="Delete type"
+                            >
+                              <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
                               >
-                                <svg
-                                  width="15"
-                                  height="15"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                >
-                                  <path
-                                    d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </button>
-                              <span className="text-xs text-[var(--mute)] transition-transform group-open:rotate-180">
-                                ▼
-                              </span>
-                            </div>
-                          </summary>
+                                <path
+                                  d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <span className="text-xs text-[var(--mute)] transition-transform group-open:rotate-180">
+                              ▼
+                            </span>
+                          </div>
+                        </summary>
 
                         {/* Expanded Content with 150x112 larger image and spec chips */}
                         <div className="pt-4 pl-3 flex flex-col sm:flex-row gap-4 items-start border-t border-[var(--line)]/50 mt-3">
@@ -642,10 +1046,13 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
 
                             <div>
                               <button
-                                onClick={() => setActiveSubTab('gallery')}
+                                onClick={() => {
+                                  setFilterCategory(type.category)
+                                  setActiveSubTab('gallery')
+                                }}
                                 className="text-xs font-semibold text-[var(--acc)] hover:underline flex items-center gap-1"
                               >
-                                View assets in Gallery →
+                                View {type.category} in Gallery →
                               </button>
                             </div>
                           </div>

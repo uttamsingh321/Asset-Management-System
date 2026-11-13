@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi, test } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
 import { matchIllustrationKey } from '../components/AssetIllustrations'
+import { autoCategorize } from '../lib/excelImporter'
 
 describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
   beforeEach(() => {
@@ -198,15 +199,53 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     expect(screen.queryByText('Cisco Catalyst 9300 Switch')).not.toBeInTheDocument()
     expect(screen.getByText(/No asset types defined yet/i)).toBeInTheDocument()
 
-    // Import templates on demand populates standard specifications
+    // Import assets triggers file selection input (no dummy data)
+    const fileInput = screen.getByLabelText(/Import Excel or CSV file/i) as HTMLInputElement
+    expect(fileInput).toBeInTheDocument()
+    const clickSpy = vi.spyOn(fileInput, 'click')
+
     const importBtn = screen.getByRole('button', { name: /Import assets/i })
     fireEvent.click(importBtn)
-    expect(screen.getByText('MacBook Pro 16" (M3 Pro)')).toBeInTheDocument()
-    expect(screen.getByText('Dell UltraSharp U2723QE')).toBeInTheDocument()
+    expect(clickSpy).toHaveBeenCalled()
 
     // Button to jump back to gallery
     const openGalleryBtn = screen.getAllByRole('button', { name: /Open Asset Gallery/i })[0]
     fireEvent.click(openGalleryBtn)
     expect(screen.getByRole('heading', { level: 1, name: /Asset Gallery|Assets/i })).toBeInTheDocument()
+  })
+
+  test('Auto-categorization classifier accurately routes equipment into category sections', () => {
+    // Rule: after we hit import it will automatic distinguish where which one should store:
+    // e.g. computer -> Computers, mouse -> Mice & Pointers, laptop -> Laptops, etc.
+
+    // Computers
+    expect(autoCategorize('Desktop Computer HP ProDesk 400', '')).toBe('Computers')
+    expect(autoCategorize('Office PC Tower Optiplex 7090', '')).toBe('Computers')
+    expect(autoCategorize('iMac 24-inch M3 workstation', '')).toBe('Computers')
+
+    // Mice & Pointers
+    expect(autoCategorize('Logitech Wireless Mouse M185', '')).toBe('Mice & Pointers')
+    expect(autoCategorize('Apple Magic Trackpad', '')).toBe('Mice & Pointers')
+    expect(autoCategorize('MX Master 3S wireless mouse', '')).toBe('Mice & Pointers')
+
+    // Keyboards
+    expect(autoCategorize('Mechanical Gaming Keyboard RGB', '')).toBe('Keyboards')
+    expect(autoCategorize('Logitech K380 Bluetooth Keyboard', '')).toBe('Keyboards')
+
+    // Laptops
+    expect(autoCategorize('MacBook Pro 16 inch', '')).toBe('Laptops')
+    expect(autoCategorize('Lenovo ThinkPad X1 Carbon Gen 10 Laptop', '')).toBe('Laptops')
+
+    // Monitors & Displays
+    expect(autoCategorize('Dell UltraSharp U2723QE 4K Monitor', '')).toBe('Monitors & Displays')
+    expect(autoCategorize('LG Curved Ultrawide Display 34-inch', '')).toBe('Monitors & Displays')
+
+    // Heavy Machinery & Vehicles & Spares
+    expect(autoCategorize('Hydraulic press HP-200 series', '')).toBe('Heavy Machinery')
+    expect(autoCategorize('CNC vertical mill VMC 850', '')).toBe('Heavy Machinery')
+    expect(autoCategorize('Tata Ace Gold delivery van', '')).toBe('Fleet & Vehicles')
+    expect(autoCategorize('Chiller unit 50 TR', '')).toBe('HVAC & Facility')
+    expect(autoCategorize('Godrej ergonomic desk', '')).toBe('Furniture & Fixtures')
+    expect(autoCategorize('SKF 6204-2RS bearing', '')).toBe('Spares & Consumables')
   })
 })
