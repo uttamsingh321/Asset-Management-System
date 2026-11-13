@@ -4,6 +4,8 @@ import {
   getClientDeviceInfo,
   getCurrentUserProfile,
   logAuditEvent,
+  getTrackedDevices,
+  ensureSessionAudited,
   type AuditRecord,
   type DeviceType,
 } from '@/lib/deviceTracker'
@@ -37,8 +39,21 @@ export const AuditLogView: React.FC = () => {
   }, [actionFilter, deviceFilter, search])
 
   React.useEffect(() => {
-    loadLogs()
+    // Ensure active session is recorded
+    ensureSessionAudited().then(() => loadLogs())
+
+    // Auto-reload on any audit event triggered in app
+    const handleLogged = () => {
+      loadLogs()
+    }
+    window.addEventListener('meridian_audit_logged', handleLogged)
+    return () => window.removeEventListener('meridian_audit_logged', handleLogged)
   }, [loadLogs])
+
+  // Compute tracked devices (guaranteed to include current device)
+  const trackedDevices = React.useMemo(() => {
+    return getTrackedDevices(logs)
+  }, [logs])
 
   // Compute breakdown stats
   const actionCounts = React.useMemo(() => {
@@ -51,11 +66,16 @@ export const AuditLogView: React.FC = () => {
 
   const deviceCounts = React.useMemo(() => {
     const counts: Record<string, number> = { Desktop: 0, Laptop: 0, Tablet: 0, Mobile: 0 }
+    counts[currentDevice.deviceType] = 1
+
+    trackedDevices.forEach((d) => {
+      counts[d.deviceType] = Math.max(counts[d.deviceType] || 0, 1)
+    })
     logs.forEach((l) => {
       counts[l.deviceType] = (counts[l.deviceType] || 0) + 1
     })
     return counts
-  }, [logs])
+  }, [logs, trackedDevices, currentDevice])
 
   const handleExportAuditLogs = async () => {
     if (logs.length === 0) {
@@ -235,12 +255,18 @@ export const AuditLogView: React.FC = () => {
 
           <div className="card p-4 space-y-1">
             <div className="text-xs text-[var(--mute)]">Tracked Devices</div>
-            <div className="flex items-center gap-2 text-xs pt-1">
+            <div className="text-2xl font-bold text-[var(--ink)] flex items-center gap-1.5">
+              <span>{trackedDevices.length} Connected</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs pt-0.5 font-medium text-[var(--ink)]">
               <span>🖥️ {deviceCounts.Desktop}</span>
               <span>💻 {deviceCounts.Laptop}</span>
               <span>📱 {deviceCounts.Tablet + deviceCounts.Mobile}</span>
             </div>
-            <div className="text-[11px] text-[var(--mute)]">Auto-detected</div>
+            <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{currentDevice.deviceType}: {currentDevice.os} (Active)</span>
+            </div>
           </div>
 
           <div className="card p-4 space-y-1">
@@ -264,6 +290,74 @@ export const AuditLogView: React.FC = () => {
             </div>
             <div className="text-[11px] text-[var(--mute)]">Session Audited</div>
           </div>
+        </div>
+      </div>
+
+      {/* Tracked Devices Telemetry Directory */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <span>Hardware Devices Detected</span>
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
+              {trackedDevices.length} Active Hardware Profiles
+            </span>
+          </h2>
+          <span className="text-[11px] text-[var(--mute)]">Auto-identified device telemetry & browser profiles</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {trackedDevices.map((dev) => (
+            <div
+              key={dev.id}
+              className={`p-3.5 rounded-xl border transition space-y-2.5 ${
+                dev.isCurrentDevice
+                  ? 'bg-gradient-to-br from-emerald-500/10 via-[var(--surf)] to-[var(--surf)] border-emerald-500/40 shadow-xs'
+                  : 'bg-[var(--surf)] border-[var(--line)]'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">{getDeviceIcon(dev.deviceType)}</span>
+                  <div>
+                    <div className="font-bold text-xs text-[var(--ink)] flex items-center gap-1.5">
+                      <span>{dev.deviceType}</span>
+                      {dev.isCurrentDevice ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                          Active Device
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-[var(--surf2)] text-[var(--mute)]">
+                          Recorded
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-[var(--mute)] font-medium">
+                      {dev.os} · {dev.browser}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-[var(--mute)] block">{dev.clientIp}</span>
+                  <span className="text-[9px] text-emerald-600 font-medium">Verified</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-[var(--line)]">
+                <div>
+                  <span className="block text-[10px] text-[var(--mute)]">Operator / Role</span>
+                  <span className="font-semibold text-[var(--ink)] line-clamp-1">{dev.lastUser}</span>
+                  <span className="text-[10px] text-[var(--mute)] block">{dev.lastUserId}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-[var(--mute)]">Screen & Host</span>
+                  <span className="font-mono text-[10px] text-[var(--ink)] block">
+                    {dev.screenResolution !== 'N/A' ? dev.screenResolution : currentDevice.screenResolution}
+                  </span>
+                  <span className="text-[10px] font-mono text-[var(--mute)] block truncate">{dev.hostname}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -378,11 +472,11 @@ export const AuditLogView: React.FC = () => {
                     {/* Action */}
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getActionBadgeClass(
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${getActionBadgeClass(
                           log.action
                         )}`}
                       >
-                        {log.action}
+                        {log.action === 'ASSET_DELETE' ? '🗑️ ASSET_DELETE' : log.action}
                       </span>
                     </td>
 
@@ -412,9 +506,25 @@ export const AuditLogView: React.FC = () => {
                     </td>
 
                     {/* Target Entity */}
-                    <td className="py-2.5 px-3 whitespace-nowrap font-mono text-[11px]">
-                      {log.entityId ? (
-                        <span className="font-semibold text-[var(--acc)]">{log.entityId}</span>
+                    <td className="py-2.5 px-3">
+                      {log.action === 'ASSET_DELETE' ? (
+                        <div>
+                          <div className="font-bold text-rose-600 dark:text-rose-400 font-mono text-[11px] flex items-center gap-1">
+                            <span>🗑️</span>
+                            <span>{log.entityId || log.details?.assetCode || 'DELETED'}</span>
+                          </div>
+                          <div className="text-[11px] text-[var(--mute)] line-clamp-1">
+                            {log.details?.name || log.details?.typeName || log.details?.summary || 'Removed from registry'}
+                            {log.details?.category ? ` · ${log.details?.category}` : ''}
+                          </div>
+                        </div>
+                      ) : log.entityId ? (
+                        <div>
+                          <span className="font-semibold text-[var(--acc)] font-mono text-[11px]">{log.entityId}</span>
+                          {log.details?.name && (
+                            <div className="text-[11px] text-[var(--mute)] line-clamp-1">{log.details.name}</div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-[var(--mute)]">—</span>
                       )}
@@ -423,13 +533,18 @@ export const AuditLogView: React.FC = () => {
                     {/* Details Action */}
                     <td className="py-2.5 px-3 text-right">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           setSelectedLog(log)
                         }}
-                        className="px-2 py-1 text-[11px] font-medium rounded border border-[var(--line)] bg-[var(--surf)] hover:bg-[var(--surf2)] transition"
+                        className={`px-2 py-1 text-[11px] font-semibold rounded border transition cursor-pointer ${
+                          log.action === 'ASSET_DELETE'
+                            ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20'
+                            : 'bg-[var(--surf)] border-[var(--line)] hover:bg-[var(--surf2)] text-[var(--ink)]'
+                        }`}
                       >
-                        View Details
+                        {log.action === 'ASSET_DELETE' ? 'View Details 🔎' : 'View Details'}
                       </button>
                     </td>
                   </tr>
@@ -450,18 +565,64 @@ export const AuditLogView: React.FC = () => {
           <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🔍</span>
+                <span className="text-xl">{selectedLog.action === 'ASSET_DELETE' ? '🗑️' : '🔍'}</span>
                 <h3 className="text-sm font-bold text-[var(--ink)]">
-                  Audit Entry Details: {selectedLog.action}
+                  {selectedLog.action === 'ASSET_DELETE'
+                    ? `Deleted Item Audit Record: ${selectedLog.entityId}`
+                    : `Audit Entry Details: ${selectedLog.action}`}
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedLog(null)}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--mute)] hover:bg-[var(--surf2)] transition"
               >
                 ✕
               </button>
             </div>
+
+            {/* Preserved Deleted Item Archive Snapshot */}
+            {selectedLog.action === 'ASSET_DELETE' && (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 dark:text-rose-300">
+                  <span>🗑️</span>
+                  <span>PERMANENTLY PRESERVED DELETED SPECIFICATIONS</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-[var(--ink)]">
+                  <div>
+                    <span className="text-[10px] text-[var(--mute)] block">Deleted Item Name</span>
+                    <strong>{selectedLog.details?.name || selectedLog.details?.typeName || 'Asset Item'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--mute)] block">Asset Code / Identifier</span>
+                    <strong className="font-mono text-rose-600 dark:text-rose-400">
+                      {selectedLog.details?.assetCode || selectedLog.entityId}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--mute)] block">Category</span>
+                    <span>{selectedLog.details?.category || 'General'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--mute)] block">Serial Number</span>
+                    <span className="font-mono">{selectedLog.details?.serialNumber || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--mute)] block">Location / Plant</span>
+                    <span>{selectedLog.details?.plant || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--mute)] block">Condition at Deletion</span>
+                    <span>{selectedLog.details?.condition || 'Good'}</span>
+                  </div>
+                </div>
+                {selectedLog.details?.deletionReason && (
+                  <div className="text-[11px] text-[var(--mute)] pt-1 border-t border-rose-500/20">
+                    <strong>Reason for Deletion:</strong> {selectedLog.details.deletionReason}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-2.5 rounded-lg bg-[var(--surf2)]/70">
@@ -507,6 +668,7 @@ export const AuditLogView: React.FC = () => {
 
             <div className="flex justify-end pt-2">
               <button
+                type="button"
                 onClick={() => setSelectedLog(null)}
                 className="btn primary px-4 py-1.5 text-xs"
               >

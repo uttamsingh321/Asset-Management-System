@@ -1207,9 +1207,20 @@ function renderAssetTypes() {
 }
 
 function deleteAssetType(id) {
+  const target = assetTypes.find(t => t.id == id || t.name == id);
   assetTypes = assetTypes.filter(t => t.id != id && t.name != id);
   renderCategories();
   renderAssetTypes();
+  logAudit('ASSET_DELETE', {
+    deletedItemType: 'AssetType',
+    typeId: id,
+    name: target ? target.name : id,
+    category: target ? target.category : 'General',
+    manufacturer: target ? target.manufacturer : 'Generic',
+    specsCount: target && target.specs ? Object.keys(target.specs).length : 0,
+    deletionReason: 'User initiated deletion from Asset Library',
+    deletionTimestamp: new Date().toISOString()
+  }, id);
   toast('Asset type deleted.');
 }
 
@@ -1531,10 +1542,22 @@ function renderGallery() {
 }
 
 function deleteAsset(code) {
+  const target = assets.find(a => a.assetCode === code);
   assets = assets.filter(a => a.assetCode !== code);
   renderGallery();
   renderAssetTypes();
-  logAudit('ASSET_DELETE', { assetCode: code }, code);
+  logAudit('ASSET_DELETE', {
+    deletedItemType: 'Asset',
+    assetCode: code,
+    name: target ? (target.currentDescription || target.name || code) : code,
+    serialNumber: target ? (target.assetSerialNumber || target.serialNumber || '') : '',
+    category: target ? (target.currentCategory || target.category || '') : '',
+    plant: target ? target.plant : '',
+    condition: target ? (target.assetCondition || target.condition || '') : '',
+    department: target ? (target.currentDepartment || target.department || '') : '',
+    deletionReason: 'User initiated deletion from Asset Gallery',
+    deletionTimestamp: new Date().toISOString()
+  }, code);
   toast(`Asset "${code}" deleted.`);
 }
 

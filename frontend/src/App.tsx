@@ -175,28 +175,60 @@ export function App() {
   }
 
   const handleDeleteAsset = (id: string) => {
-    const target = assets.find((a) => a.id === id)
-    setAssets((prev) => prev.filter((a) => a.id !== id))
-    if (target) {
-      logAuditEvent(
-        'ASSET_DELETE',
-        {
-          deletedId: id,
-          assetCode: target.assetCode,
-          name: target.currentDescription || target.name,
-          category: target.currentCategory || target.category,
-        },
-        target.assetCode
-      )
-    }
-    toast.success(`Asset "${target?.assetCode || target?.name || 'unit'}" deleted`)
+    const target = assets.find((a) => a.id === id || a.assetCode === id)
+    setAssets((prev) => prev.filter((a) => a.id !== id && a.assetCode !== id))
+
+    const assetCode = target?.assetCode || id
+    const assetName = target?.currentDescription || target?.name || 'Equipment Unit'
+    const category = target?.currentCategory || target?.category || 'General Equipment'
+    const plant = target?.plant || target?.location || 'Main Center'
+
+    logAuditEvent(
+      'ASSET_DELETE',
+      {
+        deletedItemType: 'Physical Asset',
+        deletedId: id,
+        assetCode,
+        name: assetName,
+        serialNumber: target?.serialNumber || 'N/A',
+        category,
+        plant,
+        condition: target?.assetCondition || 'Good',
+        department: target?.currentDepartment || target?.department || 'Operations',
+        assignedTo: target?.assignedTo || target?.submitter || 'Unassigned',
+        remarks: target?.remarks || '',
+        deletionTimestamp: new Date().toISOString(),
+        deletionReason: 'User initiated deletion from Asset Registry',
+      },
+      assetCode,
+      'Asset'
+    )
+    toast.success(`Asset "${assetCode} (${assetName})" deleted`)
   }
 
   const handleClearAllAssets = () => {
     if (assets.length === 0) return
     const count = assets.length
+    const deletedSummary = assets.slice(0, 10).map((a) => `${a.assetCode} (${a.currentDescription || a.name})`)
     setAssets([])
-    logAuditEvent('ASSET_DELETE', { count, action: 'Bulk Clear All Assets' }, 'ALL-ASSETS')
+    logAuditEvent(
+      'ASSET_DELETE',
+      {
+        deletedItemType: 'Bulk Asset Purge',
+        count,
+        summary: deletedSummary.join(', ') + (count > 10 ? ` and ${count - 10} more` : ''),
+        deletedAssetsList: assets.slice(0, 50).map((a) => ({
+          code: a.assetCode,
+          name: a.name || a.currentDescription,
+          serial: a.serialNumber,
+          plant: a.plant,
+        })),
+        deletionTimestamp: new Date().toISOString(),
+        deletionReason: 'User purged all physical assets from inventory',
+      },
+      'ALL-PHYSICAL-ASSETS',
+      'Asset'
+    )
     toast.success('All physical assets removed from registry')
   }
 

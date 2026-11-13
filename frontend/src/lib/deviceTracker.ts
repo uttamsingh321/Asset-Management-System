@@ -52,6 +52,105 @@ export interface AuditRecord {
   userAgent?: string
 }
 
+export interface TrackedDeviceItem {
+  id: string
+  deviceType: DeviceType
+  os: string
+  browser: string
+  screenResolution: string
+  hostname: string
+  clientIp: string
+  lastUser: string
+  lastUserId: string
+  lastSeen: string
+  isCurrentDevice: boolean
+  totalEvents: number
+}
+
+/**
+ * Returns a consolidated list of all devices detected (including active session device)
+ */
+export function getTrackedDevices(logs: AuditRecord[] = []): TrackedDeviceItem[] {
+  const current = getClientDeviceInfo()
+  const currentUser = getCurrentUserProfile()
+  const devicesMap = new Map<string, TrackedDeviceItem>()
+
+  // 1. Current active device is always included
+  const currentKey = `${current.deviceType}-${current.os}-${current.browser}`
+  devicesMap.set(currentKey, {
+    id: currentKey,
+    deviceType: current.deviceType,
+    os: current.os,
+    browser: current.browser,
+    screenResolution: current.screenResolution,
+    hostname: current.hostname,
+    clientIp: '127.0.0.1',
+    lastUser: currentUser.userName,
+    lastUserId: currentUser.userId,
+    lastSeen: 'Active Now',
+    isCurrentDevice: true,
+    totalEvents: 0,
+  })
+
+  // 2. Aggregate device fingerprints from audit records
+  logs.forEach((log) => {
+    const key = `${log.deviceType}-${log.os}-${log.browser}`
+    const existing = devicesMap.get(key)
+    if (existing) {
+      existing.totalEvents += 1
+      if (!existing.isCurrentDevice) {
+        if (!existing.lastSeen || existing.lastSeen === 'Active Now' || new Date(log.timestamp) > new Date(existing.lastSeen)) {
+          existing.lastSeen = log.timestamp
+          existing.lastUser = log.userName
+          existing.lastUserId = log.userId
+          existing.clientIp = log.clientIp || existing.clientIp
+          existing.hostname = log.hostname || existing.hostname
+        }
+      }
+    } else {
+      devicesMap.set(key, {
+        id: key,
+        deviceType: log.deviceType,
+        os: log.os,
+        browser: log.browser,
+        screenResolution: 'N/A',
+        hostname: log.hostname || 'localhost',
+        clientIp: log.clientIp || '127.0.0.1',
+        lastUser: log.userName,
+        lastUserId: log.userId,
+        lastSeen: log.timestamp,
+        isCurrentDevice: false,
+        totalEvents: 1,
+      })
+    }
+  })
+
+  return Array.from(devicesMap.values())
+}
+
+/**
+ * Ensures the active login session is audited at least once per browser session
+ */
+export async function ensureSessionAudited(): Promise<void> {
+  try {
+    const sessionId = getOrCreateSessionId()
+    const flagKey = `meridian_audited_session_${sessionId}`
+    if (!sessionStorage.getItem(flagKey)) {
+      sessionStorage.setItem(flagKey, 'true')
+      await logAuditEvent(
+        'LOGIN',
+        {
+          sessionType: 'Active Workspace Session',
+          loginTime: new Date().toISOString(),
+          status: 'Authenticated',
+        },
+        sessionId,
+        'Session'
+      )
+    }
+  } catch {}
+}
+
 const STORAGE_KEY_SESSION = 'meridian_session_id'
 const STORAGE_KEY_USER = 'meridian_user_profile'
 const STORAGE_KEY_AUDIT_LOGS = 'meridian_local_audit_logs'
@@ -209,15 +308,6 @@ export function getOrCreateSessionId(): string {
   }
 }
 
-function getApiUrl(path: string): string {
-  if (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('null')) {
-    try {
-      return new URL(path, window.location.origin).toString()
-    } catch {}
-  }
-  return path
-}
-
 /**
  * Central Audit Event Logger:
  * Sends the event with full device and user telemetry to the Django backend
@@ -241,41 +331,52 @@ export async function logAuditEvent(
     sessionId,
     action,
     entityType,
-    entityId: entityId || details.assetCode || details.tag || '',
+    entityId: entityId || details.assetCode || details.tag || details.name || '',
     details,
     timestamp: nowIso,
     deviceType: device.deviceType,
     os: device.os,
     browser: device.browser,
     hostname: device.hostname,
-    clientIp: 'Client Local',
+    clientIp: '127.0.0.1',
   }
 
-  // 1. Send to Backend Immutable Audit Log API (if reachable)
+  // 1. Send to Backend Immutable Audit Log API (with direct localhost fallback)
   try {
-    const url = getApiUrl('/api/audit/log/')
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Device-Type': device.deviceType,
-        'X-Session-ID': sessionId,
-        'X-User-ID': user.userId,
-        'X-User-Name': user.userName,
-        'X-User-Role': user.role,
-        'X-Client-Hostname': device.hostname,
-      },
-      body: JSON.stringify(auditData),
-    })
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Device-Type': device.deviceType,
+      'X-Session-ID': sessionId,
+      'X-User-ID': user.userId,
+      'X-User-Name': user.userName,
+      'X-User-Role': user.role,
+      'X-Client-Hostname': device.hostname,
+    }
 
-    if (res.ok) {
+    let res: Response | null = null
+    try {
+      res = await fetch('/api/audit/log/', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(auditData),
+      })
+    } catch {
+      // Direct localhost port 8000 fallback
+      res = await fetch('http://127.0.0.1:8000/api/audit/log/', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(auditData),
+      })
+    }
+
+    if (res && res.ok) {
       const data = await res.json()
       if (data.auditLog) {
         Object.assign(auditData, data.auditLog)
       }
     }
   } catch (err) {
-    // Graceful fallback for unit testing and offline execution
+    // Graceful fallback for offline execution
   }
 
   // 2. Persist in local storage for instant compliance inspection
@@ -288,48 +389,61 @@ export async function logAuditEvent(
     console.warn('Local audit cache quota reached:', err)
   }
 
+  // 3. Broadcast event so any open view reloads immediately
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('meridian_audit_logged', { detail: auditData }))
+    }
+  } catch {}
+
   return auditData
 }
 
 /**
- * Fetch audit logs from backend (with fallback to local storage)
+ * Fetch audit logs from backend (with fallback and merge with local storage)
  */
 export async function fetchAuditLogs(filters: {
   action?: string
   deviceType?: string
   search?: string
 } = {}): Promise<{ auditLogs: AuditRecord[]; totalCount: number }> {
+  let backendLogs: AuditRecord[] = []
+
   try {
     const params = new URLSearchParams()
     if (filters.action) params.append('action', filters.action)
     if (filters.deviceType) params.append('device_type', filters.deviceType)
     if (filters.search) params.append('search', filters.search)
 
-    const url = getApiUrl(`/api/audit/logs/?${params.toString()}`)
-    const res = await fetch(url)
-    if (res.ok) {
+    let res: Response | null = null
+    try {
+      res = await fetch(`/api/audit/logs/?${params.toString()}`)
+    } catch {
+      res = await fetch(`http://127.0.0.1:8000/api/audit/logs/?${params.toString()}`)
+    }
+
+    if (res && res.ok) {
       const data = await res.json()
-      return {
-        auditLogs: data.auditLogs,
-        totalCount: data.totalCount,
+      if (Array.isArray(data.auditLogs)) {
+        backendLogs = data.auditLogs
       }
     }
   } catch {}
 
-  // Fallback to local storage
+  // Merge with local storage
   try {
     const raw = localStorage.getItem(STORAGE_KEY_AUDIT_LOGS)
-    let logs: AuditRecord[] = raw ? JSON.parse(raw) : []
+    let localLogs: AuditRecord[] = raw ? JSON.parse(raw) : []
 
     if (filters.action) {
-      logs = logs.filter((l) => l.action.toLowerCase() === filters.action?.toLowerCase())
+      localLogs = localLogs.filter((l) => l.action.toLowerCase() === filters.action?.toLowerCase())
     }
     if (filters.deviceType) {
-      logs = logs.filter((l) => l.deviceType === filters.deviceType)
+      localLogs = localLogs.filter((l) => l.deviceType === filters.deviceType)
     }
     if (filters.search) {
       const q = filters.search.toLowerCase()
-      logs = logs.filter(
+      localLogs = localLogs.filter(
         (l) =>
           l.userName.toLowerCase().includes(q) ||
           l.userId.toLowerCase().includes(q) ||
@@ -338,8 +452,23 @@ export async function fetchAuditLogs(filters: {
       )
     }
 
-    return { auditLogs: logs, totalCount: logs.length }
+    // Merge backend and local logs uniquely by timestamp + action + entityId
+    const seen = new Set<string>()
+    const merged: AuditRecord[] = []
+
+    for (const item of [...backendLogs, ...localLogs]) {
+      const key = `${item.timestamp}::${item.action}::${item.entityId}::${item.sessionId}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        merged.push(item)
+      }
+    }
+
+    // Sort descending by timestamp
+    merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+    return { auditLogs: merged, totalCount: merged.length }
   } catch {
-    return { auditLogs: [], totalCount: 0 }
+    return { auditLogs: backendLogs, totalCount: backendLogs.length }
   }
 }

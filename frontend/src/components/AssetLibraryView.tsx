@@ -3,6 +3,7 @@ import type { Asset, AssetTypeTemplate } from '@/types/asset'
 import { initialAssetTypes } from '@/data/assetLibraryData'
 import { AssetIllustration } from '@/components/AssetIllustrations'
 import { parseExcelOrCsvFile, type ImportSummary } from '@/lib/excelImporter'
+import { logAuditEvent } from '@/lib/deviceTracker'
 import { toast } from 'sonner'
 
 const STORAGE_KEY_TYPES = 'meridian_asset_types'
@@ -145,12 +146,41 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     e.stopPropagation()
     const target = assetTypes.find((t) => t.id === id)
     setAssetTypes((prev) => prev.filter((t) => t.id !== id))
+    logAuditEvent(
+      'ASSET_DELETE',
+      {
+        deletedItemType: 'Asset Type Template',
+        typeId: id,
+        name: target?.name || 'Asset Type',
+        category: target?.category || 'General',
+        manufacturer: target?.manufacturer || 'Unknown',
+        specs: target?.specs || {},
+        deletionTimestamp: new Date().toISOString(),
+        deletionReason: 'User deleted asset type template from library',
+      },
+      target?.name || id,
+      'AssetType'
+    )
     toast.success(`Asset type "${target?.name || 'template'}" deleted`)
   }
 
   const handleClearAllTypes = () => {
     if (assetTypes.length === 0) return
+    const count = assetTypes.length
+    const typeNames = assetTypes.map((t) => t.name).join(', ')
     setAssetTypes([])
+    logAuditEvent(
+      'ASSET_DELETE',
+      {
+        deletedItemType: 'Bulk Asset Types Purge',
+        count,
+        deletedTypes: typeNames,
+        deletionTimestamp: new Date().toISOString(),
+        deletionReason: 'User removed all asset types from library',
+      },
+      'ALL-ASSET-TYPES',
+      'AssetType'
+    )
     toast.success('All asset types removed from library')
   }
 
