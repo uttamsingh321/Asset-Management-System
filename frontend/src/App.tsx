@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { meridianPages, aiAnswers } from '@/data/meridianData'
+import { meridianPages } from '@/data/meridianData'
 import { AddAssetPanel } from '@/components/AddAssetPanel'
 import { AssetLibraryView } from '@/components/AssetLibraryView'
 import { AuditLogView } from '@/components/AuditLogView'
@@ -25,7 +25,6 @@ export function App() {
   const [theme, setTheme] = React.useState<'light' | 'dark'>(() => {
     return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
   })
-  const [aiAnswer, setAiAnswer] = React.useState<string>('')
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
   const [dashCompanyFilter, setDashCompanyFilter] = React.useState<'All' | 'IIPL' | 'Padget'>('All')
   const [dashBuildingFilter, setDashBuildingFilter] = React.useState<string>('All')
@@ -943,78 +942,6 @@ export function App() {
                     </div>
                   )}
                 </section>
-
-                {/* 12-Column Responsive Grid */}
-                <div className="grid">
-                  {/* Cost Overview Line Chart */}
-                  <section className="card c8 chart">
-                    <h2>
-                      Cost overview <small>Last 12 months, $ thousands</small>
-                    </h2>
-                    <svg viewBox="0 0 720 230" role="img" aria-label="Cost line chart">
-                      <g stroke="var(--line)">
-                        <path d="M40 20h670M40 70h670M40 120h670M40 170h670M40 200h670" />
-                      </g>
-                      <g>
-                        <text x="4" y="24">1,000</text>
-                        <text x="4" y="74">750</text>
-                        <text x="4" y="124">500</text>
-                        <text x="4" y="174">250</text>
-                      </g>
-                      {/* Zero baseline */}
-                      <path
-                        d="M50 200 L688 200"
-                        fill="none"
-                        stroke="var(--acc)"
-                        strokeWidth="2"
-                        strokeLinejoin="round"
-                      />
-                      <g>
-                        <text x="50" y="220">Nov</text>
-                        <text x="224" y="220">Feb</text>
-                        <text x="398" y="220">May</text>
-                        <text x="572" y="220">Aug</text>
-                        <text x="670" y="220">Oct</text>
-                      </g>
-                      <g>
-                        <circle cx="560" cy="12" r="4" fill="var(--acc)" />
-                        <text x="570" y="16">Purchases</text>
-                        <circle cx="640" cy="12" r="4" fill="var(--warn)" />
-                        <text x="650" y="16">Maintenance</text>
-                      </g>
-                    </svg>
-                  </section>
-
-                  {/* Meridian Insights AI Panel */}
-                  <section className="card c4 insight">
-                    <h2>
-                      Meridian insights <small>Live</small>
-                    </h2>
-                    <p>
-                      {totalAssets === 0
-                        ? 'Zero telemetry anomalies detected. Equipment health telemetry and wear prediction models activate as assets are added.'
-                        : `Monitoring ${totalAssets} registered hardware units across infrastructure.`}
-                    </p>
-                    <div className="chips">
-                      {['Schedule inspections', 'Compare renewal options', 'Which assets fail most?'].map(
-                        (q) => (
-                          <button
-                            key={q}
-                            className="chip"
-                            onClick={() => setAiAnswer(aiAnswers[q] || '')}
-                          >
-                            {q}
-                          </button>
-                        )
-                      )}
-                    </div>
-                    {aiAnswer && (
-                      <div id="ans" aria-live="polite">
-                        {aiAnswer}
-                      </div>
-                    )}
-                  </section>
-                </div>
               </div>
             ) : currentHash === 'assets' || currentHash === 'library' ? (
               <AssetLibraryView
