@@ -13,7 +13,7 @@ describe('Meridian UI/UX Zero Dummy Data & Responsive Collapsible Navigation', (
   it('Renders Executive Dashboard with zero dummy data', () => {
     render(<App />)
     expect(screen.getAllByText(/Meridian/i)[0]).toBeInTheDocument()
-    expect(screen.getByText(/Good morning, Priya/i)).toBeInTheDocument()
+    expect(screen.getByText(/Good (morning|afternoon|evening),\s+[A-Za-z]+/i)).toBeInTheDocument()
     expect(screen.getByText('0', { selector: '.hero .n' })).toBeInTheDocument()
     expect(screen.getByText(/assets under management/i)).toBeInTheDocument()
     expect(screen.getByText(/Register equipment to begin tracking/i)).toBeInTheDocument()

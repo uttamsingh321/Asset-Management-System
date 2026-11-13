@@ -545,7 +545,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   type="text"
                   value={submitter}
                   onChange={(e) => setSubmitter(e.target.value)}
-                  placeholder="e.g. Priya Sharma"
+                  placeholder="e.g. Submitter name"
                   style={inputStyle}
                 />
               </div>

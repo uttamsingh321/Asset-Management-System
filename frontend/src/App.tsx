@@ -3,7 +3,12 @@ import { meridianPages, aiAnswers } from '@/data/meridianData'
 import { AddAssetPanel } from '@/components/AddAssetPanel'
 import { AssetLibraryView } from '@/components/AssetLibraryView'
 import { AuditLogView } from '@/components/AuditLogView'
-import { logAuditEvent } from '@/lib/deviceTracker'
+import {
+  logAuditEvent,
+  getCurrentUserProfile,
+  setCurrentUserProfile,
+  type UserProfile,
+} from '@/lib/deviceTracker'
 import type { Asset } from '@/types/asset'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -32,6 +37,48 @@ export function App() {
     }
   })
   const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const [currentUser, setCurrentUser] = React.useState<UserProfile>(() => getCurrentUserProfile())
+  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false)
+  const [tempUserName, setTempUserName] = React.useState(currentUser.userName)
+  const [tempUserId, setTempUserId] = React.useState(currentUser.userId)
+  const [tempUserRole, setTempUserRole] = React.useState(currentUser.role)
+
+  const dynamicGreeting = React.useMemo(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }, [])
+
+  const userInitials = React.useMemo(() => {
+    return (
+      currentUser.userName
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase() || 'ME'
+    )
+  }, [currentUser.userName])
+
+  const handleUpdateProfile = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!tempUserName.trim()) {
+      toast.error('User name cannot be empty')
+      return
+    }
+    const updated: UserProfile = {
+      userName: tempUserName.trim(),
+      userId: tempUserId.trim() || 'USR-101',
+      role: tempUserRole.trim() || 'Employee',
+    }
+    setCurrentUserProfile(updated)
+    setCurrentUser(updated)
+    setIsProfileModalOpen(false)
+    logAuditEvent('LOGIN', { authMethod: 'Profile Switch', user: updated })
+    toast.success(`Logged in as ${updated.userName} (${updated.role})`)
+  }
 
   // Sync to local storage safely with quota protection
   React.useEffect(() => {
@@ -419,7 +466,20 @@ export function App() {
               <i className="dot" />
             </button>
 
-            <div className="me">PN</div>
+            <button
+              type="button"
+              className="me cursor-pointer border-none font-bold"
+              onClick={() => {
+                setTempUserName(currentUser.userName)
+                setTempUserId(currentUser.userId)
+                setTempUserRole(currentUser.role)
+                setIsProfileModalOpen(true)
+              }}
+              title={`Logged in as ${currentUser.userName} (${currentUser.role}) · Click to switch user profile`}
+              aria-label="User profile and login session"
+            >
+              {userInitials}
+            </button>
           </header>
 
           {/* Page Content */}
@@ -429,7 +489,9 @@ export function App() {
               <div id="v-dashboard">
                 <div className="top">
                   <div>
-                    <h1>Good morning, Priya</h1>
+                    <h1>
+                      {dynamicGreeting}, {currentUser.userName}
+                    </h1>
                     <div className="sub">
                       {new Date().toLocaleDateString('en-US', {
                         weekday: 'long',
@@ -805,6 +867,89 @@ export function App() {
           </div>
         </main>
       </div>
+
+      {/* User Login Profile Switcher Modal */}
+      {isProfileModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">👤</span>
+                <h3 className="text-sm font-bold text-[var(--ink)]">User Session Profile</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--mute)] hover:bg-[var(--surf2)] transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-[var(--ink)] block mb-1">
+                  Logged In Name *
+                </label>
+                <input
+                  type="text"
+                  value={tempUserName}
+                  onChange={(e) => setTempUserName(e.target.value)}
+                  placeholder="e.g. Uttam Singh"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[var(--ink)] block mb-1">
+                  User ID
+                </label>
+                <input
+                  type="text"
+                  value={tempUserId}
+                  onChange={(e) => setTempUserId(e.target.value)}
+                  placeholder="e.g. USR-101"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[var(--ink)] block mb-1">Role</label>
+                <select
+                  value={tempUserRole}
+                  onChange={(e) => setTempUserRole(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
+                >
+                  <option value="Administrator">Administrator</option>
+                  <option value="Asset Manager">Asset Manager</option>
+                  <option value="Compliance Auditor">Compliance Auditor</option>
+                  <option value="IT Technician">IT Technician</option>
+                  <option value="Department Head">Department Head</option>
+                  <option value="Employee">Employee</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="btn flex-1"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn p flex-1">
+                  Save & Switch
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <AddAssetPanel
         open={isAddModalOpen}
