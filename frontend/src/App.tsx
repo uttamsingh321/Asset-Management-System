@@ -5,6 +5,8 @@ import type { Asset } from '@/types/asset'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 
+const STORAGE_KEY = 'meridian_assets'
+
 export function App() {
   const [currentHash, setCurrentHash] = React.useState<string>(() => {
     const h = window.location.hash.replace('#', '')
@@ -16,7 +18,24 @@ export function App() {
   })
   const [aiAnswer, setAiAnswer] = React.useState<string>('')
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+  const [assets, setAssets] = React.useState<Asset[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const searchInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Sync to local storage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(assets))
+    } catch (err) {
+      console.error('Failed to sync assets', err)
+    }
+  }, [assets])
 
   // Sync hash routing
   React.useEffect(() => {
@@ -56,11 +75,20 @@ export function App() {
   }
 
   const handleAddAsset = (asset: Asset) => {
+    setAssets((prev) => [asset, ...prev])
     toast.success(`Asset "${asset.name}" registered successfully!`)
   }
 
   const isDashboard = currentHash === 'dashboard'
   const activePage = meridianPages[currentHash]
+
+  // Calculated dynamic metrics
+  const totalAssets = assets.length
+  const healthyCount = assets.filter((a) => a.status === 'Active').length
+  const maintenanceCount = assets.filter((a) => a.status === 'Maintenance').length
+  const reservedCount = assets.filter((a) => a.status === 'Reserved').length
+  const retiredCount = assets.filter((a) => a.status === 'Retired').length
+  const totalSpend = assets.reduce((sum, a) => sum + (a.purchaseCost || 0), 0)
 
   return (
     <>
@@ -262,7 +290,7 @@ export function App() {
               id="ai-btn"
               onClick={() => {
                 toast.info('Ask Meridian AI activated', {
-                  description: 'Select an insight chip or type an inquiry to analyze fleet risks.',
+                  description: 'Select an inquiry chip to check failure risks or warranty status.',
                 })
               }}
             >
@@ -305,10 +333,26 @@ export function App() {
                 <div className="top">
                   <div>
                     <h1>Good morning, Priya</h1>
-                    <div className="sub">Friday 13 November · 4 sites · last synced 2 minutes ago</div>
+                    <div className="sub">
+                      {new Date().toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                      })}{' '}
+                      · 0 active alerts · last synced just now
+                    </div>
                   </div>
                   <div className="btns">
-                    <button className="btn" onClick={() => toast.success('Export report initiated')}>
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (assets.length === 0) {
+                          toast.warning('Register at least one asset before exporting.')
+                          return
+                        }
+                        toast.success('Export report initiated')
+                      }}
+                    >
                       Export report
                     </button>
                     <button className="btn p" onClick={() => setIsAddModalOpen(true)}>
@@ -320,32 +364,40 @@ export function App() {
                 {/* Fleet Health Hero Band */}
                 <section className="card hero" aria-label="Fleet health">
                   <div className="big">
-                    <span className="n">12,480</span>
+                    <span className="n">{totalAssets}</span>
                     <span>assets under management</span>
-                    <span className="chg">+214 this month</span>
+                    <span className="chg">
+                      {totalAssets === 0 ? 'Register equipment to begin tracking' : `${totalAssets} active records`}
+                    </span>
                   </div>
-                  <div className="band" role="img" aria-label="Health: 9,610 healthy, 1,870 watch, 690 service due, 310 critical">
-                    <i style={{ flex: 9610, background: 'var(--ok)' }} />
-                    <i style={{ flex: 1870, background: '#7fbf9f' }} />
-                    <i style={{ flex: 690, background: 'var(--warn)' }} />
-                    <i style={{ flex: 310, background: 'var(--bad)' }} />
+                  <div className="band" role="img" aria-label="Fleet health status band">
+                    {totalAssets > 0 ? (
+                      <>
+                        <i style={{ flex: healthyCount || 1, background: 'var(--ok)' }} />
+                        <i style={{ flex: reservedCount || 0, background: '#7fbf9f' }} />
+                        <i style={{ flex: maintenanceCount || 0, background: 'var(--warn)' }} />
+                        <i style={{ flex: retiredCount || 0, background: 'var(--bad)' }} />
+                      </>
+                    ) : (
+                      <i style={{ flex: 1, background: 'var(--surf2)' }} />
+                    )}
                   </div>
                   <div className="leg">
                     <div>
                       <span className="sw" style={{ background: 'var(--ok)' }} />
-                      <b>9,610</b> healthy
+                      <b>{healthyCount}</b> healthy
                     </div>
                     <div>
                       <span className="sw" style={{ background: '#7fbf9f' }} />
-                      <b>1,870</b> on watch
+                      <b>{reservedCount}</b> reserved
                     </div>
                     <div>
                       <span className="sw" style={{ background: 'var(--warn)' }} />
-                      <b>690</b> service due
+                      <b>{maintenanceCount}</b> service due
                     </div>
                     <div>
                       <span className="sw" style={{ background: 'var(--bad)' }} />
-                      <b>310</b> critical
+                      <b>{retiredCount}</b> retired
                     </div>
                   </div>
                 </section>
@@ -354,30 +406,30 @@ export function App() {
                 <div className="kpis">
                   <div className="card k">
                     <div className="l">Maintenance due</div>
-                    <div className="v">142</div>
+                    <div className="v">{maintenanceCount}</div>
                     <div className="d">
-                      <span className="pill w">23 overdue</span> next 14 days
+                      <span className="pill ok">0 overdue</span> next 14 days
                     </div>
                   </div>
                   <div className="card k">
                     <div className="l">Warranties expiring</div>
-                    <div className="v">57</div>
+                    <div className="v">0</div>
                     <div className="d">
-                      <span className="pill b">9 within 30 days</span>
+                      <span className="pill ok">0 within 30 days</span>
                     </div>
                   </div>
                   <div className="card k">
                     <div className="l">Open work orders</div>
-                    <div className="v">318</div>
+                    <div className="v">0</div>
                     <div className="d">
-                      <span className="pill ok">median close 1.8 days</span>
+                      <span className="pill ok">All closed</span>
                     </div>
                   </div>
                   <div className="card k">
                     <div className="l">Spend this quarter</div>
-                    <div className="v">$2.41M</div>
+                    <div className="v">${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                     <div className="d">
-                      <span className="pill ok">6.2% under budget</span>
+                      <span className="pill ok">On budget</span>
                     </div>
                   </div>
                 </div>
@@ -389,7 +441,7 @@ export function App() {
                     <h2>
                       Cost overview <small>Last 12 months, $ thousands</small>
                     </h2>
-                    <svg viewBox="0 0 720 230" role="img" aria-label="Monthly cost line chart">
+                    <svg viewBox="0 0 720 230" role="img" aria-label="Cost line chart">
                       <g stroke="var(--line)">
                         <path d="M40 20h670M40 70h670M40 120h670M40 170h670M40 200h670" />
                       </g>
@@ -399,26 +451,14 @@ export function App() {
                         <text x="4" y="124">500</text>
                         <text x="4" y="174">250</text>
                       </g>
+                      {/* Zero baseline */}
                       <path
-                        d="M50 150 L108 142 L166 148 L224 120 L282 126 L340 104 L398 110 L456 86 L514 92 L572 70 L630 58 L688 44 L688 200 L50 200Z"
-                        fill="var(--acc)"
-                        opacity=".12"
-                      />
-                      <path
-                        d="M50 150 L108 142 L166 148 L224 120 L282 126 L340 104 L398 110 L456 86 L514 92 L572 70 L630 58 L688 44"
+                        d="M50 200 L688 200"
                         fill="none"
                         stroke="var(--acc)"
-                        strokeWidth="2.5"
+                        strokeWidth="2"
                         strokeLinejoin="round"
                       />
-                      <path
-                        d="M50 184 L108 182 L166 178 L224 180 L282 172 L340 174 L398 168 L456 170 L514 160 L572 162 L630 156 L688 150"
-                        fill="none"
-                        stroke="var(--warn)"
-                        strokeWidth="2"
-                        strokeDasharray="5 4"
-                      />
-                      <circle cx="688" cy="44" r="5" fill="var(--acc)" />
                       <g>
                         <text x="50" y="220">Nov</text>
                         <text x="224" y="220">Feb</text>
@@ -438,13 +478,12 @@ export function App() {
                   {/* Meridian Insights AI Panel */}
                   <section className="card c4 insight">
                     <h2>
-                      Meridian insights <small>Updated 8 min ago</small>
+                      Meridian insights <small>Live</small>
                     </h2>
                     <p>
-                      <b>14 CNC spindles</b> at Pune Plant 2 show vibration patterns that preceded past failures. Replacement lead time is 6 weeks.
-                    </p>
-                    <p>
-                      <b>41 laptops</b> reach end of warranty in December. Renewing costs $9,800; replacing costs $52,000.
+                      {totalAssets === 0
+                        ? 'Zero telemetry anomalies detected. Equipment health telemetry and wear prediction models activate as assets are added.'
+                        : `Monitoring ${totalAssets} registered hardware units across infrastructure.`}
                     </p>
                     <div className="chips">
                       {['Schedule inspections', 'Compare renewal options', 'Which assets fail most?'].map(
@@ -469,162 +508,74 @@ export function App() {
                   {/* Maintenance Due Section */}
                   <section className="card c6">
                     <h2>
-                      Maintenance due <small>View all 142</small>
+                      Maintenance due <small>Live queue</small>
                     </h2>
-                    <div className="row">
-                      <div className="th">⚙️</div>
-                      <div>
-                        <div className="t">Hydraulic press HP-204</div>
-                        <div className="m">Pune Plant 2 · Line C</div>
+                    {assets.filter((a) => a.status === 'Maintenance').length > 0 ? (
+                      <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
+                        {assets
+                          .filter((a) => a.status === 'Maintenance')
+                          .map((a) => (
+                            <div key={a.id} className="row">
+                              <div className="th">⚙️</div>
+                              <div>
+                                <div className="t">{a.name}</div>
+                                <div className="m">{a.location || a.department}</div>
+                              </div>
+                              <div className="r">
+                                <span className="pill w">In maintenance</span>
+                              </div>
+                            </div>
+                          ))}
                       </div>
-                      <div className="r">
-                        <span className="pill b">Overdue 6 days</span>
+                    ) : (
+                      <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                        No maintenance work orders scheduled.
                       </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">🚛</div>
-                      <div>
-                        <div className="t">Delivery van MH-12-4471</div>
-                        <div className="m">Fleet · Mumbai depot</div>
-                      </div>
-                      <div className="r">
-                        <span className="pill w">Due in 2 days</span>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">❄️</div>
-                      <div>
-                        <div className="t">Chiller unit CH-02</div>
-                        <div className="m">Delhi HQ · Roof</div>
-                      </div>
-                      <div className="r">
-                        <span className="pill w">Due in 5 days</span>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">🖨️</div>
-                      <div>
-                        <div className="t">Production printer PR-31</div>
-                        <div className="m">Bengaluru office · Floor 4</div>
-                      </div>
-                      <div className="r">
-                        <span className="pill ok">Due in 11 days</span>
-                      </div>
-                    </div>
+                    )}
                   </section>
 
                   {/* Spend by Department */}
                   <section className="card c6">
                     <h2>
-                      Spend by department <small>Q4 to date</small>
+                      Spend by department <small>Current fiscal year</small>
                     </h2>
-                    <div className="row" style={{ display: 'block' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="t">Manufacturing</span>
-                        <span>$1.02M</span>
-                      </div>
-                      <div className="bar">
-                        <i style={{ width: '84%' }} />
-                      </div>
-                    </div>
-                    <div className="row" style={{ display: 'block' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="t">IT</span>
-                        <span>$640K</span>
-                      </div>
-                      <div className="bar">
-                        <i style={{ width: '53%' }} />
-                      </div>
-                    </div>
-                    <div className="row" style={{ display: 'block' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="t">Logistics and fleet</span>
-                        <span>$410K</span>
-                      </div>
-                      <div className="bar">
-                        <i style={{ width: '34%' }} />
-                      </div>
-                    </div>
-                    <div className="row" style={{ display: 'block' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="t">Facilities</span>
-                        <span>$215K</span>
-                      </div>
-                      <div className="bar">
-                        <i style={{ width: '18%' }} />
-                      </div>
+                    <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                      No departmental expenditure recorded yet.
                     </div>
                   </section>
 
                   {/* Awaiting Your Approval */}
                   <section className="card c6">
                     <h2>
-                      Awaiting your approval <small>3 requests</small>
+                      Awaiting your approval <small>0 requests</small>
                     </h2>
-                    <div className="row">
-                      <div className="th">💻</div>
-                      <div>
-                        <div className="t">Transfer 12 laptops to Hyderabad</div>
-                        <div className="m">Requested by Arjun Rao · 40 min ago</div>
-                      </div>
-                      <div className="r">
-                        <button className="btn" onClick={() => toast.info('Review opened')}>
-                          Review
-                        </button>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">🧾</div>
-                      <div>
-                        <div className="t">Purchase order PO-8841 · $38,400</div>
-                        <div className="m">Vendor: Siemens India · 2 hours ago</div>
-                      </div>
-                      <div className="r">
-                        <button className="btn" onClick={() => toast.info('Review opened')}>
-                          Review
-                        </button>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">🗑️</div>
-                      <div>
-                        <div className="t">Retire forklift FK-07</div>
-                        <div className="m">Requested by Meena Shah · yesterday</div>
-                      </div>
-                      <div className="r">
-                        <button className="btn" onClick={() => toast.info('Review opened')}>
-                          Review
-                        </button>
-                      </div>
+                    <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                      No pending purchase or retirement authorizations.
                     </div>
                   </section>
 
                   {/* Recent Activity */}
                   <section className="card c6">
                     <h2>
-                      Recent activity <small>Live</small>
+                      Recent activity <small>Live audit trail</small>
                     </h2>
-                    <div className="row">
-                      <div className="th">📷</div>
-                      <div>
-                        <div className="t">MacBook Pro 16" onboarded</div>
-                        <div className="m">Scanned invoice, serial matched · Kavya, 9:12</div>
+                    {assets.length > 0 ? (
+                      <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
+                        {assets.slice(0, 3).map((a) => (
+                          <div key={a.id} className="row">
+                            <div className="th">📦</div>
+                            <div>
+                              <div className="t">{a.name} onboarded</div>
+                              <div className="m">Tag: {a.assetTag} · Assigned: {a.assignedTo || 'Unassigned'}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">📦</div>
-                      <div>
-                        <div className="t">Spare bearings restocked to 240</div>
-                        <div className="m">Pune warehouse · Rohan, 8:47</div>
+                    ) : (
+                      <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                        No inventory events logged.
                       </div>
-                    </div>
-                    <div className="row">
-                      <div className="th">✅</div>
-                      <div>
-                        <div className="t">Work order WO-5520 closed</div>
-                        <div className="m">Chiller CH-01 · Vikram, 8:05</div>
-                      </div>
-                    </div>
+                    )}
                   </section>
                 </div>
               </div>
@@ -637,7 +588,16 @@ export function App() {
                     <div className="sub">{activePage.s}</div>
                   </div>
                   <div className="btns">
-                    <button className="btn" onClick={() => toast.success(`Exporting ${activePage.t}`)}>
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (currentHash === 'assets' && assets.length === 0) {
+                          toast.warning('No assets recorded to export.')
+                          return
+                        }
+                        toast.success(`Exporting ${activePage.t}`)
+                      }}
+                    >
                       Export
                     </button>
                     <button
@@ -660,7 +620,7 @@ export function App() {
                   {activePage.k.map((x, idx) => (
                     <div key={idx} className="card k">
                       <div className="l">{x[0]}</div>
-                      <div className="v">{x[1]}</div>
+                      <div className="v">{currentHash === 'assets' && idx === 0 ? totalAssets : x[1]}</div>
                       <div className="d">{x[2]}</div>
                     </div>
                   ))}
@@ -670,33 +630,60 @@ export function App() {
                 <div className="grid">
                   <section className="card c8">
                     <h2>{activePage.ah}</h2>
-                    {activePage.a.map((r, idx) => (
-                      <div key={idx} className="row">
-                        <div className="th">{r[0]}</div>
-                        <div>
-                          <div className="t">{r[1]}</div>
-                          <div className="m">{r[2]}</div>
-                        </div>
-                        <div className="r">
-                          <span className={`pill ${r[3]}`}>{r[4]}</span>
-                        </div>
+                    {currentHash === 'assets' && assets.length > 0 ? (
+                      <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
+                        {assets.map((a) => (
+                          <div key={a.id} className="row">
+                            <div className="th">💻</div>
+                            <div>
+                              <div className="t">{a.name} · {a.assetTag}</div>
+                              <div className="m">{a.assignedTo || a.department} · {a.location}</div>
+                            </div>
+                            <div className="r">
+                              <span className="pill ok">{a.status}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : activePage.a.length > 0 ? (
+                      activePage.a.map((r, idx) => (
+                        <div key={idx} className="row">
+                          <div className="th">{r[0]}</div>
+                          <div>
+                            <div className="t">{r[1]}</div>
+                            <div className="m">{r[2]}</div>
+                          </div>
+                          <div className="r">
+                            <span className={`pill ${r[3]}`}>{r[4]}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                        No records found. Click "{activePage.btn}" to add your first entry.
+                      </div>
+                    )}
                   </section>
 
                   <section className="card c4">
                     <h2>{activePage.bh}</h2>
-                    {activePage.b.map((r, idx) => (
-                      <div key={idx} className="row" style={{ display: 'block' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span className="t">{r[0]}</span>
-                          <span>{r[1]}</span>
+                    {activePage.b.length > 0 ? (
+                      activePage.b.map((r, idx) => (
+                        <div key={idx} className="row" style={{ display: 'block' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="t">{r[0]}</span>
+                            <span>{r[1]}</span>
+                          </div>
+                          <div className="bar">
+                            <i style={{ width: `${r[2]}%` }} />
+                          </div>
                         </div>
-                        <div className="bar">
-                          <i style={{ width: `${r[2]}%` }} />
-                        </div>
+                      ))
+                    ) : (
+                      <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                        No category breakdown data available.
                       </div>
-                    ))}
+                    )}
                   </section>
                 </div>
               </div>

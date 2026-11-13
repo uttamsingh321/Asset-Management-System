@@ -3,17 +3,20 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import App from '../App'
 import { navItems, meridianPages } from '../data/meridianData'
 
-describe('Meridian UI/UX Robustness & All Dashboard Routes', () => {
+describe('Meridian UI/UX Zero Dummy Data & All Dashboard Routes', () => {
   beforeEach(() => {
     window.location.hash = ''
     localStorage.clear()
   })
 
-  it('Renders Executive Dashboard with all primary components and KPIs', () => {
+  it('Renders Executive Dashboard with zero dummy data', () => {
     render(<App />)
     expect(screen.getAllByText(/Meridian/i)[0]).toBeInTheDocument()
     expect(screen.getByText(/Good morning, Priya/i)).toBeInTheDocument()
-    expect(screen.getByText(/12,480/i)).toBeInTheDocument()
+    // Zero assets by default
+    expect(screen.getByText('0', { selector: '.hero .n' })).toBeInTheDocument()
+    expect(screen.getByText(/assets under management/i)).toBeInTheDocument()
+    expect(screen.getByText(/Register equipment to begin tracking/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Maintenance due/i)[0]).toBeInTheDocument()
     expect(screen.getByText(/Warranties expiring/i)).toBeInTheDocument()
     expect(screen.getByText(/Open work orders/i)).toBeInTheDocument()
@@ -22,7 +25,7 @@ describe('Meridian UI/UX Robustness & All Dashboard Routes', () => {
     expect(screen.getByText(/Meridian insights/i)).toBeInTheDocument()
   })
 
-  it('Verifies EVERY SINGLE DASHBOARD page renders correctly', () => {
+  it('Verifies EVERY SINGLE DASHBOARD page renders zero dummy data cleanly', () => {
     const { unmount } = render(<App />)
 
     // Test each of the 11 sub-dashboards
@@ -35,11 +38,12 @@ describe('Meridian UI/UX Robustness & All Dashboard Routes', () => {
       const navLink = screen.getByText(item.label)
       fireEvent.click(navLink)
 
-      // Verify the page title and subtitle render
+      // Verify page title, subtitle, and zero-record state
       expect(screen.getByRole('heading', { level: 1, name: pageData.t })).toBeInTheDocument()
       expect(screen.getByText(pageData.s)).toBeInTheDocument()
       expect(screen.getByRole('heading', { level: 2, name: pageData.ah })).toBeInTheDocument()
       expect(screen.getByRole('heading', { level: 2, name: pageData.bh })).toBeInTheDocument()
+      expect(screen.getByText(new RegExp(`Click "${pageData.btn}" to add your first entry`, 'i'))).toBeInTheDocument()
     }
     unmount()
   })
@@ -51,12 +55,12 @@ describe('Meridian UI/UX Robustness & All Dashboard Routes', () => {
     expect(duration).toBeLessThan(100)
   })
 
-  it('Interactive AI chips update answers instantly', () => {
+  it('Interactive AI chips update answers with zero-data messages', () => {
     render(<App />)
     const chipBtn = screen.getByText('Schedule inspections')
     fireEvent.click(chipBtn)
     expect(
-      screen.getByText(/Drafted 14 inspections for Pune Plant 2/i)
+      screen.getByText(/No active inspection candidates found/i)
     ).toBeInTheDocument()
   })
 })
