@@ -32,6 +32,7 @@ import {
   AlertTriangle,
   Clock,
   Archive,
+  PackageSearch,
 } from "lucide-react"
 
 interface AssetDataTableProps {
@@ -242,7 +243,7 @@ export function AssetDataTable({ data, onDeleteAsset }: AssetDataTableProps) {
       </div>
 
       {/* Table Container */}
-      <div className="rounded-xl border bg-card shadow-xs">
+      <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/40">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -282,9 +283,17 @@ export function AssetDataTable({ data, onDeleteAsset }: AssetDataTableProps) {
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-28 text-center text-muted-foreground"
+                  className="h-40 text-center text-muted-foreground"
                 >
-                  No matching assets found.
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <PackageSearch className="h-10 w-10 text-muted-foreground/30 mb-2" />
+                    <p className="text-sm font-medium text-foreground">No assets found</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                      {globalFilter || categoryFilter !== "all"
+                        ? "No assets match your search or filter criteria."
+                        : "Your inventory register is currently empty. Click 'Register Asset' to add equipment."}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}

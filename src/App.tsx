@@ -21,9 +21,27 @@ import {
   TrendingUp,
 } from "lucide-react"
 
+const STORAGE_KEY = "assetpulse_inventory"
+
 export function App() {
-  const [assets, setAssets] = React.useState<Asset[]>(initialAssets)
+  const [assets, setAssets] = React.useState<Asset[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved ? JSON.parse(saved) : initialAssets
+    } catch {
+      return initialAssets
+    }
+  })
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+
+  // Sync to local storage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(assets))
+    } catch (err) {
+      console.error("Failed to save assets to localStorage", err)
+    }
+  }, [assets])
 
   // KPI calculations
   const totalValue = assets.reduce((sum, a) => sum + a.currentValue, 0)
@@ -44,6 +62,10 @@ export function App() {
   }
 
   const handleExportExcel = () => {
+    if (assets.length === 0) {
+      toast.warning("Register or add at least one asset before exporting.")
+      return
+    }
     exportAssetsToExcel(assets)
     toast.success("Excel report exported!", {
       description: `Downloaded asset-register.xlsx (${assets.length} items)`,
@@ -51,6 +73,10 @@ export function App() {
   }
 
   const handleExportPDF = () => {
+    if (assets.length === 0) {
+      toast.warning("Register or add at least one asset before exporting.")
+      return
+    }
     exportAssetsToPDF(assets)
     toast.success("PDF audit report exported!", {
       description: `Downloaded asset-report.pdf (${assets.length} items)`,
@@ -129,7 +155,7 @@ export function App() {
               <div className="text-2xl font-bold">${totalValue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                 <TrendingUp className="h-3 w-3 text-emerald-500" />
-                <span className="text-emerald-600 font-medium">+4.2%</span> across {assets.length} assets
+                <span>Across {assets.length} registered asset{assets.length === 1 ? "" : "s"}</span>
               </p>
             </CardContent>
           </Card>
@@ -146,7 +172,9 @@ export function App() {
             <CardContent>
               <div className="text-2xl font-bold">{activeCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {((activeCount / (assets.length || 1)) * 100).toFixed(0)}% fleet utilization
+                {assets.length > 0
+                  ? `${((activeCount / assets.length) * 100).toFixed(0)}% fleet utilization`
+                  : "0% fleet utilization"}
               </p>
             </CardContent>
           </Card>
@@ -162,7 +190,7 @@ export function App() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{maintenanceCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">Under active inspection / repair</p>
+              <p className="text-xs text-muted-foreground mt-1">Under inspection / repair</p>
             </CardContent>
           </Card>
 

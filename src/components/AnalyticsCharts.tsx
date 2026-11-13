@@ -12,6 +12,7 @@ import {
 } from "recharts"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import type { Asset } from "@/types/asset"
+import { BarChart3, PieChart as PieChartIcon } from "lucide-react"
 
 interface AnalyticsChartsProps {
   assets: Asset[]
@@ -20,6 +21,40 @@ interface AnalyticsChartsProps {
 const COLORS = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ec4899"]
 
 export function AnalyticsCharts({ assets }: AnalyticsChartsProps) {
+  if (assets.length === 0) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-dashed">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">Valuation by Category</CardTitle>
+            <CardDescription>Total asset portfolio value per equipment segment</CardDescription>
+          </CardHeader>
+          <CardContent className="h-64 flex flex-col items-center justify-center text-center text-muted-foreground p-6">
+            <BarChart3 className="h-10 w-10 mb-2 opacity-30" />
+            <p className="text-sm font-medium">No assets registered yet</p>
+            <p className="text-xs text-muted-foreground/80 mt-1 max-w-xs">
+              Valuation breakdown charts will automatically render once assets are added.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-dashed">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">Operational Health & Allocation</CardTitle>
+            <CardDescription>Live ratio of deployed, servicing, and reserve inventory</CardDescription>
+          </CardHeader>
+          <CardContent className="h-64 flex flex-col items-center justify-center text-center text-muted-foreground p-6">
+            <PieChartIcon className="h-10 w-10 mb-2 opacity-30" />
+            <p className="text-sm font-medium">No allocation data</p>
+            <p className="text-xs text-muted-foreground/80 mt-1 max-w-xs">
+              Inventory operational metrics will automatically generate as assets are logged.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // Aggregate by Category
   const categoryData = assets.reduce(
     (acc, asset) => {
