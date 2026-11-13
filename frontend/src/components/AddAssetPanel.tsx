@@ -72,29 +72,43 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const assetPhotoFileRef = React.useRef<HTMLInputElement>(null)
   const idPhotoFileRef = React.useRef<HTMLInputElement>(null)
 
-  // Focus management & Escape key handling
+  // Keep latest state in refs so keydown listener does not need to rebind or re-trigger focus
+  const cameraActiveTargetRef = React.useRef(cameraActiveTarget)
+  cameraActiveTargetRef.current = cameraActiveTarget
+  const showPhotoOptionsRef = React.useRef(showPhotoOptions)
+  showPhotoOptionsRef.current = showPhotoOptions
+  const showIdOptionsRef = React.useRef(showIdOptions)
+  showIdOptionsRef.current = showIdOptions
+
+  // Focus management: ONLY focus first input once when drawer is opened
   React.useEffect(() => {
     if (open) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         firstInputRef.current?.focus()
       }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [open])
 
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          if (cameraActiveTarget) {
-            closeCamera()
-          } else if (showPhotoOptions || showIdOptions) {
-            setShowPhotoOptions(false)
-            setShowIdOptions(false)
-          } else {
-            handleClose()
-          }
+  // Escape key handling without re-focusing or resetting scroll
+  React.useEffect(() => {
+    if (!open) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (cameraActiveTargetRef.current) {
+          closeCamera()
+        } else if (showPhotoOptionsRef.current || showIdOptionsRef.current) {
+          setShowPhotoOptions(false)
+          setShowIdOptions(false)
+        } else {
+          handleClose()
         }
       }
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, cameraActiveTarget, showPhotoOptions, showIdOptions])
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open])
 
   // Stop camera stream on unmount or close
   React.useEffect(() => {
@@ -434,6 +448,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             aria-label="Close add asset panel"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)] transition"
