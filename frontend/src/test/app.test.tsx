@@ -17,10 +17,8 @@ describe('Meridian UI/UX Zero Dummy Data & Responsive Collapsible Navigation', (
     expect(screen.getByText('0', { selector: '.hero .n' })).toBeInTheDocument()
     expect(screen.getByText(/assets under management/i)).toBeInTheDocument()
     expect(screen.getByText(/Register equipment to begin tracking/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Maintenance due/i)[0]).toBeInTheDocument()
-    expect(screen.getByText(/Warranties expiring/i)).toBeInTheDocument()
-    expect(screen.getByText(/Open work orders/i)).toBeInTheDocument()
-    expect(screen.getByText(/Spend this quarter/i)).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /Facility Assets Register/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /Facility Assets Register/i })).toBeInTheDocument()
   })
 
   it('Task 1: Sidebar collapses and expands cleanly on toggle', () => {

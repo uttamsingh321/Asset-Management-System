@@ -294,7 +294,6 @@ export function App() {
   const maintenanceCount = assets.filter((a) => a.status === 'Maintenance').length
   const reservedCount = assets.filter((a) => a.status === 'Reserved').length
   const retiredCount = assets.filter((a) => a.status === 'Retired').length
-  const totalSpend = assets.reduce((sum, a) => sum + (a.purchaseCost || 0), 0)
 
   return (
     <>
@@ -634,38 +633,6 @@ export function App() {
                     </div>
                   </div>
                 </section>
-
-                {/* 4 Summary Cards */}
-                <div className="kpis">
-                  <div className="card k">
-                    <div className="l">Maintenance due</div>
-                    <div className="v">{maintenanceCount}</div>
-                    <div className="d">
-                      <span className="pill ok">0 overdue</span> next 14 days
-                    </div>
-                  </div>
-                  <div className="card k">
-                    <div className="l">Warranties expiring</div>
-                    <div className="v">0</div>
-                    <div className="d">
-                      <span className="pill ok">0 within 30 days</span>
-                    </div>
-                  </div>
-                  <div className="card k">
-                    <div className="l">Open work orders</div>
-                    <div className="v">0</div>
-                    <div className="d">
-                      <span className="pill ok">All closed</span>
-                    </div>
-                  </div>
-                  <div className="card k">
-                    <div className="l">Spend this quarter</div>
-                    <div className="v">${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                    <div className="d">
-                      <span className="pill ok">On budget</span>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Facility Assets Register - IIPL & Padget Deployed Units (C39, D197, D198, D199) */}
                 <section className="card" style={{ marginTop: '20px', padding: '20px' }} aria-label="Facility Assets Register">
