@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
 import { matchIllustrationKey } from '../components/AssetIllustrations'
@@ -56,22 +56,46 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     })
   })
 
-  it('Media inputs: Asset photo and ID card offer Camera and File; Asset code is camera-only', async () => {
+  it('Media inputs: Clicking Asset photo and ID card reveals Camera and File options; Asset code is camera-only', async () => {
+    // Mock navigator.mediaDevices.getUserMedia and HTMLMediaElement.prototype.play for headless test runner
+    const mockTrack = { stop: vi.fn() }
+    const mockStream = { getTracks: () => [mockTrack] }
+    Object.defineProperty(window.navigator, 'mediaDevices', {
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue(mockStream),
+      },
+      configurable: true,
+      writable: true,
+    })
+    window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined)
+
     render(<App />)
 
     const addAssetBtns = screen.getAllByRole('button', { name: /add asset/i })
     fireEvent.click(addAssetBtns[0])
 
-    // Asset photo and ID card offer both Camera and File
-    const cameraBtns = screen.getAllByRole('button', { name: /📷 Camera/i })
-    expect(cameraBtns).toHaveLength(2)
-
-    const fileBtns = screen.getAllByRole('button', { name: /📁 File/i })
-    expect(fileBtns).toHaveLength(2)
-
-    // Asset code photo is strictly camera-only with no file option
+    // Initially clean cards without exposed options
+    expect(screen.getByText(/Upload photo/i)).toBeInTheDocument()
+    expect(screen.getByText(/ID badge/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /📷 Open Camera/i })).toBeInTheDocument()
     expect(screen.getByText(/No file import/i)).toBeInTheDocument()
+
+    // Clicking Asset photo card reveals options
+    fireEvent.click(screen.getByText(/Upload photo/i))
+    expect(screen.getAllByRole('button', { name: /📷 Camera/i })[0]).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /📁 File/i })[0]).toBeInTheDocument()
+
+    // Clicking ID card picture card reveals options
+    fireEvent.click(screen.getByText(/ID badge/i))
+    expect(screen.getAllByRole('button', { name: /📷 Camera/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /📁 File/i })).toHaveLength(2)
+
+    // Clicking Asset code camera button directly triggers camera viewfinder
+    fireEvent.click(screen.getByRole('button', { name: /📷 Open Camera/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /Live Camera Scanner/i })).toBeInTheDocument()
+      expect(screen.getByText(/Scan Asset Code \(Camera Only\)/i)).toBeInTheDocument()
+    })
   })
 
   it('PART 1: Saving a new physical asset validates, prepends to gallery, and displays toast', async () => {

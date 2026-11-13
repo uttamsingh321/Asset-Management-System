@@ -787,37 +787,45 @@ summary::-webkit-details-marker { display: none; }
     <div class="field-group">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
         <div class="group-title" style="margin-bottom:0">Media</div>
-        <span style="font-size:11px; color:var(--mute)">Asset code is camera-only</span>
+        <span style="font-size:11px; color:var(--mute)">Click card for options</span>
       </div>
       <div class="media-previews">
-        <!-- 1. Asset photo: Camera OR File -->
-        <div class="media-box">
+        <!-- 1. Asset photo: Click card to reveal Camera OR File options -->
+        <div class="media-box" id="box-asset-photo" style="cursor:pointer" onclick="toggleMediaOptions('photo')">
           <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset photo</div>
-          <div id="prev-photo" style="font-size:10px; color:var(--mute); height:60px; width:100%; display:grid; place-items:center;">None</div>
-          <div style="display:flex; gap:4px; margin-top:4px">
+          <div id="prev-photo" style="font-size:10px; color:var(--mute); height:50px; width:100%; display:grid; place-items:center;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" style="color:var(--mute)"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <div id="opts-photo" style="display:none; gap:4px; margin-top:4px; width:100%; justify-content:center" onclick="event.stopPropagation()">
             <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="openCameraModal('assetPhoto')">📷 Camera</button>
             <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="document.getElementById('f-assetPhoto').click()">📁 File</button>
           </div>
-          <input type="file" accept="image/*" id="f-assetPhoto" onchange="previewImg(this, 'prev-photo')" style="display:none">
+          <span id="hint-photo" style="font-size:10px; color:var(--mute); margin-top:2px">Upload photo</span>
+          <input type="file" accept="image/*" id="f-assetPhoto" onchange="previewImg(this, 'prev-photo'); document.getElementById('opts-photo').style.display='none'; document.getElementById('hint-photo').style.display='none';" style="display:none">
         </div>
 
-        <!-- 2. Asset code: CAMERA ONLY (NO IMPORT OPTION) -->
-        <div class="media-box" style="border-color:var(--acc); background:color-mix(in srgb, var(--acc2) 30%, transparent)">
+        <!-- 2. Asset code: CLICK OPENS CAMERA DIRECTLY (NO IMPORT OPTION) -->
+        <div class="media-box" style="border-color:var(--acc); background:color-mix(in srgb, var(--acc2) 25%, transparent); cursor:pointer" onclick="openCameraModal('assetCodePhoto')">
           <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset code photo</div>
-          <div id="prev-code" style="font-size:10px; color:var(--mute); height:60px; width:100%; display:grid; place-items:center;">None</div>
-          <button type="button" class="btn primary" style="padding:4px 8px; font-size:10px; margin-top:4px; width:100%" onclick="openCameraModal('assetCodePhoto')">📷 Open Camera</button>
+          <div id="prev-code" style="font-size:10px; color:var(--mute); height:50px; width:100%; display:grid; place-items:center;">
+            <svg width="24" height="24" fill="none" stroke="var(--acc)" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <button type="button" class="btn primary" style="padding:4px 8px; font-size:10px; margin-top:2px; width:100%" onclick="event.stopPropagation(); openCameraModal('assetCodePhoto')">📷 Open Camera</button>
           <span style="font-size:9.5px; color:var(--mute); margin-top:2px">No file import</span>
         </div>
 
-        <!-- 3. ID card picture: Camera OR File -->
-        <div class="media-box">
+        <!-- 3. ID card picture: Click card to reveal Camera OR File options -->
+        <div class="media-box" id="box-id-photo" style="cursor:pointer" onclick="toggleMediaOptions('id')">
           <div style="font-size:11px; font-weight:600; margin-bottom:4px">ID card picture</div>
-          <div id="prev-id" style="font-size:10px; color:var(--mute); height:60px; width:100%; display:grid; place-items:center;">None</div>
-          <div style="display:flex; gap:4px; margin-top:4px">
+          <div id="prev-id" style="font-size:10px; color:var(--mute); height:50px; width:100%; display:grid; place-items:center;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" style="color:var(--mute)"><path d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>
+          </div>
+          <div id="opts-id" style="display:none; gap:4px; margin-top:4px; width:100%; justify-content:center" onclick="event.stopPropagation()">
             <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="openCameraModal('idCardPicture')">📷 Camera</button>
             <button type="button" class="btn" style="padding:3px 6px; font-size:10px" onclick="document.getElementById('f-idPhoto').click()">📁 File</button>
           </div>
-          <input type="file" accept="image/*" id="f-idPhoto" onchange="previewImg(this, 'prev-id')" style="display:none">
+          <span id="hint-id" style="font-size:10px; color:var(--mute); margin-top:2px">ID badge</span>
+          <input type="file" accept="image/*" id="f-idPhoto" onchange="previewImg(this, 'prev-id'); document.getElementById('opts-id').style.display='none'; document.getElementById('hint-id').style.display='none';" style="display:none">
         </div>
       </div>
     </div>
@@ -989,6 +997,15 @@ function captureCameraPhoto() {
     toast('ID card picture captured via camera!');
   }
   closeCameraModal();
+}
+
+function toggleMediaOptions(type) {
+  const optsEl = document.getElementById('opts-' + type);
+  const hintEl = document.getElementById('hint-' + type);
+  if (!optsEl) return;
+  const isHidden = optsEl.style.display === 'none';
+  optsEl.style.display = isHidden ? 'flex' : 'none';
+  if (hintEl) hintEl.style.display = isHidden ? 'none' : 'block';
 }
 
 function renderCategories() {

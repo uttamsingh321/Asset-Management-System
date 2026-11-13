@@ -45,6 +45,10 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const [date, setDate] = React.useState(() => new Date().toISOString().split('T')[0])
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  // Media option toggles (revealed when clicked, can be active simultaneously)
+  const [showPhotoOptions, setShowPhotoOptions] = React.useState(false)
+  const [showIdOptions, setShowIdOptions] = React.useState(false)
+
   // Camera Modal States
   const [cameraActiveTarget, setCameraActiveTarget] = React.useState<CameraTarget | null>(null)
   const [cameraError, setCameraError] = React.useState<string | null>(null)
@@ -67,6 +71,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
         if (e.key === 'Escape') {
           if (cameraActiveTarget) {
             closeCamera()
+          } else if (showPhotoOptions || showIdOptions) {
+            setShowPhotoOptions(false)
+            setShowIdOptions(false)
           } else {
             handleClose()
           }
@@ -75,7 +82,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, cameraActiveTarget])
+  }, [open, cameraActiveTarget, showPhotoOptions, showIdOptions])
 
   // Stop camera stream on unmount or close
   React.useEffect(() => {
@@ -92,6 +99,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   }
 
   const openCamera = async (target: CameraTarget) => {
+    setShowPhotoOptions(false)
+    setShowIdOptions(false)
     setCameraActiveTarget(target)
     setCameraError(null)
 
@@ -111,7 +120,11 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        videoRef.current.play()
+        try {
+          await videoRef.current.play?.()
+        } catch {
+          // Ignore autoplay / headless test constraints
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unable to access camera device'
@@ -160,6 +173,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const handleClose = () => {
     stopCameraStream()
     setCameraActiveTarget(null)
+    setShowPhotoOptions(false)
+    setShowIdOptions(false)
     onClose()
     if (triggerRef && triggerRef.current) {
       triggerRef.current.focus()
@@ -168,7 +183,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    setter: (val: string) => void
+    setter: (val: string) => void,
+    targetType?: 'photo' | 'id'
   ) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -176,6 +192,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       reader.onload = (event) => {
         if (event.target?.result) {
           setter(event.target.result as string)
+          if (targetType === 'photo') setShowPhotoOptions(false)
+          if (targetType === 'id') setShowIdOptions(false)
         }
       }
       reader.readAsDataURL(file)
@@ -589,15 +607,28 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 Media
               </h3>
               <span className="text-[11px] text-[var(--mute)]">
-                Asset code is camera-only; others support camera or file
+                Click a card to choose options or capture
               </span>
             </div>
 
             <div style={grid3Style}>
-              {/* 1. Asset photo: Camera OR File */}
+              {/* 1. Asset photo: Click card to show Camera or File options */}
               <div className="space-y-1.5">
                 <label style={labelStyle}>Asset photo</label>
-                <div className="border-2 border-dashed border-[var(--line)] rounded-xl p-2.5 text-center bg-[var(--surf2)] hover:border-[var(--acc)] transition min-h-[105px] flex flex-col justify-center items-center">
+                <div
+                  onClick={() => {
+                    if (!assetPhoto) {
+                      setShowPhotoOptions((prev) => !prev)
+                    }
+                  }}
+                  className={`border-2 border-dashed rounded-xl p-2.5 text-center transition min-h-[105px] flex flex-col justify-center items-center relative ${
+                    assetPhoto
+                      ? 'border-[var(--line)] bg-[var(--surf2)]'
+                      : showPhotoOptions
+                      ? 'border-[var(--acc)] bg-[var(--acc2)]/30 shadow-xs'
+                      : 'border-[var(--line)] bg-[var(--surf2)] hover:border-[var(--acc)] cursor-pointer'
+                  }`}
+                >
                   {assetPhoto ? (
                     <div className="relative group w-full">
                       <img
@@ -607,61 +638,82 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       />
                       <button
                         type="button"
-                        onClick={() => setAssetPhoto(undefined)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setAssetPhoto(undefined)
+                        }}
                         className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
                       >
                         ✕
                       </button>
                     </div>
-                  ) : (
-                    <div className="w-full py-1 space-y-2">
-                      <svg
-                        className="mx-auto h-5 w-5 text-[var(--mute)]"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
+                  ) : showPhotoOptions ? (
+                    /* Revealed Options State When Clicked */
+                    <div className="w-full py-1 space-y-2 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] font-bold text-[var(--acc)]">Select Source</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowPhotoOptions(false)}
+                          className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)]"
+                        >
+                          ✕
+                        </button>
+                      </div>
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => openCamera('assetPhoto')}
-                          className="px-2 py-1 text-[11px] font-semibold rounded bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc2)] hover:text-[var(--acc)] transition flex items-center gap-1"
+                          className="px-2.5 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc)] hover:text-white transition flex items-center gap-1 shadow-xs"
                         >
                           📷 Camera
                         </button>
                         <button
                           type="button"
                           onClick={() => assetPhotoFileRef.current?.click()}
-                          className="px-2 py-1 text-[11px] font-semibold rounded bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc2)] hover:text-[var(--acc)] transition flex items-center gap-1"
+                          className="px-2.5 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc)] hover:text-white transition flex items-center gap-1 shadow-xs"
                         >
                           📁 File
                         </button>
                       </div>
-                      <input
-                        ref={assetPhotoFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileChange(e, setAssetPhoto)}
-                      />
+                    </div>
+                  ) : (
+                    /* Default Clean State (Pre-Click) */
+                    <div className="w-full py-2 space-y-1">
+                      <svg
+                        className="mx-auto h-6 w-6 text-[var(--mute)]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="block text-xs font-medium text-[var(--ink)]">Upload photo</span>
+                      <span className="block text-[10px] text-[var(--mute)]">Click for options</span>
                     </div>
                   )}
+
+                  <input
+                    ref={assetPhotoFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileChange(e, setAssetPhoto, 'photo')}
+                  />
                 </div>
               </div>
 
-              {/* 2. Asset code photo: CAMERA ONLY (NO IMPORT OPTION) */}
+              {/* 2. Asset code photo: CLICK OPENS CAMERA DIRECTLY (NO IMPORT OPTION) */}
               <div className="space-y-1.5">
                 <label style={labelStyle}>
                   Asset code photo <span className="text-[10px] text-[var(--acc)] font-normal">(Camera only)</span>
                 </label>
                 <div
                   onClick={() => !assetCodePhoto && openCamera('assetCodePhoto')}
-                  className={`border-2 border-dashed rounded-xl p-2.5 text-center transition min-h-[105px] flex flex-col justify-center items-center ${
+                  className={`border-2 border-dashed rounded-xl p-2.5 text-center transition min-h-[105px] flex flex-col justify-center items-center relative cursor-pointer ${
                     assetCodePhoto
                       ? 'border-[var(--line)] bg-[var(--surf2)]'
-                      : 'border-[var(--acc)] bg-[var(--acc2)]/25 cursor-pointer hover:bg-[var(--acc2)]/40'
+                      : 'border-[var(--acc)] bg-[var(--acc2)]/25 hover:bg-[var(--acc2)]/40 hover:shadow-xs'
                   }`}
                 >
                   {assetCodePhoto ? (
@@ -683,6 +735,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       </button>
                     </div>
                   ) : (
+                    /* Default Clean State: Directly Opens Camera on Click */
                     <div className="w-full py-1 space-y-1.5">
                       <svg
                         className="mx-auto h-6 w-6 text-[var(--acc)]"
@@ -709,10 +762,23 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 </div>
               </div>
 
-              {/* 3. ID card picture: Camera OR File */}
+              {/* 3. ID card picture: Click card to show Camera or File options */}
               <div className="space-y-1.5">
                 <label style={labelStyle}>ID card picture</label>
-                <div className="border-2 border-dashed border-[var(--line)] rounded-xl p-2.5 text-center bg-[var(--surf2)] hover:border-[var(--acc)] transition min-h-[105px] flex flex-col justify-center items-center">
+                <div
+                  onClick={() => {
+                    if (!idCardPicture) {
+                      setShowIdOptions((prev) => !prev)
+                    }
+                  }}
+                  className={`border-2 border-dashed rounded-xl p-2.5 text-center transition min-h-[105px] flex flex-col justify-center items-center relative ${
+                    idCardPicture
+                      ? 'border-[var(--line)] bg-[var(--surf2)]'
+                      : showIdOptions
+                      ? 'border-[var(--acc)] bg-[var(--acc2)]/30 shadow-xs'
+                      : 'border-[var(--line)] bg-[var(--surf2)] hover:border-[var(--acc)] cursor-pointer'
+                  }`}
+                >
                   {idCardPicture ? (
                     <div className="relative group w-full">
                       <img
@@ -722,47 +788,68 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       />
                       <button
                         type="button"
-                        onClick={() => setIdCardPicture(undefined)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setIdCardPicture(undefined)
+                        }}
                         className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
                       >
                         ✕
                       </button>
                     </div>
-                  ) : (
-                    <div className="w-full py-1 space-y-2">
-                      <svg
-                        className="mx-auto h-5 w-5 text-[var(--mute)]"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                      </svg>
+                  ) : showIdOptions ? (
+                    /* Revealed Options State When Clicked */
+                    <div className="w-full py-1 space-y-2 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] font-bold text-[var(--acc)]">Select Source</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowIdOptions(false)}
+                          className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)]"
+                        >
+                          ✕
+                        </button>
+                      </div>
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => openCamera('idCardPicture')}
-                          className="px-2 py-1 text-[11px] font-semibold rounded bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc2)] hover:text-[var(--acc)] transition flex items-center gap-1"
+                          className="px-2.5 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc)] hover:text-white transition flex items-center gap-1 shadow-xs"
                         >
                           📷 Camera
                         </button>
                         <button
                           type="button"
                           onClick={() => idPhotoFileRef.current?.click()}
-                          className="px-2 py-1 text-[11px] font-semibold rounded bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc2)] hover:text-[var(--acc)] transition flex items-center gap-1"
+                          className="px-2.5 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--surf)] border border-[var(--line)] hover:bg-[var(--acc)] hover:text-white transition flex items-center gap-1 shadow-xs"
                         >
                           📁 File
                         </button>
                       </div>
-                      <input
-                        ref={idPhotoFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileChange(e, setIdCardPicture)}
-                      />
+                    </div>
+                  ) : (
+                    /* Default Clean State (Pre-Click) */
+                    <div className="w-full py-2 space-y-1">
+                      <svg
+                        className="mx-auto h-6 w-6 text-[var(--mute)]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                      </svg>
+                      <span className="block text-xs font-medium text-[var(--ink)]">ID badge</span>
+                      <span className="block text-[10px] text-[var(--mute)]">Click for options</span>
                     </div>
                   )}
+
+                  <input
+                    ref={idPhotoFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileChange(e, setIdCardPicture, 'id')}
+                  />
                 </div>
               </div>
             </div>
