@@ -102,74 +102,13 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* View Switcher Tabs */}
-      <div className="flex items-center justify-between border-b border-[var(--line)] pb-2 flex-wrap gap-3">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveSubTab('gallery')}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition ${
-              activeSubTab === 'gallery'
-                ? 'bg-[var(--acc)] text-white'
-                : 'text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)]'
-            }`}
-          >
-            Asset Gallery ({assets.length})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('library')}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition ${
-              activeSubTab === 'library'
-                ? 'bg-[var(--acc)] text-white'
-                : 'text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)]'
-            }`}
-          >
-            Asset Library ({assetTypes.length} Types)
-          </button>
-        </div>
-
-        <div className="flex gap-2">
-          {activeSubTab === 'gallery' ? (
-            <>
-              <button
-                className="btn"
-                onClick={() => setActiveSubTab('library')}
-              >
-                Browse Library Types
-              </button>
-              <button
-                ref={addAssetButtonRef}
-                className="btn p"
-                onClick={onOpenAddAsset}
-              >
-                Add asset
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="btn"
-                onClick={() => toast.info('Import assets dialog triggered')}
-              >
-                Import assets
-              </button>
-              <button
-                className="btn p"
-                onClick={() => setActiveSubTab('gallery')}
-              >
-                Open Asset Gallery
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
       {activeSubTab === 'gallery' ? (
         /* ================= PART 1: ASSET GALLERY VIEW ================= */
         <div className="space-y-6">
           <div className="top">
             <div>
               <h1>Asset Gallery</h1>
-              <div className="sub">0 assets registered across categories</div>
+              <div className="sub">{assets.length} assets registered across categories</div>
             </div>
             <div className="btns">
               <button

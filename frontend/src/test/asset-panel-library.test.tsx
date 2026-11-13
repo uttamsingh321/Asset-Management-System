@@ -139,9 +139,9 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
   it('PART 2: Asset Library features flow strip, 4 summary cards, quick-add, expandable details rows', async () => {
     render(<App />)
 
-    // Switch to Asset Library tab
-    const libraryTabBtn = screen.getByRole('button', { name: /Asset Library/i })
-    fireEvent.click(libraryTabBtn)
+    // Switch to Asset Library via sidebar navigation
+    const libraryNavBtn = screen.getByRole('link', { name: /Asset Library/i })
+    fireEvent.click(libraryNavBtn)
 
     // Header & Subline
     expect(screen.getByRole('heading', { level: 1, name: 'Asset Library' })).toBeInTheDocument()
