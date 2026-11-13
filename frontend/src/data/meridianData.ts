@@ -10,8 +10,23 @@ export interface PageData {
 }
 
 export const meridianPages: Record<string, PageData> = {
+  library: {
+    t: 'Asset Library',
+    s: 'Asset types and templates: categories, models and specifications. Physical assets live in the Asset Gallery.',
+    btn: 'Import assets',
+    k: [
+      ['Categories', '7', 'Active categories'],
+      ['Asset types', '9', 'Standard models'],
+      ['Specification fields', '36', 'Structured specs'],
+      ['Assets without a type', '0', 'All linked'],
+    ],
+    ah: 'Asset types',
+    a: [],
+    bh: 'Categories',
+    b: [],
+  },
   assets: {
-    t: 'Assets',
+    t: 'Asset Gallery',
     s: '0 assets registered across categories',
     btn: 'Add asset',
     k: [
@@ -134,7 +149,8 @@ export const meridianPages: Record<string, PageData> = {
 
 export const navItems = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'assets', label: 'Assets' },
+  { key: 'library', label: 'Asset Library' },
+  { key: 'assets', label: 'Asset Gallery' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'maintenance', label: 'Maintenance' },
   { key: 'workorders', label: 'Work orders' },

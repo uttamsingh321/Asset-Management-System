@@ -457,37 +457,52 @@ summary::-webkit-details-marker { display: none; }
 .form-row input[type="text"],
 .form-row input[type="date"] {
   width: 100%;
-  padding: 8px 12px;
+  min-width: 0;
+  height: 40px;
+  padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surf2);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
+  box-sizing: border-box;
 }
 .form-row input:focus {
   outline: 2px solid var(--acc);
 }
 .form-row-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 12px;
+}
+@media (max-width: 520px) {
+  .form-row-grid { grid-template-columns: 1fr; }
 }
 .media-previews {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 520px) {
+  .media-previews { grid-template-columns: 1fr; }
 }
 .media-box {
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 8px;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px 8px;
   text-align: center;
   background: var(--surf2);
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 .media-box img {
   width: 100%;
-  height: 60px;
+  height: 64px;
   object-fit: cover;
   border-radius: 6px;
 }
@@ -530,8 +545,30 @@ summary::-webkit-details-marker { display: none; }
   </div>
 
   <div class="tabs-nav" role="tablist">
-    <button class="tab-btn" id="tab-gallery-btn" onclick="showTab('gallery')">Asset Gallery</button>
-    <button class="tab-btn active" id="tab-library-btn" onclick="showTab('library')">Asset Library</button>
+    <button class="tab-btn" id="tab-dashboard-btn" onclick="showTab('dashboard')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px">
+        <rect x="3" y="3" width="7" height="9" rx="2" />
+        <rect x="14" y="3" width="7" height="5" rx="2" />
+        <rect x="14" y="12" width="7" height="9" rx="2" />
+        <rect x="3" y="16" width="7" height="5" rx="2" />
+      </svg>
+      Dashboard
+    </button>
+    <button class="tab-btn active" id="tab-library-btn" onclick="showTab('library')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px">
+        <rect x="4" y="4" width="4" height="16" rx="1" />
+        <rect x="10" y="4" width="4" height="16" rx="1" />
+        <path d="M16 4.5l3.5 15" stroke-linecap="round" />
+      </svg>
+      Asset Library
+    </button>
+    <button class="tab-btn" id="tab-gallery-btn" onclick="showTab('gallery')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px">
+        <rect x="3" y="4" width="18" height="12" rx="2" />
+        <path d="M8 20h8M12 16v4" stroke-linecap="round" />
+      </svg>
+      Asset Gallery
+    </button>
   </div>
 
   <div class="actions">
@@ -1077,10 +1114,13 @@ function handleSaveAsset(e) {
 }
 
 function showTab(tab) {
+  if (document.getElementById('tab-dashboard-btn')) {
+    document.getElementById('tab-dashboard-btn').classList.toggle('active', tab === 'dashboard');
+  }
   document.getElementById('tab-gallery-btn').classList.toggle('active', tab === 'gallery');
   document.getElementById('tab-library-btn').classList.toggle('active', tab === 'library');
   document.getElementById('view-gallery').style.display = tab === 'gallery' ? 'block' : 'none';
-  document.getElementById('view-library').style.display = tab === 'library' ? 'block' : 'none';
+  document.getElementById('view-library').style.display = (tab === 'library' || tab === 'dashboard') ? 'block' : 'none';
 }
 
 function toggleTheme() {

@@ -545,11 +545,35 @@ h1 {
   color: var(--bad);
 }
 
-/* 12-Column Responsive Grid */
-.grid {
+/* 12-Column Responsive Grid (Only when not explicitly using grid-cols) */
+.grid:not([class*="grid-cols"]),
+.dash-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
+}
+
+/* Explicit Form Grids for Modals and Drawers */
+.drawer-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 600px) {
+  .drawer-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.drawer-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .drawer-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .c8 {

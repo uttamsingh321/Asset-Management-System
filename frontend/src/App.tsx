@@ -20,7 +20,6 @@ export function App() {
   })
   const [aiAnswer, setAiAnswer] = React.useState<string>('')
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
-  const [assetSubTab, setAssetSubTab] = React.useState<'gallery' | 'library'>('gallery')
   const addAssetButtonRef = React.useRef<HTMLButtonElement>(null)
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
@@ -45,7 +44,8 @@ export function App() {
   React.useEffect(() => {
     const onHashChange = () => {
       const h = window.location.hash.replace('#', '')
-      setCurrentHash(h && meridianPages[h] ? h : 'dashboard')
+      const key = h && meridianPages[h] ? h : 'dashboard'
+      setCurrentHash(key)
       setIsDrawerOpen(false)
       window.scrollTo(0, 0)
     }
@@ -103,7 +103,6 @@ export function App() {
   const handleSaveAsset = (newAsset: Asset) => {
     setAssets((prev) => [newAsset, ...prev])
     setCurrentHash('assets')
-    setAssetSubTab('gallery')
     window.location.hash = '#assets'
   }
 
@@ -163,16 +162,30 @@ export function App() {
             </a>
 
             <a
+              className={currentHash === 'library' ? 'on' : ''}
+              href="#library"
+              onClick={(e) => handleNavClick('library', e)}
+              title={isMini ? 'Asset Library' : undefined}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="4" y="4" width="4" height="16" rx="1" />
+                <rect x="10" y="4" width="4" height="16" rx="1" />
+                <path d="M16 4.5l3.5 15" strokeLinecap="round" />
+              </svg>
+              <span>Asset Library</span>
+            </a>
+
+            <a
               className={currentHash === 'assets' ? 'on' : ''}
               href="#assets"
               onClick={(e) => handleNavClick('assets', e)}
-              title={isMini ? 'Assets' : undefined}
+              title={isMini ? 'Asset Gallery' : undefined}
             >
-              <svg viewBox="0 0 24 24">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <rect x="3" y="4" width="18" height="12" rx="2" />
-                <path d="M8 20h8M12 16v4" />
+                <path d="M8 20h8M12 16v4" strokeLinecap="round" />
               </svg>
-              <span>Assets</span>
+              <span>Asset Gallery</span>
             </a>
 
             <a
@@ -592,11 +605,15 @@ export function App() {
                   </section>
                 </div>
               </div>
-            ) : currentHash === 'assets' ? (
+            ) : currentHash === 'assets' || currentHash === 'library' ? (
               <AssetLibraryView
                 assets={assets}
-                activeSubTab={assetSubTab}
-                setActiveSubTab={setAssetSubTab}
+                activeSubTab={currentHash === 'library' ? 'library' : 'gallery'}
+                setActiveSubTab={(tab) => {
+                  const targetHash = tab === 'library' ? 'library' : 'assets'
+                  setCurrentHash(targetHash)
+                  window.location.hash = `#${targetHash}`
+                }}
                 onOpenAddAsset={() => setIsAddModalOpen(true)}
                 addAssetButtonRef={addAssetButtonRef}
               />

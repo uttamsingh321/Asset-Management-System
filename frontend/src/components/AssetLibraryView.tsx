@@ -168,7 +168,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
         <div className="space-y-6">
           <div className="top">
             <div>
-              <h1>Assets</h1>
+              <h1>Asset Gallery</h1>
               <div className="sub">0 assets registered across categories</div>
             </div>
             <div className="btns">
@@ -472,9 +472,12 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
 
             {/* Right Panel: Asset types as expandable rows (details/summary) */}
             <div className="lg:col-span-8 card space-y-3">
-              <h2 className="text-sm font-semibold">
-                Asset Types {filterCategory ? `(${filterCategory})` : `(${assetTypes.length})`}
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Asset types</h2>
+                <span className="text-xs text-[var(--mute)]">
+                  {filterCategory ? `Filter: ${filterCategory}` : `${assetTypes.length} types registered`}
+                </span>
+              </div>
 
               <div className="divide-y divide-[var(--line)]">
                 {assetTypes

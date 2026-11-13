@@ -142,6 +142,6 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     // Button to jump back to gallery
     const openGalleryBtn = screen.getAllByRole('button', { name: /Open Asset Gallery/i })[0]
     fireEvent.click(openGalleryBtn)
-    expect(screen.getByRole('heading', { level: 1, name: 'Assets' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /Asset Gallery|Assets/i })).toBeInTheDocument()
   })
 })
