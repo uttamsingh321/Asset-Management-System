@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { meridianPages, aiAnswers } from '@/data/meridianData'
-import { AddAssetModal } from '@/components/AddAssetModal'
+import { AddAssetPanel } from '@/components/AddAssetPanel'
+import { AssetLibraryView } from '@/components/AssetLibraryView'
 import type { Asset } from '@/types/asset'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -19,6 +20,8 @@ export function App() {
   })
   const [aiAnswer, setAiAnswer] = React.useState<string>('')
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+  const [assetSubTab, setAssetSubTab] = React.useState<'gallery' | 'library'>('gallery')
+  const addAssetButtonRef = React.useRef<HTMLButtonElement>(null)
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
@@ -97,9 +100,11 @@ export function App() {
     window.scrollTo(0, 0)
   }
 
-  const handleAddAsset = (asset: Asset) => {
-    setAssets((prev) => [asset, ...prev])
-    toast.success(`Asset "${asset.name}" registered successfully!`)
+  const handleSaveAsset = (newAsset: Asset) => {
+    setAssets((prev) => [newAsset, ...prev])
+    setCurrentHash('assets')
+    setAssetSubTab('gallery')
+    window.location.hash = '#assets'
   }
 
   const isDashboard = currentHash === 'dashboard'
@@ -587,6 +592,14 @@ export function App() {
                   </section>
                 </div>
               </div>
+            ) : currentHash === 'assets' ? (
+              <AssetLibraryView
+                assets={assets}
+                activeSubTab={assetSubTab}
+                setActiveSubTab={setAssetSubTab}
+                onOpenAddAsset={() => setIsAddModalOpen(true)}
+                addAssetButtonRef={addAssetButtonRef}
+              />
             ) : activePage ? (
               /* All Other 11 Dashboards (#assets, #inventory, #maintenance, etc.) */
               <div id="v-page">
@@ -700,10 +713,11 @@ export function App() {
         </main>
       </div>
 
-      <AddAssetModal
+      <AddAssetPanel
         open={isAddModalOpen}
-        onOpenChange={setIsAddModalOpen}
-        onAddAsset={handleAddAsset}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleSaveAsset}
+        triggerRef={addAssetButtonRef}
       />
     </>
   )

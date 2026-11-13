@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meridian · Asset Management Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f6f9;
+  --surf: #ffffff;
+  --surf2: #f0f3f7;
+  --line: #e3e8ef;
+  --ink: #101828;
+  --mute: #667085;
+  --acc: #0b6e79;
+  --acc2: #d7f0f1;
+  --ok: #17855a;
+  --warn: #b86e00;
+  --bad: #c43d1c;
+  --shadow: 0 1px 2px rgba(16,24,40,0.05), 0 8px 24px -12px rgba(16,24,40,0.12);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1118;
+    --surf: #141b25;
+    --surf2: #1b2430;
+    --line: #243040;
+    --ink: #eef2f7;
+    --mute: #8d9bb0;
+    --acc: #4cc3cd;
+    --acc2: #12343a;
+    --ok: #4cc58f;
+    --warn: #e8a43a;
+    --bad: #f0765a;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1118;
+  --surf: #141b25;
+  --surf2: #1b2430;
+  --line: #243040;
+  --ink: #eef2f7;
+  --mute: #8d9bb0;
+  --acc: #4cc3cd;
+  --acc2: #12343a;
+  --ok: #4cc58f;
+  --warn: #e8a43a;
+  --bad: #f0765a;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Figtree, system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 100vh;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 6px; }
+
+/* Top Header Bar */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--surf);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+}
+.mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--acc);
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.tabs-nav {
+  display: flex;
+  gap: 4px;
+  background: var(--surf2);
+  padding: 4px;
+  border-radius: 10px;
+}
+.tab-btn {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--mute);
+  transition: all 0.2s;
+}
+.tab-btn.active {
+  background: var(--surf);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn {
+  border: 1px solid var(--line);
+  background: var(--surf);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.btn:hover { background: var(--surf2); }
+.btn.primary {
+  background: var(--acc);
+  color: #fff;
+  border-color: var(--acc);
+}
+.btn.primary:hover { opacity: 0.9; }
+
+/* Main layout wrapper */
+.wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Page Titles */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.sub { color: var(--mute); font-size: 13px; margin-top: 3px; }
+
+/* Cards & Grid */
+.card {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+.flow-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.flow-step .num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--acc);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.flow-step .num.light {
+  background: var(--acc2);
+  color: var(--acc);
+}
+
+/* 4 Summary Cards */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi {
+  padding: 16px;
+}
+.kpi .lbl { font-size: 12px; color: var(--mute); font-weight: 500; }
+.kpi .val { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
+.kpi .subtext { font-size: 12px; color: var(--ok); font-weight: 500; }
+
+/* Quick-add row */
+.quick-add {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+}
+.quick-add input {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surf2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.quick-add input:focus {
+  outline: 2px solid var(--acc);
+}
+
+/* 2-Column Split: Categories & Types */
+.split {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .split { grid-template-columns: 1fr; }
+}
+
+/* Categories List */
+.cat-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cat-item:hover { background: var(--surf2); }
+.cat-item.active { background: var(--acc2); }
+.cat-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.prog-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.prog-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--acc);
+  transition: width 0.3s;
+}
+
+/* Expandable Asset Types Details/Summary */
+details {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+details:last-child { border-bottom: none; }
+summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+summary::-webkit-details-marker { display: none; }
+.type-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.thumb-56 {
+  width: 56px;
+  height: 42px;
+  border-radius: 6px;
+  background: var(--acc2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.chip {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--acc2);
+  color: var(--acc);
+}
+.expanded-content {
+  display: flex;
+  gap: 18px;
+  padding-top: 14px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+@media (max-width: 600px) {
+  .expanded-content { flex-direction: column; }
+}
+.img-150 {
+  width: 150px;
+  height: 112px;
+  border-radius: 8px;
+  background: var(--acc2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.specs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.spec-chip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--surf2);
+  border: 1px solid var(--line);
+}
+
+/* Gallery Grid */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.asset-card {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.asset-photo-box {
+  width: 100%;
+  height: 130px;
+  border-radius: 8px;
+  background: var(--acc2);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+.asset-card h3 { font-size: 14px; font-weight: 600; }
+.asset-card .code { font-family: monospace; font-size: 12px; color: var(--acc); font-weight: 700; }
+
+/* DRAWER / SIDE PANEL (560px wide, right slide-in) */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 560px;
+  background: var(--surf);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.15);
+  z-index: 101;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+.drawer.open {
+  transform: translateX(0);
+}
+.drawer-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.drawer-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.drawer-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: var(--surf);
+}
+
+.field-group {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.field-group:last-child { border-bottom: none; }
+.group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--acc);
+  margin-bottom: 12px;
+}
+.form-row {
+  margin-bottom: 12px;
+}
+.form-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.form-row label .req { color: var(--bad); }
+.form-row input[type="text"],
+.form-row input[type="date"] {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surf2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.form-row input:focus {
+  outline: 2px solid var(--acc);
+}
+.form-row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.media-previews {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.media-box {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+  background: var(--surf2);
+}
+.media-box img {
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--ink);
+  color: var(--surf);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: all 0.25s;
+  z-index: 200;
+  pointer-events: none;
+}
+#toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- Header Navigation -->
+<header>
+  <div class="brand">
+    <div class="mark">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2">
+        <path d="M2 12 8 3l6 9H2Z" />
+      </svg>
+    </div>
+    <span>Meridian</span>
+  </div>
+
+  <div class="tabs-nav" role="tablist">
+    <button class="tab-btn" id="tab-gallery-btn" onclick="showTab('gallery')">Asset Gallery</button>
+    <button class="tab-btn active" id="tab-library-btn" onclick="showTab('library')">Asset Library</button>
+  </div>
+
+  <div class="actions">
+    <button class="btn" onclick="toggleTheme()" aria-label="Toggle theme">Theme</button>
+    <button class="btn primary" id="open-add-asset-btn" onclick="openDrawer()">Add asset</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- VIEW: ASSET LIBRARY -->
+  <section id="view-library">
+    <div class="page-header">
+      <div>
+        <h1>Asset Library</h1>
+        <div class="sub">Asset types and templates: categories, models and specifications. Physical assets live in the Asset Gallery.</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" onclick="toast('Import assets dialog triggered')">Import assets</button>
+        <button class="btn primary" onclick="showTab('gallery')">Open Asset Gallery</button>
+      </div>
+    </div>
+
+    <!-- Flow Strip -->
+    <div class="flow-strip">
+      <div class="flow-step">
+        <div class="num">1</div>
+        <div><strong>Import or register assets</strong><div class="sub" style="margin:0">Log units via form or file</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="num light">2</div>
+        <div><strong>Match each model to a type</strong><div class="sub" style="margin:0">Or create one here</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="num light">3</div>
+        <div><strong>Appears in Gallery</strong><div class="sub" style="margin:0">Linked to its type & vector art</div></div>
+      </div>
+    </div>
+
+    <!-- 4 Summary Cards -->
+    <div class="kpis">
+      <div class="card kpi">
+        <div class="lbl">Categories</div>
+        <div class="val" id="kpi-cat-count">7</div>
+        <div class="subtext">Active categories</div>
+      </div>
+      <div class="card kpi">
+        <div class="lbl">Asset types</div>
+        <div class="val" id="kpi-types-count">9</div>
+        <div class="subtext">Standard models</div>
+      </div>
+      <div class="card kpi">
+        <div class="lbl">Specification fields</div>
+        <div class="val" id="kpi-specs-count">36</div>
+        <div class="subtext">Structured specs</div>
+      </div>
+      <div class="card kpi">
+        <div class="lbl">Assets without a type</div>
+        <div class="val" id="kpi-unmatched-count">0</div>
+        <div class="subtext" style="color:var(--mute)">All linked</div>
+      </div>
+    </div>
+
+    <!-- Quick-add row above the list -->
+    <div class="card quick-add">
+      <strong style="font-size:13px">Quick-add:</strong>
+      <input type="text" id="qa-name" placeholder="Type name (e.g. MacBook Pro 16)">
+      <input type="text" id="qa-category" placeholder="Category (e.g. Laptops & Compute)">
+      <input type="text" id="qa-manufacturer" placeholder="Manufacturer (e.g. Apple)">
+      <button class="btn primary" onclick="handleQuickAdd()">Add type</button>
+    </div>
+
+    <!-- Left / Right Panel -->
+    <div class="split">
+      <!-- Left Panel: Categories -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <h2 style="font-size:15px; font-weight:600;">Categories</h2>
+          <button id="cat-clear" style="font-size:12px; color:var(--acc); display:none" onclick="filterCategory(null)">Clear</button>
+        </div>
+        <div id="category-list"></div>
+      </div>
+
+      <!-- Right Panel: Expandable Asset Types -->
+      <div class="card">
+        <h2 style="font-size:15px; font-weight:600; margin-bottom:14px;">Asset Types</h2>
+        <div id="types-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIEW: ASSET GALLERY -->
+  <section id="view-gallery" style="display:none">
+    <div class="page-header">
+      <div>
+        <h1>Asset Gallery</h1>
+        <div class="sub">Physical registered assets. Every unit displays its uploaded photo or category vector artwork.</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" onclick="showTab('library')">Browse Library Types</button>
+        <button class="btn primary" onclick="openDrawer()">Add asset</button>
+      </div>
+    </div>
+
+    <div id="gallery-empty" class="card" style="text-align:center; padding:48px 24px; display:none;">
+      <div style="font-size:36px; margin-bottom:8px">📦</div>
+      <h3 style="font-size:15px; font-weight:600">No physical assets registered yet</h3>
+      <p class="sub" style="max-width:400px; margin:6px auto 16px">Click "Add asset" to register equipment into your enterprise ledger.</p>
+      <button class="btn primary" onclick="openDrawer()">Add asset now</button>
+    </div>
+
+    <div class="gallery-grid" id="gallery-grid"></div>
+  </section>
+</main>
+
+<!-- PART 1: ADD ASSET PANEL (Drawer 560px wide) -->
+<div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="add-asset-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+  <div class="drawer-header">
+    <div>
+      <h2 id="drawer-title" style="font-size:16px; font-weight:700">Add asset</h2>
+      <div class="sub" style="font-size:12px">Register a physical equipment unit</div>
+    </div>
+    <button onclick="closeDrawer()" aria-label="Close" style="font-size:18px; color:var(--mute)">&times;</button>
+  </div>
+
+  <form id="add-asset-form" onsubmit="handleSaveAsset(event)" class="drawer-body">
+    <!-- Basic Information -->
+    <div class="field-group">
+      <div class="group-title">Basic information</div>
+      <div class="form-row">
+        <label>Asset code <span class="req">*</span></label>
+        <input type="text" id="f-assetCode" placeholder="e.g. AST-DEL-0492" required>
+      </div>
+      <div class="form-row">
+        <label>Asset serial number <span class="req">*</span></label>
+        <input type="text" id="f-serialNumber" placeholder="e.g. SN-88392104-X" required>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label>Current category</label>
+          <input type="text" id="f-currentCategory" placeholder="e.g. Laptops & Compute">
+        </div>
+        <div class="form-row">
+          <label>Previous category</label>
+          <input type="text" id="f-previousCategory" placeholder="e.g. Hardware">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Current description</label>
+        <input type="text" id="f-currentDescription" placeholder="e.g. MacBook Pro 16 inch M3 Pro Space Black">
+      </div>
+      <div class="form-row">
+        <label>Previous description</label>
+        <input type="text" id="f-previousDescription" placeholder="e.g. Engineering unit">
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="field-group">
+      <div class="group-title">Location</div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label>Plant <span class="req">*</span></label>
+          <input type="text" id="f-plant" placeholder="e.g. Pune Central Plant" required>
+        </div>
+        <div class="form-row">
+          <label>Building</label>
+          <input type="text" id="f-building" placeholder="e.g. Block B">
+        </div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label>Floor</label>
+          <input type="text" id="f-floor" placeholder="e.g. 4th Floor">
+        </div>
+        <div class="form-row">
+          <label>Current location</label>
+          <input type="text" id="f-currentLocation" placeholder="e.g. Bay 14 Desk 4A">
+        </div>
+      </div>
+    </div>
+
+    <!-- Ownership -->
+    <div class="field-group">
+      <div class="group-title">Ownership</div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label>Current department</label>
+          <input type="text" id="f-currentDepartment" placeholder="e.g. Platform Engineering">
+        </div>
+        <div class="form-row">
+          <label>Submitter</label>
+          <input type="text" id="f-submitter" placeholder="e.g. Priya Sharma">
+        </div>
+      </div>
+    </div>
+
+    <!-- Asset Status -->
+    <div class="field-group">
+      <div class="group-title">Asset status</div>
+      <div class="form-row">
+        <label>Asset condition <span class="req">*</span></label>
+        <input type="text" id="f-assetCondition" placeholder="e.g. Operational - New" required>
+      </div>
+      <div class="form-row">
+        <label>Movement reason</label>
+        <input type="text" id="f-movementReason" placeholder="e.g. Assigned to team member">
+      </div>
+      <div class="form-row">
+        <label>Remarks</label>
+        <input type="text" id="f-remarks" placeholder="e.g. Enrolled in warranty care">
+      </div>
+    </div>
+
+    <!-- Media -->
+    <div class="field-group">
+      <div class="group-title">Media</div>
+      <div class="media-previews">
+        <div class="media-box">
+          <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset photo</div>
+          <div id="prev-photo" style="font-size:10px; color:var(--mute); height:60px; display:grid; place-items:center;">None</div>
+          <input type="file" accept="image/*" id="f-assetPhoto" onchange="previewImg(this, 'prev-photo')" style="font-size:10px; width:100%">
+        </div>
+        <div class="media-box">
+          <div style="font-size:11px; font-weight:600; margin-bottom:4px">Asset code</div>
+          <div id="prev-code" style="font-size:10px; color:var(--mute); height:60px; display:grid; place-items:center;">None</div>
+          <input type="file" accept="image/*" id="f-codePhoto" onchange="previewImg(this, 'prev-code')" style="font-size:10px; width:100%">
+        </div>
+        <div class="media-box">
+          <div style="font-size:11px; font-weight:600; margin-bottom:4px">ID picture</div>
+          <div id="prev-id" style="font-size:10px; color:var(--mute); height:60px; display:grid; place-items:center;">None</div>
+          <input type="file" accept="image/*" id="f-idPhoto" onchange="previewImg(this, 'prev-id')" style="font-size:10px; width:100%">
+        </div>
+      </div>
+    </div>
+
+    <!-- Metadata -->
+    <div class="field-group">
+      <div class="group-title">Metadata</div>
+      <div class="form-row">
+        <label>Date</label>
+        <input type="date" id="f-date">
+      </div>
+    </div>
+  </form>
+
+  <div class="drawer-footer">
+    <button type="button" class="btn" onclick="closeDrawer()">Cancel</button>
+    <button type="submit" form="add-asset-form" class="btn primary">Save asset</button>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+// SVG Illustration Generator (12 types, 120x90, soft teal background)
+function getSvgIllustration(name, category, width, height) {
+  const text = (name + ' ' + (category || '')).toLowerCase();
+  let key = 'box';
+  if (text.includes('laptop') || text.includes('macbook') || text.includes('notebook')) key = 'laptop';
+  else if (text.includes('monitor') || text.includes('ultrasharp') || text.includes('display')) key = 'monitor';
+  else if (text.includes('tablet') || text.includes('ipad')) key = 'tablet';
+  else if (text.includes('press') || text.includes('hydraulic')) key = 'press';
+  else if (text.includes('cnc') || text.includes('mill') || text.includes('vmc')) key = 'cnc';
+  else if (text.includes('chiller') || text.includes('hvac') || text.includes('cooling')) key = 'chiller';
+  else if (text.includes('van') || text.includes('tata') || text.includes('vehicle')) key = 'van';
+  else if (text.includes('desk') || text.includes('godrej') || text.includes('furniture')) key = 'desk';
+  else if (text.includes('bearing') || text.includes('skf')) key = 'bearing';
+  else if (text.includes('printer') || text.includes('label')) key = 'printer';
+  else if (text.includes('scanner') || text.includes('handheld') || text.includes('barcode')) key = 'scanner';
+
+  const w = width || 120;
+  const h = height || 90;
+  const label = name + ' illustration';
+
+  let inner = '';
+  if (key === 'laptop') {
+    inner = '<rect x="28" y="24" width="64" height="42" rx="4" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><rect x="34" y="29" width="52" height="30" rx="2" fill="var(--acc2)" opacity="0.4"/><path d="M18 70h84a4 4 0 0 1 4 4v1H14v-1a4 4 0 0 1 4-4Z" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/>';
+  } else if (key === 'monitor') {
+    inner = '<rect x="22" y="16" width="76" height="48" rx="4" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><rect x="28" y="22" width="64" height="36" rx="2" fill="var(--acc2)" opacity="0.4"/><path d="M54 64v12M66 64v12M46 76h28" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"/>';
+  } else if (key === 'tablet') {
+    inner = '<rect x="34" y="14" width="52" height="64" rx="6" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><rect x="39" y="22" width="42" height="46" rx="2" fill="var(--acc2)" opacity="0.4"/><circle cx="60" cy="18" r="1.5" fill="var(--acc)"/>';
+  } else if (key === 'press') {
+    inner = '<rect x="28" y="14" width="64" height="62" rx="4" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><line x1="28" y1="28" x2="92" y2="28" stroke="var(--acc)" stroke-width="2"/><line x1="28" y1="62" x2="92" y2="62" stroke="var(--acc)" stroke-width="2"/><rect x="42" y="32" width="36" height="12" rx="2" fill="var(--acc)" opacity="0.3"/><rect x="52" y="44" width="16" height="18" fill="var(--acc)" opacity="0.4"/>';
+  } else if (key === 'cnc') {
+    inner = '<rect x="24" y="14" width="72" height="62" rx="5" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><rect x="32" y="22" width="40" height="36" rx="3" fill="var(--acc2)" opacity="0.5"/><rect x="76" y="24" width="14" height="28" rx="2" fill="var(--surf)" stroke="var(--acc)" stroke-width="1.5"/><circle cx="83" cy="32" r="2" fill="var(--acc)"/>';
+  } else if (key === 'chiller') {
+    inner = '<rect x="26" y="18" width="68" height="54" rx="4" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><circle cx="48" cy="45" r="16" fill="var(--acc2)" stroke="var(--acc)" stroke-width="2"/><line x1="72" y1="28" x2="86" y2="28" stroke="var(--acc)" stroke-width="2"/><line x1="72" y1="38" x2="86" y2="38" stroke="var(--acc)" stroke-width="2"/><line x1="72" y1="48" x2="86" y2="48" stroke="var(--acc)" stroke-width="2"/>';
+  } else if (key === 'van') {
+    inner = '<path d="M20 54V28a3 3 0 0 1 3-3h46v34l18-2 9 8v9a3 3 0 0 1-3 3H86" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><circle cx="38" cy="68" r="6" fill="var(--acc)"/><circle cx="78" cy="68" r="6" fill="var(--acc)"/>';
+  } else if (key === 'desk') {
+    inner = '<rect x="22" y="32" width="76" height="8" rx="2" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><line x1="28" y1="40" x2="28" y2="72" stroke="var(--acc)" stroke-width="2"/><line x1="92" y1="40" x2="92" y2="72" stroke="var(--acc)" stroke-width="2"/><rect x="68" y="40" width="22" height="24" rx="2" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/>';
+  } else if (key === 'bearing') {
+    inner = '<circle cx="60" cy="45" r="26" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><circle cx="60" cy="45" r="14" fill="var(--acc2)" stroke="var(--acc)" stroke-width="2"/><circle cx="60" cy="45" r="7" fill="var(--acc)"/><circle cx="60" cy="25" r="3" fill="var(--acc)"/><circle cx="60" cy="65" r="3" fill="var(--acc)"/>';
+  } else if (key === 'printer') {
+    inner = '<rect x="28" y="32" width="64" height="38" rx="5" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><rect x="36" y="20" width="48" height="12" rx="2" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><line x1="40" y1="46" x2="80" y2="46" stroke="var(--acc)" stroke-width="3"/>';
+  } else if (key === 'scanner') {
+    inner = '<path d="M42 22h36l-8 22H50l-8-22Z" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><rect x="52" y="44" width="16" height="30" rx="3" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/>';
+  } else {
+    inner = '<polygon points="60,20 92,34 60,48 28,34" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/><polygon points="28,34 60,48 60,74 28,60" fill="var(--acc2)" stroke="var(--acc)" stroke-width="2"/><polygon points="92,34 60,48 60,74 92,60" fill="var(--surf)" stroke="var(--acc)" stroke-width="2"/>';
+  }
+
+  return `<svg viewBox="0 0 120 90" width="${w}" height="${h}" role="img" aria-label="${label}" style="display:block;border-radius:8px;background:var(--acc2);"><rect width="120" height="90" rx="8" fill="var(--acc2)"/>${inner}</svg>`;
+}
+
+// Sample Asset Types
+const assetTypes = [
+  { id: 1, name: 'MacBook Pro 16" (M3 Pro)', category: 'Laptops & Compute', manufacturer: 'Apple', specs: { Processor: 'Apple M3 Pro', Memory: '18 GB', Warranty: '36 months', 'Useful life': '4 years' } },
+  { id: 2, name: 'Dell UltraSharp U2723QE', category: 'Monitors & Displays', manufacturer: 'Dell', specs: { Resolution: '4K UHD 3840x2160', Panel: 'IPS Black', Warranty: '36 months', 'Useful life': '5 years' } },
+  { id: 3, name: 'iPad Air (M2)', category: 'Tablets & Mobile', manufacturer: 'Apple', specs: { Chip: 'Apple M2', Display: '11-inch Liquid Retina', Warranty: '24 months', 'Useful life': '3 years' } },
+  { id: 4, name: 'Hydraulic press HP-200 series', category: 'Heavy Machinery', manufacturer: 'Schuler', specs: { Capacity: '200 Tonnes', Stroke: '450 mm', Warranty: '60 months', 'Useful life': '15 years' } },
+  { id: 5, name: 'CNC vertical mill VMC 850', category: 'Heavy Machinery', manufacturer: 'Haas Automation', specs: { Spindle: '12,000 RPM', Travel: '850 x 510 mm', Warranty: '36 months', 'Useful life': '12 years' } },
+  { id: 6, name: 'Chiller unit 50 TR', category: 'HVAC & Facility', manufacturer: 'Daikin', specs: { Capacity: '50 TR (175 kW)', Refrigerant: 'R-134a', Warranty: '60 months', 'Useful life': '15 years' } },
+  { id: 7, name: 'Tata Ace Gold delivery van', category: 'Fleet & Logistics', manufacturer: 'Tata Motors', specs: { Engine: '700cc BS-VI', Payload: '750 kg', Warranty: '36 months', 'Useful life': '8 years' } },
+  { id: 8, name: 'Godrej ergonomic desk', category: 'Furniture & Workstation', manufacturer: 'Godrej Interio', specs: { Material: 'Engineered wood', Motor: 'Dual electric', Warranty: '60 months', 'Useful life': '10 years' } },
+  { id: 9, name: 'SKF 6204-2RS bearing', category: 'Spares & Consumables', manufacturer: 'SKF', specs: { Bore: '20 mm', Outer: '47 mm', Seal: 'Rubber contact', 'Useful life': '5 years' } }
+];
+
+let assets = [];
+let currentCategoryFilter = null;
+let uploadedPhotoData = null;
+
+function renderCategories() {
+  const catMap = {};
+  assetTypes.forEach(t => {
+    catMap[t.category] = (catMap[t.category] || 0) + 1;
+  });
+  const total = assetTypes.length;
+
+  const html = Object.entries(catMap).map(([cat, count]) => {
+    const pct = Math.round((count / total) * 100);
+    const active = currentCategoryFilter === cat ? 'active' : '';
+    return `
+      <div class="cat-item ${active}" onclick="filterCategory('${cat}')">
+        <div class="cat-meta">
+          <span>${cat}</span>
+          <span style="color:var(--mute)">${count} types</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('category-list').innerHTML = html;
+  document.getElementById('kpi-cat-count').innerText = Object.keys(catMap).length;
+}
+
+function renderAssetTypes() {
+  const filtered = currentCategoryFilter
+    ? assetTypes.filter(t => t.category === currentCategoryFilter)
+    : assetTypes;
+
+  const html = filtered.map(t => {
+    const inGalleryCount = assets.filter(a =>
+      a.currentCategory === t.category ||
+      (a.currentDescription && a.currentDescription.toLowerCase().includes(t.name.toLowerCase()))
+    ).length;
+
+    const specsHtml = Object.entries(t.specs).map(([k, v]) => `
+      <span class="spec-chip"><strong>${k}:</strong> ${v}</span>
+    `).join('');
+
+    return `
+      <details>
+        <summary>
+          <div class="type-summary-left">
+            <div class="thumb-56">${getSvgIllustration(t.name, t.category, 56, 42)}</div>
+            <div>
+              <div style="font-weight:600">${t.name}</div>
+              <div class="sub" style="margin:0">${t.manufacturer} · ${t.category} · ${Object.keys(t.specs).length} specs</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="chip">${inGalleryCount} in Gallery</span>
+            <span style="color:var(--mute); font-size:12px">&#9662;</span>
+          </div>
+        </summary>
+        <div class="expanded-content">
+          <div class="img-150">${getSvgIllustration(t.name, t.category, 150, 112)}</div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; font-weight:700; color:var(--mute)">Specifications</div>
+            <div class="specs-list">${specsHtml}</div>
+            <div style="margin-top:12px">
+              <a href="javascript:void(0)" onclick="showTab('gallery')" style="color:var(--acc); font-weight:600; text-decoration:none; font-size:13px">View assets in Gallery &rarr;</a>
+            </div>
+          </div>
+        </div>
+      </details>
+    `;
+  }).join('');
+
+  document.getElementById('types-list').innerHTML = html;
+  document.getElementById('kpi-types-count').innerText = assetTypes.length;
+
+  let totalSpecs = 0;
+  assetTypes.forEach(t => totalSpecs += Object.keys(t.specs).length);
+  document.getElementById('kpi-specs-count').innerText = totalSpecs;
+}
+
+function renderGallery() {
+  const grid = document.getElementById('gallery-grid');
+  const empty = document.getElementById('gallery-empty');
+
+  if (assets.length === 0) {
+    empty.style.display = 'block';
+    grid.innerHTML = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  grid.innerHTML = assets.map(a => {
+    let imgBlock = '';
+    if (a.assetPhoto) {
+      imgBlock = `<img src="${a.assetPhoto}" alt="${a.assetCode} photo" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+    } else {
+      imgBlock = getSvgIllustration(a.currentDescription || a.assetCode, a.currentCategory, '100%', 130);
+    }
+
+    return `
+      <div class="asset-card">
+        <div>
+          <div class="asset-photo-box">${imgBlock}</div>
+          <div class="code">${a.assetCode}</div>
+          <h3>${a.currentDescription || a.assetCode}</h3>
+          <div class="sub" style="margin-top:4px">
+            <div><strong>Serial:</strong> ${a.serialNumber}</div>
+            <div><strong>Category:</strong> ${a.currentCategory}</div>
+            <div><strong>Location:</strong> ${a.plant} ${a.building ? '· ' + a.building : ''}</div>
+            <div><strong>Condition:</strong> ${a.assetCondition}</div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--mute)">
+          <span>${a.currentDepartment || 'General'}</span>
+          <span>${a.date}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterCategory(cat) {
+  currentCategoryFilter = (currentCategoryFilter === cat) ? null : cat;
+  document.getElementById('cat-clear').style.display = currentCategoryFilter ? 'inline' : 'none';
+  renderCategories();
+  renderAssetTypes();
+}
+
+function handleQuickAdd() {
+  const name = document.getElementById('qa-name').value.trim();
+  const category = document.getElementById('qa-category').value.trim() || 'General Equipment';
+  const manufacturer = document.getElementById('qa-manufacturer').value.trim() || 'Generic';
+
+  if (!name) {
+    toast('Please enter a type name.');
+    return;
+  }
+
+  assetTypes.unshift({
+    id: Date.now(),
+    name,
+    category,
+    manufacturer,
+    specs: { 'Status': 'Standard profile', 'Added': new Date().toLocaleDateString() }
+  });
+
+  document.getElementById('qa-name').value = '';
+  document.getElementById('qa-category').value = '';
+  document.getElementById('qa-manufacturer').value = '';
+
+  renderCategories();
+  renderAssetTypes();
+  toast(`Asset type "${name}" added to library!`);
+}
+
+// Drawer Controls
+let lastFocusedElement = null;
+function openDrawer() {
+  lastFocusedElement = document.activeElement;
+  document.getElementById('drawer-backdrop').classList.add('open');
+  document.getElementById('add-asset-drawer').classList.add('open');
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  setTimeout(() => document.getElementById('f-assetCode').focus(), 100);
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-backdrop').classList.remove('open');
+  document.getElementById('add-asset-drawer').classList.remove('open');
+  if (lastFocusedElement) lastFocusedElement.focus();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('add-asset-drawer').classList.contains('open')) {
+    closeDrawer();
+  }
+});
+
+function previewImg(input, targetId) {
+  const file = input.files && input.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById(targetId).innerHTML = `<img src="${e.target.result}">`;
+      if (targetId === 'prev-photo') uploadedPhotoData = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function handleSaveAsset(e) {
+  e.preventDefault();
+  const asset = {
+    assetCode: document.getElementById('f-assetCode').value.trim(),
+    serialNumber: document.getElementById('f-serialNumber').value.trim(),
+    currentCategory: document.getElementById('f-currentCategory').value.trim() || 'Laptops & Compute',
+    previousCategory: document.getElementById('f-previousCategory').value.trim(),
+    currentDescription: document.getElementById('f-currentDescription').value.trim(),
+    previousDescription: document.getElementById('f-previousDescription').value.trim(),
+    plant: document.getElementById('f-plant').value.trim(),
+    building: document.getElementById('f-building').value.trim(),
+    floor: document.getElementById('f-floor').value.trim(),
+    currentLocation: document.getElementById('f-currentLocation').value.trim(),
+    currentDepartment: document.getElementById('f-currentDepartment').value.trim(),
+    submitter: document.getElementById('f-submitter').value.trim(),
+    assetCondition: document.getElementById('f-assetCondition').value.trim(),
+    movementReason: document.getElementById('f-movementReason').value.trim(),
+    remarks: document.getElementById('f-remarks').value.trim(),
+    date: document.getElementById('f-date').value || new Date().toISOString().split('T')[0],
+    assetPhoto: uploadedPhotoData
+  };
+
+  assets.unshift(asset);
+  closeDrawer();
+  e.target.reset();
+  uploadedPhotoData = null;
+  document.getElementById('prev-photo').innerText = 'None';
+  document.getElementById('prev-code').innerText = 'None';
+  document.getElementById('prev-id').innerText = 'None';
+
+  showTab('gallery');
+  renderGallery();
+  renderAssetTypes();
+  toast(`Asset "${asset.assetCode}" saved to Gallery!`);
+}
+
+function showTab(tab) {
+  document.getElementById('tab-gallery-btn').classList.toggle('active', tab === 'gallery');
+  document.getElementById('tab-library-btn').classList.toggle('active', tab === 'library');
+  document.getElementById('view-gallery').style.display = tab === 'gallery' ? 'block' : 'none';
+  document.getElementById('view-library').style.display = tab === 'library' ? 'block' : 'none';
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.innerText = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Initial Boot
+renderCategories();
+renderAssetTypes();
+renderGallery();
+</script>
+</body>
+</html>

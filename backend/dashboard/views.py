@@ -23,16 +23,40 @@ def api_assets(request: HttpRequest) -> JsonResponse:
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
+            tag = data.get("assetCode") or data.get("assetTag") or f"AST-{int(time.time())}"
+            name = data.get("currentDescription") or data.get("name") or tag
+            category = data.get("currentCategory") or data.get("category") or "IT Hardware"
+            department = data.get("currentDepartment") or data.get("department") or "Operations"
+
             asset = Asset.objects.create(
-                tag=data.get("assetTag", f"AST-{int(time.time())}"),
-                name=data.get("name", ""),
-                category=data.get("category", "IT Hardware"),
-                department=data.get("department", "General"),
+                tag=tag,
+                name=name,
+                category=category,
+                department=department,
                 status=data.get("status", "Active"),
                 purchase_cost=data.get("purchaseCost", 0.0),
-                current_value=data.get("currentValue", data.get("purchaseCost", 0.0)),
-                assigned_to=data.get("assignedTo", ""),
-                location=data.get("location", ""),
+                current_value=data.get("currentValue", 0.0),
+                assigned_to=data.get("submitter") or data.get("assignedTo", ""),
+                location=data.get("currentLocation") or data.get("plant") or data.get("location", ""),
+                # Extended fields
+                asset_code=data.get("assetCode", tag),
+                serial_number=data.get("serialNumber", ""),
+                current_category=category,
+                previous_category=data.get("previousCategory", ""),
+                current_description=data.get("currentDescription", name),
+                previous_description=data.get("previousDescription", ""),
+                plant=data.get("plant", ""),
+                building=data.get("building", ""),
+                floor=data.get("floor", ""),
+                current_location=data.get("currentLocation", ""),
+                current_department=department,
+                submitter=data.get("submitter", ""),
+                asset_condition=data.get("assetCondition", "Good"),
+                movement_reason=data.get("movementReason", ""),
+                remarks=data.get("remarks", ""),
+                asset_photo=data.get("assetPhoto", ""),
+                asset_code_photo=data.get("assetCodePhoto", ""),
+                id_card_picture=data.get("idCardPicture", ""),
             )
             return JsonResponse(asset.to_dict(), status=201)
         except Exception as e:
