@@ -1435,6 +1435,7 @@ function deleteAsset(code) {
   assets = assets.filter(a => a.assetCode !== code);
   renderGallery();
   renderAssetTypes();
+  logAudit('ASSET_DELETE', { assetCode: code }, code);
   toast(`Asset "${code}" deleted.`);
 }
 
@@ -1539,6 +1540,7 @@ function handleSaveAsset(e) {
   showTab('gallery');
   renderGallery();
   renderAssetTypes();
+  logAudit('ASSET_CREATE', { assetCode: asset.assetCode, name: asset.currentDescription, plant: asset.plant }, asset.assetCode);
   toast(`Asset "${asset.assetCode}" saved to Gallery!`);
 }
 
@@ -1579,7 +1581,68 @@ function closeToast(e) {
   if (toastTimer) clearTimeout(toastTimer);
 }
 
+// Automatic Device Tracking & Audit Logger Telemetry
+function getDeviceInfo() {
+  const ua = navigator.userAgent.toLowerCase();
+  let deviceType = 'Desktop';
+  if (/(ipad|tablet|(android(?!.*mobile)))/i.test(ua) || (navigator.maxTouchPoints > 1 && window.innerWidth >= 768 && window.innerWidth <= 1366)) {
+    deviceType = 'Tablet';
+  } else if (/(iphone|ipod|mobile|android.*mobile)/i.test(ua) || (window.innerWidth <= 640 && navigator.maxTouchPoints > 0)) {
+    deviceType = 'Mobile';
+  } else if (/(macbook|chromebook|thinkpad|laptop|latitude|surface)/i.test(ua) || (window.innerWidth <= 1536 && window.screen && window.screen.availHeight <= 950)) {
+    deviceType = 'Laptop';
+  }
+
+  let os = 'Windows';
+  if (ua.includes('windows nt 10.0')) os = 'Windows 10/11';
+  else if (ua.includes('mac os x') || ua.includes('macintosh')) os = 'macOS';
+  else if (ua.includes('iphone os')) os = 'iOS';
+  else if (ua.includes('android')) os = 'Android';
+  else if (ua.includes('linux')) os = 'Linux';
+
+  let browser = 'Browser';
+  if (ua.includes('edg/')) browser = 'Edge';
+  else if (ua.includes('chrome/')) browser = 'Chrome';
+  else if (ua.includes('firefox/')) browser = 'Firefox';
+  else if (ua.includes('safari/') && ua.includes('version/')) browser = 'Safari';
+
+  return { deviceType, os, browser, hostname: window.location.hostname || 'localhost' };
+}
+
+let clientSessionId = 'SES-' + Date.now();
+async function logAudit(action, details, entityId) {
+  const dev = getDeviceInfo();
+  const entry = {
+    action,
+    userId: 'USR-ADMIN',
+    userName: 'Uttam Singh',
+    role: 'Administrator',
+    sessionId: clientSessionId,
+    entityId: entityId || '',
+    details: details || {},
+    timestamp: new Date().toISOString(),
+    deviceType: dev.deviceType,
+    os: dev.os,
+    browser: dev.browser,
+    hostname: dev.hostname,
+    clientIp: 'Client Local'
+  };
+
+  try {
+    fetch('/api/audit/log/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-Type': dev.deviceType,
+        'X-Session-ID': clientSessionId
+      },
+      body: JSON.stringify(entry)
+    }).catch(() => {});
+  } catch(e) {}
+}
+
 // Initial Boot
+logAudit('LOGIN', { authMethod: 'Session Start', appMode: 'Standalone' });
 renderCategories();
 renderAssetTypes();
 renderGallery();

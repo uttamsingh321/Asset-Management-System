@@ -145,12 +145,28 @@ export const meridianPages: Record<string, PageData> = {
     bh: 'Users by role',
     b: [],
   },
+  audit: {
+    t: 'Audit & Device Tracking',
+    s: 'Real-time immutable compliance ledger recording every login, asset creation, update, import, export, transfer, approval, and deletion with device telemetry.',
+    btn: 'Export Audit Trail',
+    k: [
+      ['Total audit logs', '0', '100% Immutable'],
+      ['Device types', '4', 'Desktop, Laptop, Tablet, Mobile'],
+      ['Active sessions', '1', 'Current session'],
+      ['Compliance status', 'SOC 2', 'ISO 27001 ready'],
+    ],
+    ah: 'Live audit events',
+    a: [],
+    bh: 'Devices tracked',
+    b: [],
+  },
 }
 
 export const navItems = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'library', label: 'Asset Library' },
   { key: 'assets', label: 'Asset Gallery' },
+  { key: 'audit', label: 'Audit & Tracking' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'maintenance', label: 'Maintenance' },
   { key: 'workorders', label: 'Work orders' },

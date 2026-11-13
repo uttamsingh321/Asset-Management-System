@@ -100,3 +100,161 @@ class Asset(models.Model):
             "assignedTo": self.assigned_to or self.submitter,
             "location": self.location or self.current_location,
         }
+
+
+class AuditLogQuerySet(models.QuerySet):
+    """
+    Immutable QuerySet protecting audit logs from bulk updates or deletions.
+    """
+    def update(self, **kwargs):
+        raise PermissionError("Audit logs are strictly immutable and cannot be updated.")
+
+    def delete(self):
+        raise PermissionError("Audit logs are strictly immutable and cannot be deleted.")
+
+
+class AuditLogManager(models.Manager):
+    def get_queryset(self):
+        return AuditLogQuerySet(self.model, using=self._db)
+
+
+class AuditLog(models.Model):
+    """
+    Comprehensive, immutable audit log for security, compliance, and device tracking.
+    Captures every login, logout, asset creation, update, import, export, transfer, approval, and deletion.
+    """
+    ACTION_CHOICES = [
+        ("LOGIN", "User Login"),
+        ("LOGOUT", "User Logout"),
+        ("ASSET_CREATE", "Asset Creation"),
+        ("ASSET_UPDATE", "Asset Update"),
+        ("ASSET_IMPORT", "Batch Asset Import"),
+        ("ASSET_EXPORT", "Asset Registry Export"),
+        ("ASSET_TRANSFER", "Asset Custody Transfer"),
+        ("ASSET_APPROVAL", "Asset Action Approval"),
+        ("ASSET_DELETE", "Asset Deletion"),
+    ]
+
+    DEVICE_CHOICES = [
+        ("Desktop", "Desktop Workstation"),
+        ("Laptop", "Laptop Computer"),
+        ("Tablet", "Tablet Device"),
+        ("Mobile", "Mobile Smartphone"),
+    ]
+
+    # User Identifiers
+    user_id = models.CharField(max_length=128, db_index=True)
+    user_name = models.CharField(max_length=255)
+    role = models.CharField(max_length=64, default="Employee")
+
+    # Session Identifiers
+    session_id = models.CharField(max_length=128, db_index=True)
+    login_timestamp = models.DateTimeField(null=True, blank=True)
+    logout_timestamp = models.DateTimeField(null=True, blank=True)
+
+    # Event Timing
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    # Action & Entity
+    action = models.CharField(max_length=64, choices=ACTION_CHOICES, db_index=True)
+    entity_type = models.CharField(max_length=64, default="Asset")
+    entity_id = models.CharField(max_length=128, blank=True, db_index=True)
+    details = models.JSONField(default=dict, blank=True)
+
+    # Network & Device Tracking Telemetry
+    client_ip = models.CharField(max_length=64)
+    hostname = models.CharField(max_length=255, blank=True)
+    device_type = models.CharField(max_length=32, choices=DEVICE_CHOICES)
+    os = models.CharField(max_length=64)
+    browser = models.CharField(max_length=64)
+    user_agent = models.TextField(blank=True)
+
+    objects = AuditLogManager()
+
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
+        indexes = [
+            models.Index(fields=["action", "timestamp"]),
+            models.Index(fields=["user_id", "timestamp"]),
+            models.Index(fields=["device_type", "timestamp"]),
+            models.Index(fields=["session_id"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        """
+        Enforce immutability: Once created, an audit log can never be modified.
+        """
+        if self.pk is not None:
+            raise PermissionError("Audit logs are strictly immutable and cannot be updated.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """
+        Enforce immutability: Audit logs cannot be deleted for compliance.
+        """
+        raise PermissionError("Audit logs are strictly immutable and cannot be deleted.")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "userName": self.user_name,
+            "role": self.role,
+            "sessionId": self.session_id,
+            "action": self.action,
+            "entityType": self.entity_type,
+            "entityId": self.entity_id,
+            "details": self.details,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "loginTimestamp": self.login_timestamp.isoformat() if self.login_timestamp else None,
+            "logoutTimestamp": self.logout_timestamp.isoformat() if self.logout_timestamp else None,
+            "clientIp": self.client_ip,
+            "hostname": self.hostname,
+            "deviceType": self.device_type,
+            "os": self.os,
+            "browser": self.browser,
+            "userAgent": self.user_agent,
+        }
+
+
+class UserSession(models.Model):
+    """
+    Maintains authenticated sessions with device telemetry and login/logout lifecycle.
+    """
+    session_id = models.CharField(max_length=128, primary_key=True)
+    user_id = models.CharField(max_length=128, db_index=True)
+    user_name = models.CharField(max_length=255)
+    role = models.CharField(max_length=64, default="Employee")
+
+    login_timestamp = models.DateTimeField(auto_now_add=True)
+    logout_timestamp = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    client_ip = models.CharField(max_length=64)
+    hostname = models.CharField(max_length=255, blank=True)
+    device_type = models.CharField(max_length=32)
+    os = models.CharField(max_length=64)
+    browser = models.CharField(max_length=64)
+    user_agent = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-login_timestamp"]
+
+    def to_dict(self):
+        return {
+            "sessionId": self.session_id,
+            "userId": self.user_id,
+            "userName": self.user_name,
+            "role": self.role,
+            "loginTimestamp": self.login_timestamp.isoformat() if self.login_timestamp else None,
+            "logoutTimestamp": self.logout_timestamp.isoformat() if self.logout_timestamp else None,
+            "isActive": self.is_active,
+            "clientIp": self.client_ip,
+            "hostname": self.hostname,
+            "deviceType": self.device_type,
+            "os": self.os,
+            "browser": self.browser,
+        }
+

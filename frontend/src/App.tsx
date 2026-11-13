@@ -2,6 +2,8 @@ import * as React from 'react'
 import { meridianPages, aiAnswers } from '@/data/meridianData'
 import { AddAssetPanel } from '@/components/AddAssetPanel'
 import { AssetLibraryView } from '@/components/AssetLibraryView'
+import { AuditLogView } from '@/components/AuditLogView'
+import { logAuditEvent } from '@/lib/deviceTracker'
 import type { Asset } from '@/types/asset'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -43,6 +45,9 @@ export function App() {
 
   // Sync hash routing
   React.useEffect(() => {
+    // Record LOGIN audit event with auto device tracking on initial mount
+    logAuditEvent('LOGIN', { authMethod: 'Session Auto-Resume', platform: 'Web' })
+
     const onHashChange = () => {
       const h = window.location.hash.replace('#', '')
       const key = h && meridianPages[h] ? h : 'dashboard'
@@ -103,6 +108,19 @@ export function App() {
 
   const handleSaveAsset = (newAsset: Asset) => {
     setAssets((prev) => [newAsset, ...prev])
+    logAuditEvent(
+      'ASSET_CREATE',
+      {
+        assetCode: newAsset.assetCode,
+        serialNumber: newAsset.serialNumber,
+        name: newAsset.currentDescription || newAsset.name,
+        category: newAsset.currentCategory || newAsset.category,
+        plant: newAsset.plant,
+        department: newAsset.currentDepartment || newAsset.department,
+        condition: newAsset.assetCondition,
+      },
+      newAsset.assetCode
+    )
     setCurrentHash('assets')
     window.location.hash = '#assets'
   }
@@ -110,17 +128,40 @@ export function App() {
   const handleDeleteAsset = (id: string) => {
     const target = assets.find((a) => a.id === id)
     setAssets((prev) => prev.filter((a) => a.id !== id))
+    if (target) {
+      logAuditEvent(
+        'ASSET_DELETE',
+        {
+          deletedId: id,
+          assetCode: target.assetCode,
+          name: target.currentDescription || target.name,
+          category: target.currentCategory || target.category,
+        },
+        target.assetCode
+      )
+    }
     toast.success(`Asset "${target?.assetCode || target?.name || 'unit'}" deleted`)
   }
 
   const handleClearAllAssets = () => {
     if (assets.length === 0) return
+    const count = assets.length
     setAssets([])
+    logAuditEvent('ASSET_DELETE', { count, action: 'Bulk Clear All Assets' }, 'ALL-ASSETS')
     toast.success('All physical assets removed from registry')
   }
 
   const handleImportAssets = (importedAssets: Asset[]) => {
     setAssets((prev) => [...importedAssets, ...prev])
+    logAuditEvent(
+      'ASSET_IMPORT',
+      {
+        importedCount: importedAssets.length,
+        firstCode: importedAssets[0]?.assetCode,
+        lastCode: importedAssets[importedAssets.length - 1]?.assetCode,
+      },
+      'BATCH-IMPORT'
+    )
   }
 
   const isDashboard = currentHash === 'dashboard'
@@ -203,6 +244,19 @@ export function App() {
                 <path d="M8 20h8M12 16v4" strokeLinecap="round" />
               </svg>
               <span>Asset Gallery</span>
+            </a>
+
+            <a
+              className={currentHash === 'audit' ? 'on' : ''}
+              href="#audit"
+              onClick={(e) => handleNavClick('audit', e)}
+              title={isMini ? 'Audit & Tracking' : undefined}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>Audit & Tracking</span>
             </a>
 
             <a
@@ -637,6 +691,8 @@ export function App() {
                 onImportAssets={handleImportAssets}
                 addAssetButtonRef={addAssetButtonRef}
               />
+            ) : currentHash === 'audit' ? (
+              <AuditLogView />
             ) : activePage ? (
               /* All Other 11 Dashboards (#assets, #inventory, #maintenance, etc.) */
               <div id="v-page">
