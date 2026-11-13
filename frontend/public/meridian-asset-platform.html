@@ -726,12 +726,30 @@ summary::-webkit-details-marker { display: none; }
     <div class="field-group">
       <div class="group-title">Basic information</div>
       <div class="form-row">
-        <label>Asset code <span class="req">*</span></label>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+          <label style="margin-bottom:0">Asset code <span class="req">*</span></label>
+          <label style="font-size:11px; font-weight:500; color:var(--mute); display:flex; align-items:center; gap:4px; cursor:pointer">
+            <input type="checkbox" id="f-assetCodeUnavailable" onchange="toggleFieldUnavailable('assetCode')"> Data unavailable?
+          </label>
+        </div>
         <input type="text" id="f-assetCode" placeholder="e.g. AST-DEL-0492" required>
+        <div id="wrap-assetCodeReason" style="display:none; margin-top:6px; padding:8px; border-radius:6px; background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3)">
+          <label style="font-size:11px; font-weight:600; color:#b45309; display:block; margin-bottom:4px">Reason why Asset code is not available <span class="req">*</span></label>
+          <input type="text" id="f-assetCodeReason" placeholder="e.g. Barcode label torn / Pending registration" style="font-size:12px; height:32px">
+        </div>
       </div>
       <div class="form-row">
-        <label>Asset serial number <span class="req">*</span></label>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+          <label style="margin-bottom:0">Asset serial number <span class="req">*</span></label>
+          <label style="font-size:11px; font-weight:500; color:var(--mute); display:flex; align-items:center; gap:4px; cursor:pointer">
+            <input type="checkbox" id="f-serialNumberUnavailable" onchange="toggleFieldUnavailable('serialNumber')"> Data unavailable?
+          </label>
+        </div>
         <input type="text" id="f-serialNumber" placeholder="e.g. SN-88392104-X" required>
+        <div id="wrap-serialNumberReason" style="display:none; margin-top:6px; padding:8px; border-radius:6px; background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3)">
+          <label style="font-size:11px; font-weight:600; color:#b45309; display:block; margin-bottom:4px">Reason why Serial number is not available <span class="req">*</span></label>
+          <input type="text" id="f-serialNumberReason" placeholder="e.g. Serial tag missing / Enclosed in chassis" style="font-size:12px; height:32px">
+        </div>
       </div>
       <div class="form-row-grid">
         <div class="form-row">
@@ -758,8 +776,17 @@ summary::-webkit-details-marker { display: none; }
       <div class="group-title">Location</div>
       <div class="form-row-grid">
         <div class="form-row">
-          <label>Plant <span class="req">*</span></label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+            <label style="margin-bottom:0">Plant <span class="req">*</span></label>
+            <label style="font-size:11px; font-weight:500; color:var(--mute); display:flex; align-items:center; gap:4px; cursor:pointer">
+              <input type="checkbox" id="f-plantUnavailable" onchange="toggleFieldUnavailable('plant')"> Data unavailable?
+            </label>
+          </div>
           <input type="text" id="f-plant" placeholder="e.g. Pune Central Plant" required>
+          <div id="wrap-plantReason" style="display:none; margin-top:6px; padding:8px; border-radius:6px; background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3)">
+            <label style="font-size:11px; font-weight:600; color:#b45309; display:block; margin-bottom:4px">Reason why Plant is not available <span class="req">*</span></label>
+            <input type="text" id="f-plantReason" placeholder="e.g. In transit between plants / Remote asset" style="font-size:12px; height:32px">
+          </div>
         </div>
         <div class="form-row">
           <label>Building</label>
@@ -797,7 +824,18 @@ summary::-webkit-details-marker { display: none; }
     <div class="field-group">
       <div class="group-title">Asset status</div>
       <div class="form-row">
-        <label>Asset condition <span class="req">*</span></label>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+          <label style="margin-bottom:0">Asset condition <span class="req">*</span></label>
+          <label style="font-size:11px; font-weight:500; color:var(--mute); display:flex; align-items:center; gap:4px; cursor:pointer">
+            <input type="checkbox" id="f-assetConditionUnavailable" onchange="toggleFieldUnavailable('assetCondition')"> Data unavailable?
+          </label>
+        </div>
+        <input type="text" id="f-assetCondition" placeholder="e.g. Operational - New" required>
+        <div id="wrap-assetConditionReason" style="display:none; margin-top:6px; padding:8px; border-radius:6px; background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3)">
+          <label style="font-size:11px; font-weight:600; color:#b45309; display:block; margin-bottom:4px">Reason why Asset condition is not available <span class="req">*</span></label>
+          <input type="text" id="f-assetConditionReason" placeholder="e.g. Sealed package / Inspection pending" style="font-size:12px; height:32px">
+        </div>
+      </div>
         <input type="text" id="f-assetCondition" placeholder="e.g. Operational - New" required>
       </div>
       <div class="form-row">
@@ -1507,24 +1545,107 @@ function previewImg(input, targetId) {
   }
 }
 
+function toggleFieldUnavailable(fieldKey) {
+  const chk = document.getElementById(`f-${fieldKey}Unavailable`);
+  const input = document.getElementById(`f-${fieldKey}`);
+  const reasonWrap = document.getElementById(`wrap-${fieldKey}Reason`);
+  const reasonInput = document.getElementById(`f-${fieldKey}Reason`);
+  if (!chk || !input || !reasonWrap) return;
+
+  if (chk.checked) {
+    input.required = false;
+    input.disabled = true;
+    input.style.opacity = '0.6';
+    reasonWrap.style.display = 'block';
+    if (reasonInput) reasonInput.required = true;
+  } else {
+    input.required = true;
+    input.disabled = false;
+    input.style.opacity = '1';
+    reasonWrap.style.display = 'none';
+    if (reasonInput) {
+      reasonInput.required = false;
+      reasonInput.value = '';
+    }
+  }
+}
+
 function handleSaveAsset(e) {
   e.preventDefault();
+
+  const codeUnavail = document.getElementById('f-assetCodeUnavailable').checked;
+  const codeReason = (document.getElementById('f-assetCodeReason')?.value || '').trim();
+  if (codeUnavail && !codeReason) {
+    toast('Please mention the reason why Asset code is unavailable');
+    document.getElementById('f-assetCodeReason')?.focus();
+    return;
+  }
+
+  const snUnavail = document.getElementById('f-serialNumberUnavailable').checked;
+  const snReason = (document.getElementById('f-serialNumberReason')?.value || '').trim();
+  if (snUnavail && !snReason) {
+    toast('Please mention the reason why Serial number is unavailable');
+    document.getElementById('f-serialNumberReason')?.focus();
+    return;
+  }
+
+  const plantUnavail = document.getElementById('f-plantUnavailable').checked;
+  const plantReason = (document.getElementById('f-plantReason')?.value || '').trim();
+  if (plantUnavail && !plantReason) {
+    toast('Please mention the reason why Plant is unavailable');
+    document.getElementById('f-plantReason')?.focus();
+    return;
+  }
+
+  const condUnavail = document.getElementById('f-assetConditionUnavailable').checked;
+  const condReason = (document.getElementById('f-assetConditionReason')?.value || '').trim();
+  if (condUnavail && !condReason) {
+    toast('Please mention the reason why Asset condition is unavailable');
+    document.getElementById('f-assetConditionReason')?.focus();
+    return;
+  }
+
+  const rawCode = document.getElementById('f-assetCode').value.trim();
+  const rawSn = document.getElementById('f-serialNumber').value.trim();
+  const rawPlant = document.getElementById('f-plant').value.trim();
+  const rawCond = document.getElementById('f-assetCondition').value.trim();
+
+  const effectiveCode = codeUnavail ? (rawCode || `AST-UNAVAIL-${Date.now().toString().slice(-5)}`) : rawCode;
+  const effectiveSn = snUnavail ? (rawSn || 'SN-UNAVAILABLE') : rawSn;
+  const effectivePlant = plantUnavail ? (rawPlant || 'Location Pending') : rawPlant;
+  const effectiveCond = condUnavail ? (rawCond || 'Pending Inspection') : rawCond;
+
+  const unavailNotes = [];
+  if (codeUnavail && codeReason) unavailNotes.push(`Asset Code: ${codeReason}`);
+  if (snUnavail && snReason) unavailNotes.push(`Serial Number: ${snReason}`);
+  if (plantUnavail && plantReason) unavailNotes.push(`Plant: ${plantReason}`);
+  if (condUnavail && condReason) unavailNotes.push(`Condition: ${condReason}`);
+
+  const rawRemarks = document.getElementById('f-remarks').value.trim();
+  const combinedRemarks = [rawRemarks, unavailNotes.length ? `[Unavailable Data Reasons: ${unavailNotes.join('; ')}]` : ''].filter(Boolean).join(' — ');
+
   const asset = {
-    assetCode: document.getElementById('f-assetCode').value.trim(),
-    serialNumber: document.getElementById('f-serialNumber').value.trim(),
+    assetCode: effectiveCode,
+    serialNumber: effectiveSn,
     currentCategory: document.getElementById('f-currentCategory').value.trim() || 'Laptops & Compute',
     previousCategory: document.getElementById('f-previousCategory').value.trim(),
-    currentDescription: document.getElementById('f-currentDescription').value.trim(),
+    currentDescription: document.getElementById('f-currentDescription').value.trim() || effectiveCode,
     previousDescription: document.getElementById('f-previousDescription').value.trim(),
-    plant: document.getElementById('f-plant').value.trim(),
+    plant: effectivePlant,
     building: document.getElementById('f-building').value.trim(),
     floor: document.getElementById('f-floor').value.trim(),
     currentLocation: document.getElementById('f-currentLocation').value.trim(),
     currentDepartment: document.getElementById('f-currentDepartment').value.trim(),
     submitter: document.getElementById('f-submitter').value.trim(),
-    assetCondition: document.getElementById('f-assetCondition').value.trim(),
+    assetCondition: effectiveCond,
     movementReason: document.getElementById('f-movementReason').value.trim(),
-    remarks: document.getElementById('f-remarks').value.trim(),
+    remarks: combinedRemarks,
+    unavailabilityReasons: {
+      ...(codeUnavail ? { assetCode: codeReason } : {}),
+      ...(snUnavail ? { serialNumber: snReason } : {}),
+      ...(plantUnavail ? { plant: plantReason } : {}),
+      ...(condUnavail ? { assetCondition: condReason } : {}),
+    },
     date: document.getElementById('f-date').value || new Date().toISOString().split('T')[0],
     assetPhoto: uploadedPhotoData
   };
@@ -1533,6 +1654,7 @@ function handleSaveAsset(e) {
   closeDrawer();
   e.target.reset();
   uploadedPhotoData = null;
+  ['assetCode', 'serialNumber', 'plant', 'assetCondition'].forEach(toggleFieldUnavailable);
   document.getElementById('prev-photo').innerText = 'None';
   document.getElementById('prev-code').innerText = 'None';
   document.getElementById('prev-id').innerText = 'None';
@@ -1540,7 +1662,7 @@ function handleSaveAsset(e) {
   showTab('gallery');
   renderGallery();
   renderAssetTypes();
-  logAudit('ASSET_CREATE', { assetCode: asset.assetCode, name: asset.currentDescription, plant: asset.plant }, asset.assetCode);
+  logAudit('ASSET_CREATE', { assetCode: asset.assetCode, name: asset.currentDescription, plant: asset.plant, unavailabilityReasons: asset.unavailabilityReasons }, asset.assetCode);
   toast(`Asset "${asset.assetCode}" saved to Gallery!`);
 }
 

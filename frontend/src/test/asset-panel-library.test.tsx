@@ -266,4 +266,71 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
       fireEvent.click(closeBtn)
     }
   })
+
+  test('Required fields with * mandate a reason if data is marked unavailable', async () => {
+    render(<App />)
+
+    // Open Add asset panel
+    const addAssetBtns = screen.getAllByRole('button', { name: /add asset/i })
+    fireEvent.click(addAssetBtns[0])
+
+    // Try saving without entering required fields or reasons
+    fireEvent.click(screen.getByRole('button', { name: /save asset/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Asset code is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/Asset serial number is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/Plant is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/Asset condition is required/i)).toBeInTheDocument()
+    })
+
+    // Toggle "Data unavailable?" buttons for all 4 required fields
+    const unavailBtns = screen.getAllByRole('button', { name: /Data unavailable\?/i })
+    expect(unavailBtns.length).toBe(4)
+
+    // Mark Asset code and Serial number as unavailable
+    fireEvent.click(unavailBtns[0]) // Asset code
+    fireEvent.click(unavailBtns[1]) // Asset serial number
+
+    // Now reason inputs should appear
+    expect(screen.getByLabelText(/Reason why Asset code is not available/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Reason why Serial number is not available/i)).toBeInTheDocument()
+
+    // Try saving with unavailable toggled but missing reasons
+    fireEvent.click(screen.getByRole('button', { name: /save asset/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Please mention the reason why Asset code is not available/i)).toBeInTheDocument()
+    })
+
+    // Fill in reasons for unavailable fields
+    fireEvent.change(screen.getByPlaceholderText(/Barcode label torn, vendor tag pending delivery/i), {
+      target: { value: 'Legacy unit with worn QR barcode sticker' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Serial plate scratched\/unreadable/i), {
+      target: { value: 'Serial engraved inside machine chassis' },
+    })
+
+    // Fill in regular remaining required fields (Plant and Condition)
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Pune Central Plant/i), {
+      target: { value: 'Chennai Logistics Hub' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Operational - Excellent \/ New/i), {
+      target: { value: 'Operational - Good' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/MacBook Pro 16 inch M3 Pro Space Black/i), {
+      target: { value: 'Logitech Barcode Handheld Terminal' },
+    })
+
+    // Submit form
+    fireEvent.click(screen.getByRole('button', { name: /save asset/i }))
+
+    // Verify asset was created and displays missing field justifications in gallery
+    await waitFor(() => {
+      expect(screen.getByText(/Logitech Barcode Handheld Terminal/i)).toBeInTheDocument()
+      expect(screen.getByText(/Chennai Logistics Hub/i)).toBeInTheDocument()
+      expect(screen.getByText(/Missing field justifications/i)).toBeInTheDocument()
+      expect(screen.getByText(/Legacy unit with worn QR barcode sticker/i)).toBeInTheDocument()
+    })
+  })
 })

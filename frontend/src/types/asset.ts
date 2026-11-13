@@ -33,6 +33,13 @@ export interface Asset {
   assetCondition: string
   movementReason?: string
   remarks?: string
+  unavailabilityReasons?: {
+    assetCode?: string
+    serialNumber?: string
+    plant?: string
+    assetCondition?: string
+    [key: string]: string | undefined
+  }
 
   // Media (Data URLs)
   assetPhoto?: string

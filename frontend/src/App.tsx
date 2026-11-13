@@ -165,6 +165,8 @@ export function App() {
         plant: newAsset.plant,
         department: newAsset.currentDepartment || newAsset.department,
         condition: newAsset.assetCondition,
+        unavailabilityReasons: newAsset.unavailabilityReasons,
+        remarks: newAsset.remarks,
       },
       newAsset.assetCode
     )

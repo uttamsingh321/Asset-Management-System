@@ -638,6 +638,16 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                           Dept: {asset.currentDepartment || 'N/A'}{' '}
                           {asset.submitter ? `(${asset.submitter})` : ''}
                         </div>
+                        {asset.unavailabilityReasons && Object.keys(asset.unavailabilityReasons).length > 0 && (
+                          <div className="mt-1 p-1.5 rounded bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-800 dark:text-amber-300">
+                            <span className="font-semibold block mb-0.5">⚠️ Missing field justifications:</span>
+                            {Object.entries(asset.unavailabilityReasons).map(([key, reason]) => (
+                              <div key={key} className="truncate">
+                                • <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span> {reason}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

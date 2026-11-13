@@ -19,13 +19,22 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 }) => {
   // Field States
   const [assetCode, setAssetCode] = React.useState('')
+  const [assetCodeUnavailable, setAssetCodeUnavailable] = React.useState(false)
+  const [assetCodeReason, setAssetCodeReason] = React.useState('')
+
   const [serialNumber, setSerialNumber] = React.useState('')
+  const [serialNumberUnavailable, setSerialNumberUnavailable] = React.useState(false)
+  const [serialNumberReason, setSerialNumberReason] = React.useState('')
+
   const [currentCategory, setCurrentCategory] = React.useState('')
   const [previousCategory, setPreviousCategory] = React.useState('')
   const [currentDescription, setCurrentDescription] = React.useState('')
   const [previousDescription, setPreviousDescription] = React.useState('')
 
   const [plant, setPlant] = React.useState('')
+  const [plantUnavailable, setPlantUnavailable] = React.useState(false)
+  const [plantReason, setPlantReason] = React.useState('')
+
   const [building, setBuilding] = React.useState('')
   const [floor, setFloor] = React.useState('')
   const [currentLocation, setCurrentLocation] = React.useState('')
@@ -34,6 +43,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const [submitter, setSubmitter] = React.useState('')
 
   const [assetCondition, setAssetCondition] = React.useState('')
+  const [assetConditionUnavailable, setAssetConditionUnavailable] = React.useState(false)
+  const [assetConditionReason, setAssetConditionReason] = React.useState('')
+
   const [movementReason, setMovementReason] = React.useState('')
   const [remarks, setRemarks] = React.useState('')
 
@@ -204,53 +216,110 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     e.preventDefault()
 
     const newErrors: Record<string, string> = {}
-    if (!assetCode.trim()) newErrors.assetCode = 'Asset code is required'
-    if (!serialNumber.trim()) newErrors.serialNumber = 'Asset serial number is required'
-    if (!plant.trim()) newErrors.plant = 'Plant is required'
-    if (!assetCondition.trim()) newErrors.assetCondition = 'Asset condition is required'
+
+    // 1. Asset code validation
+    if (!assetCodeUnavailable && !assetCode.trim()) {
+      newErrors.assetCode = 'Asset code is required (or mark as unavailable with reason)'
+    } else if (assetCodeUnavailable && !assetCodeReason.trim()) {
+      newErrors.assetCodeReason = 'Please mention the reason why Asset code is not available'
+    }
+
+    // 2. Asset serial number validation
+    if (!serialNumberUnavailable && !serialNumber.trim()) {
+      newErrors.serialNumber = 'Asset serial number is required (or mark as unavailable with reason)'
+    } else if (serialNumberUnavailable && !serialNumberReason.trim()) {
+      newErrors.serialNumberReason = 'Please mention the reason why Serial number is not available'
+    }
+
+    // 3. Plant validation
+    if (!plantUnavailable && !plant.trim()) {
+      newErrors.plant = 'Plant is required (or mark as unavailable with reason)'
+    } else if (plantUnavailable && !plantReason.trim()) {
+      newErrors.plantReason = 'Please mention the reason why Plant is not available'
+    }
+
+    // 4. Asset condition validation
+    if (!assetConditionUnavailable && !assetCondition.trim()) {
+      newErrors.assetCondition = 'Asset condition is required (or mark as unavailable with reason)'
+    } else if (assetConditionUnavailable && !assetConditionReason.trim()) {
+      newErrors.assetConditionReason = 'Please mention the reason why Asset condition is not available'
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       const firstErrorField = Object.keys(newErrors)[0]
       const el = document.getElementById(`field-${firstErrorField}`)
       el?.focus()
-      toast.error('Please fill in all required fields.')
+      toast.error('Please complete all required fields or provide unavailability reasons.')
       return
     }
 
     setErrors({})
 
+    const effectiveAssetCode = assetCodeUnavailable
+      ? (assetCode.trim() || `AST-UNAVAIL-${Date.now().toString().slice(-5)}`)
+      : assetCode.trim()
+
+    const effectiveSerialNumber = serialNumberUnavailable
+      ? (serialNumber.trim() || 'SN-UNAVAILABLE')
+      : serialNumber.trim()
+
+    const effectivePlant = plantUnavailable
+      ? (plant.trim() || 'Location Pending')
+      : plant.trim()
+
+    const effectiveAssetCondition = assetConditionUnavailable
+      ? (assetCondition.trim() || 'Pending Inspection')
+      : assetCondition.trim()
+
     const determinedStatus: AssetStatus =
-      assetCondition.toLowerCase().includes('scrap') || assetCondition.toLowerCase().includes('retired')
+      effectiveAssetCondition.toLowerCase().includes('scrap') || effectiveAssetCondition.toLowerCase().includes('retired')
         ? 'Retired'
-        : assetCondition.toLowerCase().includes('repair') || assetCondition.toLowerCase().includes('maintenance')
+        : effectiveAssetCondition.toLowerCase().includes('repair') || effectiveAssetCondition.toLowerCase().includes('maintenance')
         ? 'Maintenance'
         : 'Active'
 
+    const unavailNotes: string[] = []
+    if (assetCodeUnavailable && assetCodeReason.trim()) unavailNotes.push(`Asset Code: ${assetCodeReason.trim()}`)
+    if (serialNumberUnavailable && serialNumberReason.trim()) unavailNotes.push(`Serial Number: ${serialNumberReason.trim()}`)
+    if (plantUnavailable && plantReason.trim()) unavailNotes.push(`Plant: ${plantReason.trim()}`)
+    if (assetConditionUnavailable && assetConditionReason.trim()) unavailNotes.push(`Condition: ${assetConditionReason.trim()}`)
+
+    const combinedRemarks = [
+      remarks.trim(),
+      unavailNotes.length > 0 ? `[Unavailable Data Reasons: ${unavailNotes.join('; ')}]` : ''
+    ].filter(Boolean).join(' — ')
+
     const newAsset: Asset = {
       id: `AST-${Date.now().toString().slice(-6)}`,
-      assetCode: assetCode.trim(),
-      serialNumber: serialNumber.trim(),
+      assetCode: effectiveAssetCode,
+      serialNumber: effectiveSerialNumber,
       currentCategory: currentCategory.trim() || 'General Equipment',
       previousCategory: previousCategory.trim(),
-      currentDescription: currentDescription.trim() || assetCode.trim(),
+      currentDescription: currentDescription.trim() || effectiveAssetCode,
       previousDescription: previousDescription.trim(),
-      plant: plant.trim(),
+      plant: effectivePlant,
       building: building.trim(),
       floor: floor.trim(),
-      currentLocation: currentLocation.trim() || plant.trim(),
+      currentLocation: currentLocation.trim() || effectivePlant,
       currentDepartment: currentDepartment.trim() || 'Operations',
       submitter: submitter.trim() || 'Staff',
-      assetCondition: assetCondition.trim(),
+      assetCondition: effectiveAssetCondition,
       movementReason: movementReason.trim(),
-      remarks: remarks.trim(),
+      remarks: combinedRemarks,
+      unavailabilityReasons: {
+        ...(assetCodeUnavailable ? { assetCode: assetCodeReason.trim() } : {}),
+        ...(serialNumberUnavailable ? { serialNumber: serialNumberReason.trim() } : {}),
+        ...(plantUnavailable ? { plant: plantReason.trim() } : {}),
+        ...(assetConditionUnavailable ? { assetCondition: assetConditionReason.trim() } : {}),
+      },
       assetPhoto,
       assetCodePhoto,
       idCardPicture,
       date,
       // Compatibility fields
-      name: currentDescription.trim() || assetCode.trim(),
-      assetTag: assetCode.trim(),
+      name: currentDescription.trim() || effectiveAssetCode,
+      assetTag: effectiveAssetCode,
       category: currentCategory.trim() || 'IT Hardware',
       department: currentDepartment.trim() || 'Operations',
       status: determinedStatus,
@@ -258,7 +327,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       purchaseCost: 0,
       currentValue: 0,
       assignedTo: submitter.trim() || 'Unassigned',
-      location: [plant.trim(), building.trim(), floor.trim()].filter(Boolean).join(' - ') || currentLocation.trim(),
+      location: [effectivePlant, building.trim(), floor.trim()].filter(Boolean).join(' - ') || currentLocation.trim(),
     }
 
     onSave(newAsset)
@@ -266,18 +335,26 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
     // Reset Form
     setAssetCode('')
+    setAssetCodeUnavailable(false)
+    setAssetCodeReason('')
     setSerialNumber('')
+    setSerialNumberUnavailable(false)
+    setSerialNumberReason('')
     setCurrentCategory('')
     setPreviousCategory('')
     setCurrentDescription('')
     setPreviousDescription('')
     setPlant('')
+    setPlantUnavailable(false)
+    setPlantReason('')
     setBuilding('')
     setFloor('')
     setCurrentLocation('')
     setCurrentDepartment('')
     setSubmitter('')
     setAssetCondition('')
+    setAssetConditionUnavailable(false)
+    setAssetConditionReason('')
     setMovementReason('')
     setRemarks('')
     setAssetPhoto(undefined)
@@ -376,40 +453,204 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
             </h3>
             <div className="space-y-4">
               <div>
-                <label style={labelStyle}>
-                  Asset code <span className="text-[var(--bad)]">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="field-assetCode" style={{ ...labelStyle, marginBottom: 0 }}>
+                    Asset code <span className="text-[var(--bad)]">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !assetCodeUnavailable
+                      setAssetCodeUnavailable(next)
+                      if (next) {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.assetCode
+                          return updated
+                        })
+                      } else {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.assetCodeReason
+                          return updated
+                        })
+                      }
+                    }}
+                    className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                      assetCodeUnavailable
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                        : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {assetCodeUnavailable ? '⚠️ Marked unavailable' : 'Data unavailable?'}
+                  </button>
+                </div>
                 <input
                   ref={firstInputRef}
                   id="field-assetCode"
                   type="text"
                   value={assetCode}
-                  onChange={(e) => setAssetCode(e.target.value)}
-                  placeholder="e.g. AST-DEL-0492"
+                  onChange={(e) => {
+                    setAssetCode(e.target.value)
+                    if (errors.assetCode) {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.assetCode
+                        return updated
+                      })
+                    }
+                  }}
+                  disabled={assetCodeUnavailable}
+                  placeholder={
+                    assetCodeUnavailable
+                      ? 'Marked unavailable (Pending code assignment)'
+                      : 'e.g. AST-DEL-0492'
+                  }
                   style={{
                     ...inputStyle,
                     borderColor: errors.assetCode ? 'var(--bad)' : 'var(--line)',
+                    opacity: assetCodeUnavailable ? 0.6 : 1,
+                    backgroundColor: assetCodeUnavailable ? 'var(--surf2)' : 'var(--surf)',
                   }}
                 />
                 {errors.assetCode && <p className="text-xs text-[var(--bad)] mt-1">{errors.assetCode}</p>}
+
+                {assetCodeUnavailable && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="field-assetCodeReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                        Reason why Asset code is not available <span className="text-[var(--bad)]">*</span>
+                      </label>
+                      <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
+                    </div>
+                    <input
+                      id="field-assetCodeReason"
+                      type="text"
+                      value={assetCodeReason}
+                      onChange={(e) => {
+                        setAssetCodeReason(e.target.value)
+                        if (errors.assetCodeReason) {
+                          setErrors((prev) => {
+                            const updated = { ...prev }
+                            delete updated.assetCodeReason
+                            return updated
+                          })
+                        }
+                      }}
+                      placeholder="e.g. Barcode label torn, vendor tag pending delivery, legacy equipment"
+                      style={{
+                        ...inputStyle,
+                        height: '36px',
+                        fontSize: '12.5px',
+                        borderColor: errors.assetCodeReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
+                        backgroundColor: 'var(--surf)',
+                      }}
+                    />
+                    {errors.assetCodeReason && (
+                      <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetCodeReason}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
-                <label style={labelStyle}>
-                  Asset serial number <span className="text-[var(--bad)]">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="field-serialNumber" style={{ ...labelStyle, marginBottom: 0 }}>
+                    Asset serial number <span className="text-[var(--bad)]">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !serialNumberUnavailable
+                      setSerialNumberUnavailable(next)
+                      if (next) {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.serialNumber
+                          return updated
+                        })
+                      } else {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.serialNumberReason
+                          return updated
+                        })
+                      }
+                    }}
+                    className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                      serialNumberUnavailable
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                        : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {serialNumberUnavailable ? '⚠️ Marked unavailable' : 'Data unavailable?'}
+                  </button>
+                </div>
                 <input
                   id="field-serialNumber"
                   type="text"
                   value={serialNumber}
-                  onChange={(e) => setSerialNumber(e.target.value)}
-                  placeholder="e.g. SN-88392104-X"
+                  onChange={(e) => {
+                    setSerialNumber(e.target.value)
+                    if (errors.serialNumber) {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.serialNumber
+                        return updated
+                      })
+                    }
+                  }}
+                  disabled={serialNumberUnavailable}
+                  placeholder={
+                    serialNumberUnavailable
+                      ? 'Marked unavailable (Serial number pending verification)'
+                      : 'e.g. SN-88392104-X'
+                  }
                   style={{
                     ...inputStyle,
                     borderColor: errors.serialNumber ? 'var(--bad)' : 'var(--line)',
+                    opacity: serialNumberUnavailable ? 0.6 : 1,
+                    backgroundColor: serialNumberUnavailable ? 'var(--surf2)' : 'var(--surf)',
                   }}
                 />
                 {errors.serialNumber && <p className="text-xs text-[var(--bad)] mt-1">{errors.serialNumber}</p>}
+
+                {serialNumberUnavailable && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="field-serialNumberReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                        Reason why Serial number is not available <span className="text-[var(--bad)]">*</span>
+                      </label>
+                      <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
+                    </div>
+                    <input
+                      id="field-serialNumberReason"
+                      type="text"
+                      value={serialNumberReason}
+                      onChange={(e) => {
+                        setSerialNumberReason(e.target.value)
+                        if (errors.serialNumberReason) {
+                          setErrors((prev) => {
+                            const updated = { ...prev }
+                            delete updated.serialNumberReason
+                            return updated
+                          })
+                        }
+                      }}
+                      placeholder="e.g. Serial plate scratched/unreadable, OEM unassigned, enclosed within chassis"
+                      style={{
+                        ...inputStyle,
+                        height: '36px',
+                        fontSize: '12.5px',
+                        borderColor: errors.serialNumberReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
+                        backgroundColor: 'var(--surf)',
+                      }}
+                    />
+                    {errors.serialNumberReason && (
+                      <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.serialNumberReason}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={grid2Style}>
@@ -467,21 +708,103 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
             <div className="space-y-4">
               <div style={grid2Style}>
                 <div>
-                  <label style={labelStyle}>
-                    Plant <span className="text-[var(--bad)]">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="field-plant" style={{ ...labelStyle, marginBottom: 0 }}>
+                      Plant <span className="text-[var(--bad)]">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !plantUnavailable
+                        setPlantUnavailable(next)
+                        if (next) {
+                          setErrors((prev) => {
+                            const updated = { ...prev }
+                            delete updated.plant
+                            return updated
+                          })
+                        } else {
+                          setErrors((prev) => {
+                            const updated = { ...prev }
+                            delete updated.plantReason
+                            return updated
+                          })
+                        }
+                      }}
+                      className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                        plantUnavailable
+                          ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                          : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {plantUnavailable ? '⚠️ Unavailable' : 'Data unavailable?'}
+                    </button>
+                  </div>
                   <input
                     id="field-plant"
                     type="text"
                     value={plant}
-                    onChange={(e) => setPlant(e.target.value)}
-                    placeholder="e.g. Pune Central Plant"
+                    onChange={(e) => {
+                      setPlant(e.target.value)
+                      if (errors.plant) {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.plant
+                          return updated
+                        })
+                      }
+                    }}
+                    disabled={plantUnavailable}
+                    placeholder={
+                      plantUnavailable
+                        ? 'Location pending allocation'
+                        : 'e.g. Pune Central Plant'
+                    }
                     style={{
                       ...inputStyle,
                       borderColor: errors.plant ? 'var(--bad)' : 'var(--line)',
+                      opacity: plantUnavailable ? 0.6 : 1,
+                      backgroundColor: plantUnavailable ? 'var(--surf2)' : 'var(--surf)',
                     }}
                   />
                   {errors.plant && <p className="text-xs text-[var(--bad)] mt-1">{errors.plant}</p>}
+
+                  {plantUnavailable && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="field-plantReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                          Reason why Plant is not available <span className="text-[var(--bad)]">*</span>
+                        </label>
+                        <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
+                      </div>
+                      <input
+                        id="field-plantReason"
+                        type="text"
+                        value={plantReason}
+                        onChange={(e) => {
+                          setPlantReason(e.target.value)
+                          if (errors.plantReason) {
+                            setErrors((prev) => {
+                              const updated = { ...prev }
+                              delete updated.plantReason
+                              return updated
+                            })
+                          }
+                        }}
+                        placeholder="e.g. Asset in transit between sites, awaiting facility assignment"
+                        style={{
+                          ...inputStyle,
+                          height: '36px',
+                          fontSize: '12.5px',
+                          borderColor: errors.plantReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
+                          backgroundColor: 'var(--surf)',
+                        }}
+                      />
+                      {errors.plantReason && (
+                        <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.plantReason}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -559,21 +882,103 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
             </h3>
             <div className="space-y-4">
               <div>
-                <label style={labelStyle}>
-                  Asset condition <span className="text-[var(--bad)]">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="field-assetCondition" style={{ ...labelStyle, marginBottom: 0 }}>
+                    Asset condition <span className="text-[var(--bad)]">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !assetConditionUnavailable
+                      setAssetConditionUnavailable(next)
+                      if (next) {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.assetCondition
+                          return updated
+                        })
+                      } else {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.assetConditionReason
+                          return updated
+                        })
+                      }
+                    }}
+                    className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                      assetConditionUnavailable
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                        : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {assetConditionUnavailable ? '⚠️ Unavailable' : 'Data unavailable?'}
+                  </button>
+                </div>
                 <input
                   id="field-assetCondition"
                   type="text"
                   value={assetCondition}
-                  onChange={(e) => setAssetCondition(e.target.value)}
-                  placeholder="e.g. Operational - Excellent / New"
+                  onChange={(e) => {
+                    setAssetCondition(e.target.value)
+                    if (errors.assetCondition) {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.assetCondition
+                        return updated
+                      })
+                    }
+                  }}
+                  disabled={assetConditionUnavailable}
+                  placeholder={
+                    assetConditionUnavailable
+                      ? 'Condition pending inspection'
+                      : 'e.g. Operational - Excellent / New'
+                  }
                   style={{
                     ...inputStyle,
                     borderColor: errors.assetCondition ? 'var(--bad)' : 'var(--line)',
+                    opacity: assetConditionUnavailable ? 0.6 : 1,
+                    backgroundColor: assetConditionUnavailable ? 'var(--surf2)' : 'var(--surf)',
                   }}
                 />
                 {errors.assetCondition && <p className="text-xs text-[var(--bad)] mt-1">{errors.assetCondition}</p>}
+
+                {assetConditionUnavailable && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="field-assetConditionReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                        Reason why Asset condition is not available <span className="text-[var(--bad)]">*</span>
+                      </label>
+                      <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
+                    </div>
+                    <input
+                      id="field-assetConditionReason"
+                      type="text"
+                      value={assetConditionReason}
+                      onChange={(e) => {
+                        setAssetConditionReason(e.target.value)
+                        if (errors.assetConditionReason) {
+                          setErrors((prev) => {
+                            const updated = { ...prev }
+                            delete updated.assetConditionReason
+                            return updated
+                          })
+                        }
+                      }}
+                      placeholder="e.g. Factory-sealed package, pending QA physical testing, remote warehouse item"
+                      style={{
+                        ...inputStyle,
+                        height: '36px',
+                        fontSize: '12.5px',
+                        borderColor: errors.assetConditionReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
+                        backgroundColor: 'var(--surf)',
+                      }}
+                    />
+                    {errors.assetConditionReason && (
+                      <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetConditionReason}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
