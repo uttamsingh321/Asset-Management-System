@@ -235,45 +235,6 @@ export function App() {
             </a>
 
             <a
-              className={currentHash === 'vendors' ? 'on' : ''}
-              href="#vendors"
-              onClick={(e) => handleNavClick('vendors', e)}
-              title={isMini ? 'Vendors' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M3 9 5 4h14l2 5M3 9v11h18V9M3 9h18M9 20v-6h6v6" />
-              </svg>
-              <span>Vendors</span>
-            </a>
-
-            <a
-              className={currentHash === 'procurement' ? 'on' : ''}
-              href="#procurement"
-              onClick={(e) => handleNavClick('procurement', e)}
-              title={isMini ? 'Procurement' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="9" cy="20" r="1.5" />
-                <circle cx="18" cy="20" r="1.5" />
-                <path d="M2 3h3l2.5 12h11L21 7H6" />
-              </svg>
-              <span>Procurement</span>
-            </a>
-
-            <a
-              className={currentHash === 'finance' ? 'on' : ''}
-              href="#finance"
-              onClick={(e) => handleNavClick('finance', e)}
-              title={isMini ? 'Finance' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <rect x="2" y="6" width="20" height="13" rx="2" />
-                <path d="M2 11h20M6 16h3" />
-              </svg>
-              <span>Finance</span>
-            </a>
-
-            <a
               className={currentHash === 'reports' ? 'on' : ''}
               href="#reports"
               onClick={(e) => handleNavClick('reports', e)}

@@ -57,7 +57,7 @@ describe('Meridian UI/UX Zero Dummy Data & Responsive Collapsible Navigation', (
     expect(appEl).not.toHaveClass('drawer-open')
   })
 
-  it('Task 2: Responsive across all 11 sub-dashboards with zero data', () => {
+  it('Task 2: Responsive across all 8 sub-dashboards with zero data', () => {
     const { unmount } = render(<App />)
     const subpages = navItems.filter((item) => item.key !== 'dashboard')
     for (const item of subpages) {
@@ -72,6 +72,12 @@ describe('Meridian UI/UX Zero Dummy Data & Responsive Collapsible Navigation', (
       expect(screen.getByRole('heading', { level: 2, name: pageData.ah })).toBeInTheDocument()
       expect(screen.getByRole('heading', { level: 2, name: pageData.bh })).toBeInTheDocument()
     }
+
+    // Verify removed modules are not in navigation
+    expect(screen.queryByText('Vendors')).not.toBeInTheDocument()
+    expect(screen.queryByText('Procurement')).not.toBeInTheDocument()
+    expect(screen.queryByText('Finance')).not.toBeInTheDocument()
+
     unmount()
   })
 
