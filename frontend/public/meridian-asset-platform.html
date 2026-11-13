@@ -1119,11 +1119,18 @@ function renderGallery() {
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--mute)">
           <span>${a.currentDepartment || 'General'}</span>
-          <span>${a.date}</span>
+          <button type="button" class="btn" style="padding:2px 6px; font-size:11px; color:var(--bad); border:1px solid var(--line); border-radius:6px" onclick="deleteAsset('${a.assetCode}')" title="Delete asset" aria-label="Delete asset ${a.assetCode}">🗑️ Delete</button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+function deleteAsset(code) {
+  assets = assets.filter(a => a.assetCode !== code);
+  renderGallery();
+  renderAssetTypes();
+  toast(`Asset "${code}" deleted.`);
 }
 
 function filterCategory(cat) {

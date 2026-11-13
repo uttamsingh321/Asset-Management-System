@@ -9,6 +9,8 @@ interface AssetLibraryViewProps {
   activeSubTab: 'gallery' | 'library'
   setActiveSubTab: (tab: 'gallery' | 'library') => void
   onOpenAddAsset: () => void
+  onDeleteAsset?: (id: string) => void
+  onClearAllAssets?: () => void
   addAssetButtonRef?: React.RefObject<HTMLButtonElement | null>
 }
 
@@ -17,6 +19,8 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
   activeSubTab,
   setActiveSubTab,
   onOpenAddAsset,
+  onDeleteAsset,
+  onClearAllAssets,
   addAssetButtonRef,
 }) => {
   const [assetTypes, setAssetTypes] = React.useState<AssetTypeTemplate[]>(initialAssetTypes)
@@ -111,6 +115,32 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               <div className="sub">{assets.length} assets registered across categories</div>
             </div>
             <div className="btns">
+              {assets.length > 0 && (
+                <button
+                  className="btn"
+                  style={{ color: 'var(--bad)', borderColor: 'var(--line)' }}
+                  onClick={onClearAllAssets}
+                  title="Remove all registered dummy assets"
+                  aria-label="Clear all assets"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}
+                  >
+                    <path
+                      d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Clear all
+                </button>
+              )}
               <button
                 className="btn"
                 onClick={() => {
@@ -193,15 +223,39 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                       </div>
 
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <span className="font-mono text-xs font-bold text-[var(--acc)]">
                             {asset.assetCode}
                           </span>
-                          <h4 className="text-sm font-semibold line-clamp-1">
+                          <h4 className="text-sm font-semibold truncate">
                             {asset.currentDescription || asset.name}
                           </h4>
                         </div>
-                        <span className="pill ok shrink-0">{asset.status}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="pill ok shrink-0">{asset.status}</span>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteAsset && onDeleteAsset(asset.id)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--bad)] hover:bg-red-500/10 transition"
+                            aria-label={`Delete asset ${asset.assetCode}`}
+                            title="Delete asset"
+                          >
+                            <svg
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                            >
+                              <path
+                                d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
 
                       <div className="text-xs text-[var(--mute)] space-y-0.5">

@@ -106,6 +106,18 @@ export function App() {
     window.location.hash = '#assets'
   }
 
+  const handleDeleteAsset = (id: string) => {
+    const target = assets.find((a) => a.id === id)
+    setAssets((prev) => prev.filter((a) => a.id !== id))
+    toast.success(`Asset "${target?.assetCode || target?.name || 'unit'}" deleted`)
+  }
+
+  const handleClearAllAssets = () => {
+    if (assets.length === 0) return
+    setAssets([])
+    toast.success('All physical assets removed from registry')
+  }
+
   const isDashboard = currentHash === 'dashboard'
   const activePage = meridianPages[currentHash]
 
@@ -615,6 +627,8 @@ export function App() {
                   window.location.hash = `#${targetHash}`
                 }}
                 onOpenAddAsset={() => setIsAddModalOpen(true)}
+                onDeleteAsset={handleDeleteAsset}
+                onClearAllAssets={handleClearAllAssets}
                 addAssetButtonRef={addAssetButtonRef}
               />
             ) : activePage ? (

@@ -134,6 +134,16 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
       expect(screen.getByText(/SN-M3-99201/i)).toBeInTheDocument()
       expect(screen.getByText(/Pune Manufacturing Plant/i)).toBeInTheDocument()
     })
+
+    // Delete bin button deletes the asset
+    const deleteBtn = screen.getByRole('button', { name: /delete asset AST-PUNE-001/i })
+    expect(deleteBtn).toBeInTheDocument()
+    fireEvent.click(deleteBtn)
+
+    await waitFor(() => {
+      expect(screen.queryByText('AST-PUNE-001')).not.toBeInTheDocument()
+      expect(screen.getByText(/No physical assets registered yet/i)).toBeInTheDocument()
+    })
   })
 
   it('PART 2: Asset Library features flow strip, 4 summary cards, quick-add, expandable details rows', async () => {
