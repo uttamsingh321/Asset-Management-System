@@ -13,6 +13,7 @@ export function App() {
     return h && meridianPages[h] ? h : 'dashboard'
   })
   const [isMini, setIsMini] = React.useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
   const [theme, setTheme] = React.useState<'light' | 'dark'>(() => {
     return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
   })
@@ -42,10 +43,22 @@ export function App() {
     const onHashChange = () => {
       const h = window.location.hash.replace('#', '')
       setCurrentHash(h && meridianPages[h] ? h : 'dashboard')
+      setIsDrawerOpen(false)
       window.scrollTo(0, 0)
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  // Auto-close mobile drawer on window resize to desktop
+  React.useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth > 768) {
+        setIsDrawerOpen(false)
+      }
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   // Ctrl+K shortcut
@@ -67,10 +80,20 @@ export function App() {
     document.documentElement.dataset.theme = nextTheme
   }
 
+  // Handle sidebar collapse toggle
+  const handleToggleSidebar = () => {
+    if (window.innerWidth <= 768) {
+      setIsDrawerOpen((prev) => !prev)
+    } else {
+      setIsMini((prev) => !prev)
+    }
+  }
+
   const handleNavClick = (key: string, e: React.MouseEvent) => {
     e.preventDefault()
     window.location.hash = `#${key}`
     setCurrentHash(key)
+    setIsDrawerOpen(false)
     window.scrollTo(0, 0)
   }
 
@@ -94,8 +117,20 @@ export function App() {
     <>
       <Toaster position="top-right" richColors />
 
-      <div className={`app ${isMini ? 'mini' : ''}`} id="app">
-        {/* Left Sidebar */}
+      {/* Mobile Drawer Backdrop */}
+      {isDrawerOpen && (
+        <div
+          className="mobile-backdrop"
+          onClick={() => setIsDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div
+        className={`app ${isMini ? 'mini' : ''} ${isDrawerOpen ? 'drawer-open' : ''}`}
+        id="app"
+      >
+        {/* Collapsible Left Sidebar */}
         <aside>
           <div className="brand">
             <div className="mark">
@@ -111,6 +146,7 @@ export function App() {
               className={currentHash === 'dashboard' ? 'on' : ''}
               href="#dashboard"
               onClick={(e) => handleNavClick('dashboard', e)}
+              title={isMini ? 'Dashboard' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <rect x="3" y="3" width="7" height="9" rx="2" />
@@ -125,6 +161,7 @@ export function App() {
               className={currentHash === 'assets' ? 'on' : ''}
               href="#assets"
               onClick={(e) => handleNavClick('assets', e)}
+              title={isMini ? 'Assets' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="12" rx="2" />
@@ -137,6 +174,7 @@ export function App() {
               className={currentHash === 'inventory' ? 'on' : ''}
               href="#inventory"
               onClick={(e) => handleNavClick('inventory', e)}
+              title={isMini ? 'Inventory' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
@@ -149,6 +187,7 @@ export function App() {
               className={currentHash === 'maintenance' ? 'on' : ''}
               href="#maintenance"
               onClick={(e) => handleNavClick('maintenance', e)}
+              title={isMini ? 'Maintenance' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-2.6-.6-.6-2.6 2.6-2.2Z" />
@@ -160,6 +199,7 @@ export function App() {
               className={currentHash === 'workorders' ? 'on' : ''}
               href="#workorders"
               onClick={(e) => handleNavClick('workorders', e)}
+              title={isMini ? 'Work orders' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <rect x="5" y="3" width="14" height="18" rx="2" />
@@ -172,6 +212,7 @@ export function App() {
               className={currentHash === 'employees' ? 'on' : ''}
               href="#employees"
               onClick={(e) => handleNavClick('employees', e)}
+              title={isMini ? 'Employees' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <circle cx="9" cy="8" r="3.5" />
@@ -184,6 +225,7 @@ export function App() {
               className={currentHash === 'locations' ? 'on' : ''}
               href="#locations"
               onClick={(e) => handleNavClick('locations', e)}
+              title={isMini ? 'Locations' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z" />
@@ -196,6 +238,7 @@ export function App() {
               className={currentHash === 'vendors' ? 'on' : ''}
               href="#vendors"
               onClick={(e) => handleNavClick('vendors', e)}
+              title={isMini ? 'Vendors' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M3 9 5 4h14l2 5M3 9v11h18V9M3 9h18M9 20v-6h6v6" />
@@ -207,6 +250,7 @@ export function App() {
               className={currentHash === 'procurement' ? 'on' : ''}
               href="#procurement"
               onClick={(e) => handleNavClick('procurement', e)}
+              title={isMini ? 'Procurement' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <circle cx="9" cy="20" r="1.5" />
@@ -220,6 +264,7 @@ export function App() {
               className={currentHash === 'finance' ? 'on' : ''}
               href="#finance"
               onClick={(e) => handleNavClick('finance', e)}
+              title={isMini ? 'Finance' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <rect x="2" y="6" width="20" height="13" rx="2" />
@@ -232,6 +277,7 @@ export function App() {
               className={currentHash === 'reports' ? 'on' : ''}
               href="#reports"
               onClick={(e) => handleNavClick('reports', e)}
+              title={isMini ? 'Reports' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
@@ -243,6 +289,7 @@ export function App() {
               className={currentHash === 'administration' ? 'on' : ''}
               href="#administration"
               onClick={(e) => handleNavClick('administration', e)}
+              title={isMini ? 'Administration' : undefined}
             >
               <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="3" />
@@ -260,8 +307,8 @@ export function App() {
             <button
               className="ico"
               id="collapse"
-              aria-label="Collapse sidebar"
-              onClick={() => setIsMini(!isMini)}
+              aria-label="Toggle navigation menu"
+              onClick={handleToggleSidebar}
             >
               <svg viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="16" rx="3" />
@@ -434,7 +481,7 @@ export function App() {
                   </div>
                 </div>
 
-                {/* 12-Column Grid */}
+                {/* 12-Column Responsive Grid */}
                 <div className="grid">
                   {/* Cost Overview Line Chart */}
                   <section className="card c8 chart">
@@ -626,7 +673,7 @@ export function App() {
                   ))}
                 </div>
 
-                {/* Grid with 8-col list and 4-col bars */}
+                {/* Responsive Grid with 8-col list and 4-col bars */}
                 <div className="grid">
                   <section className="card c8">
                     <h2>{activePage.ah}</h2>
