@@ -1,6 +1,10 @@
 import type { AssetTypeTemplate } from '@/types/asset'
 
-export const initialAssetTypes: AssetTypeTemplate[] = [
+// Zero dummy data by default
+export const initialAssetTypes: AssetTypeTemplate[] = []
+
+// Optional sample templates available for import on demand
+export const sampleAssetTemplates: AssetTypeTemplate[] = [
   {
     id: 'type-1',
     name: 'MacBook Pro 16" (M3 Pro)',

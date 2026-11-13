@@ -1,8 +1,10 @@
 import * as React from 'react'
 import type { Asset, AssetTypeTemplate } from '@/types/asset'
-import { initialAssetTypes } from '@/data/assetLibraryData'
+import { initialAssetTypes, sampleAssetTemplates } from '@/data/assetLibraryData'
 import { AssetIllustration } from '@/components/AssetIllustrations'
 import { toast } from 'sonner'
+
+const STORAGE_KEY_TYPES = 'meridian_asset_types'
 
 interface AssetLibraryViewProps {
   assets: Asset[]
@@ -23,8 +25,24 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
   onClearAllAssets,
   addAssetButtonRef,
 }) => {
-  const [assetTypes, setAssetTypes] = React.useState<AssetTypeTemplate[]>(initialAssetTypes)
+  const [assetTypes, setAssetTypes] = React.useState<AssetTypeTemplate[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_TYPES)
+      return saved ? JSON.parse(saved) : initialAssetTypes
+    } catch {
+      return initialAssetTypes
+    }
+  })
   const [filterCategory, setFilterCategory] = React.useState<string | null>(null)
+
+  // Sync types to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_TYPES, JSON.stringify(assetTypes))
+    } catch (err) {
+      console.error('Failed to sync asset types to storage', err)
+    }
+  }, [assetTypes])
 
   // Quick-add row states
   const [newTypeName, setNewTypeName] = React.useState('')
@@ -102,6 +120,24 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     setNewTypeName('')
     setNewCategory('')
     setNewManufacturer('')
+  }
+
+  const handleDeleteType = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const target = assetTypes.find((t) => t.id === id)
+    setAssetTypes((prev) => prev.filter((t) => t.id !== id))
+    toast.success(`Asset type "${target?.name || 'template'}" deleted`)
+  }
+
+  const handleClearAllTypes = () => {
+    if (assetTypes.length === 0) return
+    setAssetTypes([])
+    toast.success('All asset types removed from library')
+  }
+
+  const handleImportTemplates = () => {
+    setAssetTypes(sampleAssetTemplates)
+    toast.success(`Imported ${sampleAssetTemplates.length} standard equipment specification templates`)
   }
 
   return (
@@ -304,9 +340,34 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               </div>
             </div>
             <div className="btns">
+              {assetTypes.length > 0 && (
+                <button
+                  className="btn"
+                  style={{ color: 'var(--bad)', borderColor: 'var(--line)' }}
+                  onClick={handleClearAllTypes}
+                  title="Remove all asset types"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}
+                  >
+                    <path
+                      d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Clear all
+                </button>
+              )}
               <button
                 className="btn"
-                onClick={() => toast.info('Import assets template dialog opened')}
+                onClick={handleImportTemplates}
               >
                 Import assets
               </button>
@@ -436,30 +497,36 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               </div>
 
               <div className="space-y-3">
-                {categoryStats.map((item) => (
-                  <div
-                    key={item.category}
-                    onClick={() =>
-                      setFilterCategory((prev) => (prev === item.category ? null : item.category))
-                    }
-                    className={`p-2 rounded-lg cursor-pointer transition ${
-                      filterCategory === item.category ? 'bg-[var(--acc2)]' : 'hover:bg-[var(--surf2)]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-semibold">{item.category}</span>
-                      <span className="text-[var(--mute)]">
-                        {item.typesCount} types · {item.assetsCount} in gallery
-                      </span>
-                    </div>
-                    <div className="w-full bg-[var(--surf2)] h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-[var(--acc)] h-full rounded-full transition-all duration-300"
-                        style={{ width: `${item.percentage}%` }}
-                      />
-                    </div>
+                {categoryStats.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-[var(--mute)]">
+                    No categories defined yet.
                   </div>
-                ))}
+                ) : (
+                  categoryStats.map((item) => (
+                    <div
+                      key={item.category}
+                      onClick={() =>
+                        setFilterCategory((prev) => (prev === item.category ? null : item.category))
+                      }
+                      className={`p-2 rounded-lg cursor-pointer transition ${
+                        filterCategory === item.category ? 'bg-[var(--acc2)]' : 'hover:bg-[var(--surf2)]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-semibold">{item.category}</span>
+                        <span className="text-[var(--mute)]">
+                          {item.typesCount} types · {item.assetsCount} in gallery
+                        </span>
+                      </div>
+                      <div className="w-full bg-[var(--surf2)] h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[var(--acc)] h-full rounded-full transition-all duration-300"
+                          style={{ width: `${item.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -473,48 +540,78 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               </div>
 
               <div className="divide-y divide-[var(--line)]">
-                {assetTypes
-                  .filter((t) => (!filterCategory ? true : t.category === filterCategory))
-                  .map((type) => {
-                    const galleryCount = countInGallery(type)
+                {assetTypes.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <div className="text-3xl">📚</div>
+                    <div className="text-xs text-[var(--mute)]">
+                      No asset types defined yet. Use the Quick-add form above to register an equipment template.
+                    </div>
+                  </div>
+                ) : (
+                  assetTypes
+                    .filter((t) => (!filterCategory ? true : t.category === filterCategory))
+                    .map((type) => {
+                      const galleryCount = countInGallery(type)
 
-                    return (
-                      <details
-                        key={type.id}
-                        className="group py-3 cursor-pointer outline-none transition"
-                      >
-                        {/* Collapsed Row Summary */}
-                        <summary className="flex items-center justify-between gap-4 list-none select-none">
-                          <div className="flex items-center gap-3">
-                            {/* 56px thumbnail */}
-                            <div className="w-14 h-11 shrink-0 overflow-hidden rounded bg-[var(--surf2)] flex items-center justify-center">
-                              <AssetIllustration
-                                name={type.name}
-                                category={type.category}
-                                alt={`${type.name} thumbnail`}
-                                width={56}
-                                height={44}
-                              />
-                            </div>
-                            <div>
-                              <div className="text-sm font-semibold group-hover:text-[var(--acc)] transition">
-                                {type.name}
+                      return (
+                        <details
+                          key={type.id}
+                          className="group py-3 cursor-pointer outline-none transition"
+                        >
+                          {/* Collapsed Row Summary */}
+                          <summary className="flex items-center justify-between gap-4 list-none select-none">
+                            <div className="flex items-center gap-3">
+                              {/* 56px thumbnail */}
+                              <div className="w-14 h-11 shrink-0 overflow-hidden rounded bg-[var(--surf2)] flex items-center justify-center">
+                                <AssetIllustration
+                                  name={type.name}
+                                  category={type.category}
+                                  alt={`${type.name} thumbnail`}
+                                  width={56}
+                                  height={44}
+                                />
                               </div>
-                              <div className="text-xs text-[var(--mute)]">
-                                {type.manufacturer} · {type.category} · {Object.keys(type.specs).length} specs
+                              <div>
+                                <div className="text-sm font-semibold group-hover:text-[var(--acc)] transition">
+                                  {type.name}
+                                </div>
+                                <div className="text-xs text-[var(--mute)]">
+                                  {type.manufacturer} · {type.category} · {Object.keys(type.specs).length} specs
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="pill ok">
-                              {galleryCount} in Gallery
-                            </span>
-                            <span className="text-xs text-[var(--mute)] transition-transform group-open:rotate-180">
-                              ▼
-                            </span>
-                          </div>
-                        </summary>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="pill ok">
+                                {galleryCount} in Gallery
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteType(type.id, e)}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mute)] hover:text-[var(--bad)] hover:bg-red-500/10 transition"
+                                aria-label={`Delete type ${type.name}`}
+                                title="Delete type"
+                              >
+                                <svg
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                >
+                                  <path
+                                    d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </button>
+                              <span className="text-xs text-[var(--mute)] transition-transform group-open:rotate-180">
+                                ▼
+                              </span>
+                            </div>
+                          </summary>
 
                         {/* Expanded Content with 150x112 larger image and spec chips */}
                         <div className="pt-4 pl-3 flex flex-col sm:flex-row gap-4 items-start border-t border-[var(--line)]/50 mt-3">
@@ -555,7 +652,8 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                         </div>
                       </details>
                     )
-                  })}
+                  })
+                )}
               </div>
             </div>
           </div>

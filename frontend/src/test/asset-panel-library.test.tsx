@@ -164,17 +164,15 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     expect(screen.getByText(/Match each model to a type/i)).toBeInTheDocument()
     expect(screen.getByText(/Each asset appears in the Gallery/i)).toBeInTheDocument()
 
-    // 4 Summary cards
+    // 4 Summary cards with zero dummy data
     expect(screen.getAllByText('Categories')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Asset types')[0]).toBeInTheDocument()
     expect(screen.getByText('Specification fields')).toBeInTheDocument()
     expect(screen.getByText('Assets without a type')).toBeInTheDocument()
 
-    // Sample types are listed
-    expect(screen.getByText('MacBook Pro 16" (M3 Pro)')).toBeInTheDocument()
-    expect(screen.getByText('Dell UltraSharp U2723QE')).toBeInTheDocument()
-    expect(screen.getByText('Tata Ace Gold delivery van')).toBeInTheDocument()
-    expect(screen.getByText('CNC vertical mill VMC 850')).toBeInTheDocument()
+    // Zero dummy data clean state by default
+    expect(screen.getByText(/No asset types defined yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/No categories defined yet/i)).toBeInTheDocument()
 
     // Quick-add row: add a new type
     fireEvent.change(screen.getByPlaceholderText(/Type name \(e\.g\. MacBook Pro 16\)/i), {
@@ -188,8 +186,23 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /Add type/i }))
 
-    // New type is immediately visible
+    // New type appears immediately in list
     expect(screen.getByText('Cisco Catalyst 9300 Switch')).toBeInTheDocument()
+    expect(screen.getByText(/1 types registered/i)).toBeInTheDocument()
+
+    // Delete bin button deletes the type
+    const deleteTypeBtn = screen.getByRole('button', { name: /delete type Cisco Catalyst 9300 Switch/i })
+    expect(deleteTypeBtn).toBeInTheDocument()
+    fireEvent.click(deleteTypeBtn)
+
+    expect(screen.queryByText('Cisco Catalyst 9300 Switch')).not.toBeInTheDocument()
+    expect(screen.getByText(/No asset types defined yet/i)).toBeInTheDocument()
+
+    // Import templates on demand populates standard specifications
+    const importBtn = screen.getByRole('button', { name: /Import assets/i })
+    fireEvent.click(importBtn)
+    expect(screen.getByText('MacBook Pro 16" (M3 Pro)')).toBeInTheDocument()
+    expect(screen.getByText('Dell UltraSharp U2723QE')).toBeInTheDocument()
 
     // Button to jump back to gallery
     const openGalleryBtn = screen.getAllByRole('button', { name: /Open Asset Gallery/i })[0]

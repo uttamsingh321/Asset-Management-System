@@ -917,8 +917,11 @@ function getSvgIllustration(name, category, width, height) {
   return `<svg viewBox="0 0 120 90" width="${w}" height="${h}" role="img" aria-label="${label}" style="display:block;border-radius:8px;background:var(--acc2);"><rect width="120" height="90" rx="8" fill="var(--acc2)"/>${inner}</svg>`;
 }
 
-// Sample Asset Types
-const assetTypes = [
+// Zero dummy data by default
+let assetTypes = [];
+
+// Optional sample templates available for import on demand
+const sampleAssetTemplates = [
   { id: 1, name: 'MacBook Pro 16" (M3 Pro)', category: 'Laptops & Compute', manufacturer: 'Apple', specs: { Processor: 'Apple M3 Pro', Memory: '18 GB', Warranty: '36 months', 'Useful life': '4 years' } },
   { id: 2, name: 'Dell UltraSharp U2723QE', category: 'Monitors & Displays', manufacturer: 'Dell', specs: { Resolution: '4K UHD 3840x2160', Panel: 'IPS Black', Warranty: '36 months', 'Useful life': '5 years' } },
   { id: 3, name: 'iPad Air (M2)', category: 'Tablets & Mobile', manufacturer: 'Apple', specs: { Chip: 'Apple M2', Display: '11-inch Liquid Retina', Warranty: '24 months', 'Useful life': '3 years' } },
@@ -1029,6 +1032,12 @@ function renderCategories() {
     `;
   }).join('');
 
+  if (Object.keys(catMap).length === 0) {
+    document.getElementById('category-list').innerHTML = '<div style="text-align:center; padding:24px 0; font-size:12px; color:var(--mute)">No categories registered yet.</div>';
+    document.getElementById('kpi-cat-count').innerText = 0;
+    return;
+  }
+
   document.getElementById('category-list').innerHTML = html;
   document.getElementById('kpi-cat-count').innerText = Object.keys(catMap).length;
 }
@@ -1037,6 +1046,13 @@ function renderAssetTypes() {
   const filtered = currentCategoryFilter
     ? assetTypes.filter(t => t.category === currentCategoryFilter)
     : assetTypes;
+
+  if (filtered.length === 0) {
+    document.getElementById('types-list').innerHTML = '<div style="text-align:center; padding:32px 0; font-size:12px; color:var(--mute)">📚<br><br>No asset types defined yet. Use Quick-add above to register a model template.</div>';
+    document.getElementById('kpi-types-count').innerText = 0;
+    document.getElementById('kpi-specs-count').innerText = 0;
+    return;
+  }
 
   const html = filtered.map(t => {
     const inGalleryCount = assets.filter(a =>
@@ -1060,6 +1076,7 @@ function renderAssetTypes() {
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="chip">${inGalleryCount} in Gallery</span>
+            <button type="button" class="btn" style="padding:2px 6px; font-size:11px; color:var(--bad); border:1px solid var(--line); border-radius:6px" onclick="event.stopPropagation(); deleteAssetType('${t.id || t.name}')" title="Delete type">🗑️</button>
             <span style="color:var(--mute); font-size:12px">&#9662;</span>
           </div>
         </summary>
@@ -1083,6 +1100,20 @@ function renderAssetTypes() {
   let totalSpecs = 0;
   assetTypes.forEach(t => totalSpecs += Object.keys(t.specs).length);
   document.getElementById('kpi-specs-count').innerText = totalSpecs;
+}
+
+function deleteAssetType(id) {
+  assetTypes = assetTypes.filter(t => t.id != id && t.name != id);
+  renderCategories();
+  renderAssetTypes();
+  toast('Asset type deleted.');
+}
+
+function importStandardTemplates() {
+  assetTypes = [...sampleAssetTemplates];
+  renderCategories();
+  renderAssetTypes();
+  toast(`Imported ${sampleAssetTemplates.length} standard equipment templates!`);
 }
 
 function renderGallery() {
