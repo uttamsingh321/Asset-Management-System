@@ -1264,6 +1264,48 @@ function inferManufacturer(name) {
   return 'Enterprise Supplier';
 }
 
+function parseExcelDate(val) {
+  if (val === undefined || val === null) return null;
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const day = String(val.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  if (typeof val === 'number' && !isNaN(val) && val > 20000 && val < 80000) {
+    const utcDays = Math.floor(val - 25569);
+    const dateObj = new Date(utcDays * 86400 * 1000);
+    if (!isNaN(dateObj.getTime())) {
+      const year = dateObj.getUTCFullYear();
+      const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }
+  const s = String(val).trim();
+  if (!s) return null;
+  const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+  }
+  const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (dmyMatch) {
+    const p1 = parseInt(dmyMatch[1], 10);
+    const p2 = parseInt(dmyMatch[2], 10);
+    const y = dmyMatch[3];
+    return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+  }
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return s;
+}
+
 async function handleExcelImport(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
@@ -1350,6 +1392,23 @@ async function handleExcelImport(event) {
         const remarks = getVal(['remarks', 'notes', 'comments']) || `Imported from ${file.name}`;
         const assetPhoto = getVal(['assetphoto', 'photo', 'image', 'picture']) || undefined;
 
+        // Extract date from Excel sheet if present; fallback to today's date
+        const getRawVal = (candidates) => {
+          for (const cand of candidates) {
+            const clean = cand.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const k = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === clean);
+            if (k && row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return row[k];
+          }
+          return null;
+        };
+        const rawDate = getRawVal([
+          'date', 'assetdate', 'purchasedate', 'purchase_date', 'regdate', 'registrationdate',
+          'registration_date', 'createddate', 'creationdate', 'createdat', 'created_at',
+          'entrydate', 'invoicedate', 'acquisitiondate', 'installationdate', 'startdate',
+          'commissioningdate', 'procurementdate', 'mfgdate'
+        ]);
+        const assetDate = parseExcelDate(rawDate) || today;
+
         categoryBreakdown[category] = (categoryBreakdown[category] || 0) + 1;
 
         newAssets.push({
@@ -1367,7 +1426,8 @@ async function handleExcelImport(event) {
           movementReason,
           remarks,
           assetPhoto,
-          date: today
+          date: assetDate,
+          purchaseDate: assetDate
         });
 
         const typeKey = `${name.toLowerCase()}:::${category.toLowerCase()}`;
@@ -1458,6 +1518,7 @@ function renderGallery() {
             <div><strong>Category:</strong> ${a.currentCategory}</div>
             <div><strong>Location:</strong> ${a.plant} ${a.building ? '· ' + a.building : ''}</div>
             <div><strong>Condition:</strong> ${a.assetCondition}</div>
+            <div><strong>Date:</strong> ${a.date || a.purchaseDate || 'N/A'}</div>
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--mute)">

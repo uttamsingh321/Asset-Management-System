@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, test } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
 import { matchIllustrationKey } from '../components/AssetIllustrations'
-import { autoCategorize } from '../lib/excelImporter'
+import { autoCategorize, parseExcelDate, parseExcelOrCsvFile } from '../lib/excelImporter'
 
 describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
   beforeEach(() => {
@@ -332,5 +332,36 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
       expect(screen.getByText(/Missing field justifications/i)).toBeInTheDocument()
       expect(screen.getByText(/Legacy unit with worn QR barcode sticker/i)).toBeInTheDocument()
     })
+  })
+
+  test('Excel Import stores and preserves the date available inside the spreadsheet', async () => {
+    // 1. Unit tests for parseExcelDate helper
+    expect(parseExcelDate(new Date('2023-04-15T00:00:00Z'))).toBe('2023-04-15')
+    expect(parseExcelDate('2022-11-20')).toBe('2022-11-20')
+    expect(parseExcelDate('15/08/2021')).toBe('2021-08-15')
+    expect(parseExcelDate('25-12-2020')).toBe('2020-12-25')
+    // Excel serial number 44927 is 2023-01-01
+    expect(parseExcelDate(44927)).toBe('2023-01-01')
+
+    // 2. Integration test for parseExcelOrCsvFile
+    const csvContent = [
+      'Asset Code,Name,Category,Date,Plant,Condition',
+      'AST-EXP-001,MacBook Pro M2,Laptops,2022-09-15,Pune Center,Operational - Good',
+      'AST-EXP-002,Dell 4K Display,Monitors,2023-03-28,Mumbai Plant,Operational - New',
+      'AST-EXP-003,Hydraulic Press HP-200,Heavy Machinery,2021-12-05,Chennai Hub,Operational - Good',
+    ].join('\n')
+
+    const file = new File([csvContent], 'assets_inventory_with_dates.csv', { type: 'text/csv' })
+    const result = await parseExcelOrCsvFile(file)
+
+    expect(result.assets).toHaveLength(3)
+    expect(result.assets[0].date).toBe('2022-09-15')
+    expect(result.assets[0].purchaseDate).toBe('2022-09-15')
+
+    expect(result.assets[1].date).toBe('2023-03-28')
+    expect(result.assets[1].purchaseDate).toBe('2023-03-28')
+
+    expect(result.assets[2].date).toBe('2021-12-05')
+    expect(result.assets[2].purchaseDate).toBe('2021-12-05')
   })
 })

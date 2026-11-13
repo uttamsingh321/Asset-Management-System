@@ -98,6 +98,91 @@ export function autoCategorize(name: string = '', description: string = '', rawC
 }
 
 /**
+ * Flexible header lookup to find raw column values across varied Excel formats (preserves Date, number, etc.)
+ */
+function findRowRawValue(row: Record<string, any>, possibleKeys: string[]): any {
+  const rowKeys = Object.keys(row)
+  for (const target of possibleKeys) {
+    const cleanTarget = target.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const foundKey = rowKeys.find(
+      (k) => k.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTarget
+    )
+    if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+      return row[foundKey]
+    }
+  }
+  return undefined
+}
+
+/**
+ * Safely parses any Excel date representation (Date instance, Excel serial number, or ISO/formatted string)
+ * into a clean standard YYYY-MM-DD string.
+ */
+export function parseExcelDate(val: any): string | null {
+  if (val === undefined || val === null) return null
+
+  // 1. Native Date instance from SheetJS cellDates: true
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null
+    const year = val.getFullYear()
+    const month = String(val.getMonth() + 1).padStart(2, '0')
+    const day = String(val.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // 2. Excel numeric serial date (e.g. 44927 -> 2023-01-01)
+  if (typeof val === 'number' && !isNaN(val) && val > 20000 && val < 80000) {
+    // Excel base epoch is Dec 30, 1899
+    const utcDays = Math.floor(val - 25569)
+    const utcValue = utcDays * 86400
+    const dateObj = new Date(utcValue * 1000)
+    if (!isNaN(dateObj.getTime())) {
+      const year = dateObj.getUTCFullYear()
+      const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(dateObj.getUTCDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+  }
+
+  const s = String(val).trim()
+  if (!s) return null
+
+  // 3. YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)
+  if (isoMatch) {
+    const y = isoMatch[1]
+    const m = isoMatch[2].padStart(2, '0')
+    const d = isoMatch[3].padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
+  // 4. DD-MM-YYYY or MM/DD/YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/)
+  if (dmyMatch) {
+    const p1 = parseInt(dmyMatch[1], 10)
+    const p2 = parseInt(dmyMatch[2], 10)
+    const y = dmyMatch[3]
+    if (p1 > 12) {
+      // Must be DD-MM-YYYY
+      return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`
+    } else {
+      return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`
+    }
+  }
+
+  // 5. General Date parsing
+  const parsed = new Date(s)
+  if (!isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear()
+    const month = String(parsed.getMonth() + 1).padStart(2, '0')
+    const day = String(parsed.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  return s
+}
+
+/**
  * Flexible header lookup to find column values across varied Excel formats
  */
 function findRowValue(row: Record<string, any>, possibleKeys: string[]): string {
@@ -258,6 +343,34 @@ export async function parseExcelOrCsvFile(
       const assignedTo = submitter || findRowValue(row, ['assignedto', 'assignee', 'user', 'owner']) || 'Unassigned'
       const location = [plant, building, currentLocation].filter(Boolean).join(' - ') || 'Main Operations Center'
 
+      // Extract date from Excel sheet if present; fallback to today's date
+      const rawDateVal = findRowRawValue(row, [
+        'date',
+        'assetdate',
+        'purchasedate',
+        'purchase_date',
+        'regdate',
+        'registrationdate',
+        'registration_date',
+        'createddate',
+        'creationdate',
+        'createdat',
+        'created_at',
+        'entrydate',
+        'entry_date',
+        'invoicedate',
+        'invoice_date',
+        'acquisitiondate',
+        'installationdate',
+        'startdate',
+        'commissioningdate',
+        'commissiondate',
+        'procurementdate',
+        'mfgdate',
+        'manufacturingdate',
+      ])
+      const assetDate = parseExcelDate(rawDateVal) || todayStr
+
       const asset: Asset = {
         id: `import-${Date.now()}-${r}`,
         assetCode,
@@ -276,13 +389,13 @@ export async function parseExcelOrCsvFile(
         movementReason,
         remarks,
         assetPhoto,
-        date: todayStr,
+        date: assetDate,
         name,
         assetTag: assetCode,
         category,
         department,
         status,
-        purchaseDate: todayStr,
+        purchaseDate: assetDate,
         purchaseCost,
         currentValue: purchaseCost,
         assignedTo,
