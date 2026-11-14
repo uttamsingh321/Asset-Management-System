@@ -630,20 +630,7 @@ export function App() {
               🏭 Factory Operations
             </div>
 
-            {/* 6. Plant Maintenance */}
-            <a
-              className={currentHash === 'maintenance-india' ? 'on' : ''}
-              href="#maintenance-india"
-              onClick={(e) => handleNavClick('maintenance-india', e)}
-              title={isMini ? 'Plant Maintenance' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-2.6-.6-.6-2.6 2.6-2.2Z" />
-              </svg>
-              <span>Plant Maintenance</span>
-            </a>
-
-            {/* 7. Stock Count (Audit) */}
+            {/* Stock Count (Audit) */}
             <a
               className={currentHash === 'stockcount' ? 'on' : ''}
               href="#stockcount"
@@ -657,7 +644,7 @@ export function App() {
               <span>Stock Count (Audit)</span>
             </a>
 
-            {/* 8. Asset Transfer */}
+            {/* Asset Transfer */}
             <a
               className={currentHash === 'transfer' ? 'on' : ''}
               href="#transfer"
@@ -672,21 +659,7 @@ export function App() {
               <span>Asset Transfer</span>
             </a>
 
-            {/* 9. Tax Depreciation */}
-            <a
-              className={currentHash === 'depreciation' ? 'on' : ''}
-              href="#depreciation"
-              onClick={(e) => handleNavClick('depreciation', e)}
-              title={isMini ? 'Tax Depreciation' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
-              <span>Tax Depreciation</span>
-            </a>
-
-            {/* 10. Scrapping & Disposal */}
+            {/* Scrapping & Disposal */}
             <a
               className={currentHash === 'disposal' ? 'on' : ''}
               href="#disposal"
