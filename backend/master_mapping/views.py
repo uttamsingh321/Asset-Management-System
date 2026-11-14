@@ -1559,3 +1559,69 @@ def api_user_scope_detail(request: HttpRequest, pk: int) -> JsonResponse:
     return HttpResponseNotAllowed(["GET", "PATCH", "DELETE"])
 
 
+
+# RBAC - APPROVAL ASSIGNMENTS
+@csrf_exempt
+def api_approval_assignments(request: HttpRequest) -> JsonResponse:
+    forbidden = _require_superuser(request)
+    if forbidden:
+        return forbidden
+    if request.method == "GET":
+        user_id = request.GET.get("userId")
+        qs = ApprovalAssignment.objects.all()
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        qs = qs.order_by("-assigned_at")
+        return JsonResponse({
+            "approvals": [a.to_dict() for a in qs],
+            "count": qs.count(),
+        })
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        user_id = (data.get("userId") or "").strip()
+        user_name = (data.get("userName") or "").strip()
+        approval_type = data.get("approvalType") or ""
+        description = data.get("description", "") or ""
+        if not user_id:
+            return JsonResponse({"error": "User ID is required"}, status=400)
+        if not user_name:
+            return JsonResponse({"error": "User name is required"}, status=400)
+        if not approval_type:
+            return JsonResponse({"error": "Approval type is required"}, status=400)
+        if ApprovalAssignment.objects.filter(
+            user_id=user_id, approval_type=approval_type, is_active=True).exists():
+            return JsonResponse({"error": "User already assigned as " + approval_type + " approver"}, status=409)
+        approval = ApprovalAssignment.objects.create(
+            user_id=user_id, user_name=user_name,
+            approval_type=approval_type, description=description,
+            assigned_by=_get_user_id(request))
+        _record_audit(request, "APPROVAL_ASSIGN", _get_user_id(request), _get_user_name(request),
+            _get_user_role(request), "User", user_id,
+            None, approval.to_dict(), reason=data.get("reason", ""))
+        return JsonResponse({"approval": approval.to_dict()}, status=201)
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@csrf_exempt
+def api_approval_assignment_detail(request: HttpRequest, pk: int) -> JsonResponse:
+    forbidden = _require_superuser(request)
+    if forbidden:
+        return forbidden
+    try:
+        approval = ApprovalAssignment.objects.get(pk=pk)
+    except ApprovalAssignment.DoesNotExist:
+        return JsonResponse({"error": "Approval assignment not found"}, status=404)
+    if request.method == "DELETE":
+        old_value = approval.to_dict()
+        approval.is_active = False
+        approval.save()
+        _record_audit(request, "APPROVAL_REVOKE", _get_user_id(request), _get_user_name(request),
+            _get_user_role(request), "User", approval.user_id,
+            old_value, {"isActive": False}, reason=request.GET.get("reason", ""))
+        return JsonResponse({"status": "revoked"})
+    return HttpResponseNotAllowed(["DELETE"])
+
+
