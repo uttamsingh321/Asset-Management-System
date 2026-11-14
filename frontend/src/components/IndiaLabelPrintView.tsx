@@ -1,4 +1,5 @@
 import * as React from 'react'
+import QRCode from 'qrcode'
 import type { Asset } from '@/types/asset'
 import { checkAssetDataCompleteness, isAssetPrintable } from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
@@ -60,71 +61,47 @@ function BarcodeSvg({ value, height = 38 }: { value: string; height?: number }) 
   )
 }
 
-// 2D QR Code SVG Component with high-contrast finder patterns & data cells
-function QrCodeSvg({ value, size = 68 }: { value: string; size?: number }) {
-  const matrix = React.useMemo(() => {
-    const N = 21
-    const grid: boolean[][] = Array.from({ length: N }, () => Array(N).fill(false))
-
-    // Helper: 7x7 Finder Pattern with 1-unit spacing
-    const drawFinder = (row: number, col: number) => {
-      for (let r = 0; r < 7; r++) {
-        for (let c = 0; c < 7; c++) {
-          if (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) {
-            grid[row + r][col + c] = true
+// 2D QR Code SVG Component with ISO/IEC 18004 standards-compliant matrix scannable by all mobile cameras and barcode readers
+function QrCodeSvg({
+  value,
+  displayLabel,
+  size = 68,
+}: {
+  value: string
+  displayLabel?: string
+  size?: number
+}) {
+  const { size: matrixSize, cells } = React.useMemo(() => {
+    try {
+      const qr = QRCode.create(value || '2004218', { errorCorrectionLevel: 'M' })
+      const N = qr.modules.size
+      const list: { r: number; c: number }[] = []
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+          if (qr.modules.get(r, c)) {
+            list.push({ r, c })
           }
         }
       }
+      return { size: N, cells: list }
+    } catch {
+      return { size: 21, cells: [] }
     }
-
-    drawFinder(0, 0)
-    drawFinder(0, 14)
-    drawFinder(14, 0)
-
-    // Timing patterns
-    for (let i = 8; i < 13; i++) {
-      grid[6][i] = i % 2 === 0
-      grid[i][6] = i % 2 === 0
-    }
-
-    // Alignment pattern near bottom-right
-    for (let r = 12; r <= 16; r++) {
-      for (let c = 12; c <= 16; c++) {
-        if (r === 12 || r === 16 || c === 12 || c === 16 || (r === 14 && c === 14)) {
-          grid[r][c] = true
-        }
-      }
-    }
-
-    // Data hash
-    let hash = 0
-    const str = value || '2004218'
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i)
-      hash |= 0
-    }
-
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) {
-        if ((r < 8 && c < 8) || (r < 8 && c > 12) || (r > 12 && c < 8) || (r >= 12 && r <= 16 && c >= 12 && c <= 16)) {
-          continue
-        }
-        if (r === 6 || c === 6) continue
-        const bit = ((hash ^ (r * 17 + c * 11)) >>> ((r + c) % 16)) & 1
-        grid[r][c] = bit === 1
-      }
-    }
-
-    return grid
   }, [value])
 
   return (
-    <svg width={size} height={size} viewBox="0 0 21 21" className="block shrink-0 bg-white" aria-label={`QR Code for ${value}`}>
-      {matrix.map((row, r) =>
-        row.map((filled, c) =>
-          filled ? <rect key={`${r}-${c}`} x={c} y={r} width="1" height="1" fill="#000000" /> : null
-        )
-      )}
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${matrixSize} ${matrixSize}`}
+      className="block shrink-0 bg-white"
+      aria-label={`QR Code for ${displayLabel || value}`}
+      shapeRendering="crispEdges"
+    >
+      <rect width={matrixSize} height={matrixSize} fill="#ffffff" />
+      {cells.map(({ r, c }) => (
+        <rect key={`${r}-${c}`} x={c} y={r} width="1" height="1" fill="#000000" />
+      ))}
     </svg>
   )
 }
@@ -134,8 +111,16 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
   // 1. Asset Code
   const assetCode = asset.assetCode || '-'
 
-  // 2. Asset Name: real description or name filled in asset
-  const assetName = asset.currentDescription?.trim() || asset.name?.trim() || asset.assetCode || '-'
+  // 2. Asset Name: prioritize explicit asset name, then description, avoiding repeating assetCode
+  const assetName = React.useMemo(() => {
+    const rawName = asset.name?.trim()
+    const rawDesc = asset.currentDescription?.trim()
+    if (rawName && rawName !== asset.assetCode) return rawName
+    if (rawDesc && rawDesc !== asset.assetCode) return rawDesc
+    if (rawName) return rawName
+    if (rawDesc) return rawDesc
+    return 'Equipment Fixed Asset'
+  }, [asset.name, asset.currentDescription, asset.assetCode])
   
   // 3. Model: serial number or category filled in asset
   const model = asset.serialNumber?.trim() || asset.currentCategory?.trim() || asset.category?.trim() || '-'
@@ -150,7 +135,7 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
   // 5. Custodian: User requested "add emp ID" -> display Employee ID and Name
   const custodianDisplay = React.useMemo(() => {
     const empId = asset.inChargeId?.trim()
-    const name = asset.inChargeName?.trim() || asset.submitter?.trim()
+    const name = asset.inChargeName?.trim() || asset.custodian?.trim() || asset.submitter?.trim()
     const cleanId = empId && empId !== 'ID Pending' ? empId : ''
     const cleanName = name && name !== 'Unassigned Staff' ? name : ''
 
@@ -171,7 +156,6 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
     const flr = asset.floor?.trim() || ''
     const loc = asset.currentLocation?.trim() || ''
 
-    
     if (bldg && flr) {
       const cleanFloor = flr.replace(/floor/i, '').replace(/st|nd|rd|th/g, '').trim()
       const floorStr = cleanFloor.toLowerCase().endsWith('f') ? cleanFloor : `${cleanFloor}F`
@@ -182,6 +166,15 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
     if (bldg) return bldg
     return '-'
   }, [asset])
+
+  // Standard deep-link URL so mobile phone and laptop cameras open asset verification directly
+  const qrNavigablePayload = React.useMemo(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const origin = window.location.origin
+      return `${origin}/?asset=${encodeURIComponent(asset.assetCode || '2004218')}#asset-details`
+    }
+    return asset.assetCode || '2004218'
+  }, [asset.assetCode])
 
   // Exactly 6 rows (Row 7 "Purchase Date" removed per user annotation)
   const rows = [
@@ -388,7 +381,11 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
           }}
         >
           <div style={{ border: '1px solid #000000', padding: '1px', background: '#ffffff', flexShrink: 0 }}>
-            <QrCodeSvg value={asset.assetCode || '2004218'} size={Math.round(66 * scale)} />
+            <QrCodeSvg
+              value={qrNavigablePayload}
+              displayLabel={asset.assetCode || '2004218'}
+              size={Math.round(66 * scale)}
+            />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div
@@ -457,6 +454,16 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
         a.assetCode.toLowerCase().includes(q) ||
         (a.name && a.name.toLowerCase().includes(q)) ||
         (a.currentDescription && a.currentDescription.toLowerCase().includes(q)) ||
+        (a.serialNumber && a.serialNumber.toLowerCase().includes(q)) ||
+        (a.inChargeId && a.inChargeId.toLowerCase().includes(q)) ||
+        (a.inChargeName && a.inChargeName.toLowerCase().includes(q)) ||
+        (a.custodian && a.custodian.toLowerCase().includes(q)) ||
+        (a.whoInCharge && a.whoInCharge.toLowerCase().includes(q)) ||
+        (a.currentCategory && a.currentCategory.toLowerCase().includes(q)) ||
+        (a.category && a.category.toLowerCase().includes(q)) ||
+        (a.building && a.building.toLowerCase().includes(q)) ||
+        (a.floor && a.floor.toLowerCase().includes(q)) ||
+        (a.currentLocation && a.currentLocation.toLowerCase().includes(q)) ||
         (a.plant && a.plant.toLowerCase().includes(q)) ||
         (a.department && a.department.toLowerCase().includes(q)) ||
         (a.currentDepartment && a.currentDepartment.toLowerCase().includes(q))

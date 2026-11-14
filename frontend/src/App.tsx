@@ -96,6 +96,7 @@ export function App() {
   const [dashBuildingFilter, setDashBuildingFilter] = React.useState<string>('All')
   const [dashSearchQuery, setDashSearchQuery] = React.useState<string>('')
   const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string; code: string } | null>(null)
+  const [qrScannedAsset, setQrScannedAsset] = React.useState<Asset | null>(null)
   const addAssetButtonRef = React.useRef<HTMLButtonElement>(null)
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
@@ -247,6 +248,43 @@ export function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(assets.slice(0, 500)))
     } catch (err) {
       console.warn('Storage quota exceeded, keeping in-memory assets', err)
+    }
+  }, [assets])
+
+  // Instant QR Deep-Link Scanner: Opens asset details when camera scans printed label
+  React.useEffect(() => {
+    const checkDeepLink = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search)
+        const fromParam = searchParams.get('asset') || searchParams.get('code')
+        let targetCode = fromParam || ''
+        if (!targetCode && window.location.hash) {
+          const h = window.location.hash
+          const match = h.match(/[?&](?:asset|code)=([^&]+)/)
+          if (match) targetCode = decodeURIComponent(match[1])
+        }
+
+        if (targetCode) {
+          const match = assets.find(
+            (a) =>
+              a.assetCode.toLowerCase() === targetCode.toLowerCase() ||
+              (a.assetTag && a.assetTag.toLowerCase() === targetCode.toLowerCase())
+          )
+          if (match) {
+            setQrScannedAsset(match)
+            logAuditEvent('QR_VERIFY_SCAN', { assetCode: match.assetCode, origin: window.location.href }, match.assetCode)
+            toast.success(`Scanned QR Verified: ${match.name || match.assetCode}`)
+          }
+        }
+      } catch {}
+    }
+
+    checkDeepLink()
+    window.addEventListener('hashchange', checkDeepLink)
+    window.addEventListener('popstate', checkDeepLink)
+    return () => {
+      window.removeEventListener('hashchange', checkDeepLink)
+      window.removeEventListener('popstate', checkDeepLink)
     }
   }, [assets])
 
@@ -1717,6 +1755,135 @@ export function App() {
                 alt={previewImage.code}
                 className="max-h-[65vh] w-auto object-contain mx-auto"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Instant QR Scanned Asset Verification Modal (Mobile Camera & Laptop Scanner) */}
+      {qrScannedAsset && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 p-4 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-lg tracking-tight">
+                    <span className="text-red-400">i</span>smartu
+                  </span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                    Official QR Verified
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQrScannedAsset(null)
+                    try {
+                      window.history.replaceState({}, '', window.location.pathname)
+                    } catch {}
+                  }}
+                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white flex items-center justify-center text-xs font-bold cursor-pointer transition"
+                >
+                  ✕
+                </button>
+              </div>
+              <h2 className="text-sm font-bold mt-2">设备固定资产详情 / Equipment Fixed Asset Details</h2>
+              <p className="text-[11px] text-white/80">Decoded successfully from printed barcode label.</p>
+            </div>
+
+            {/* Modal Body: Verified Specifications */}
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Asset Code Hero Box */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400">资产编号 / Asset No.</div>
+                  <div className="text-lg font-black text-[var(--ink)] font-mono">{qrScannedAsset.assetCode}</div>
+                </div>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {qrScannedAsset.status || 'Active'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Data Table */}
+              <div className="border border-[var(--line)] rounded-xl divide-y divide-[var(--line)] text-xs">
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">资产名称 / Asset Name:</span>
+                  <span className="text-[var(--ink)] font-bold text-right">
+                    {qrScannedAsset.name || qrScannedAsset.currentDescription || 'Equipment Fixed Asset'}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">设备型号 / Model:</span>
+                  <span className="text-[var(--ink)] font-mono font-medium text-right">
+                    {qrScannedAsset.serialNumber || qrScannedAsset.currentCategory || '-'}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">使用部门 / Department:</span>
+                  <span className="text-[var(--ink)] font-semibold text-right">
+                    {qrScannedAsset.currentDepartment || qrScannedAsset.department || '-'}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">责任人 / Custodian:</span>
+                  <span className="text-[var(--ink)] font-semibold text-right">
+                    {qrScannedAsset.inChargeId && qrScannedAsset.inChargeName
+                      ? `${qrScannedAsset.inChargeId} · ${qrScannedAsset.inChargeName}`
+                      : qrScannedAsset.whoInCharge || qrScannedAsset.inChargeName || qrScannedAsset.custodian || '-'}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">放置区域 / Placement:</span>
+                  <span className="text-[var(--ink)] text-right">
+                    {qrScannedAsset.building || 'C39'}-{qrScannedAsset.floor || '1F'} {qrScannedAsset.currentLocation ? `(${qrScannedAsset.currentLocation})` : ''}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">厂区实体 / Plant:</span>
+                  <span className="text-[var(--ink)] text-right">
+                    {qrScannedAsset.company || 'IIPL'} · {qrScannedAsset.plant || 'Noida Central Plant'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const asset = qrScannedAsset
+                    setQrScannedAsset(null)
+                    setWorkflowAsset(asset)
+                    setIsAddModalOpen(true)
+                  }}
+                  className="flex-1 py-2 px-3 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white cursor-pointer transition shadow-sm text-center"
+                >
+                  Edit / Audit Asset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQrScannedAsset(null)
+                    try {
+                      window.history.replaceState({}, '', window.location.pathname)
+                    } catch {}
+                  }}
+                  className="py-2 px-4 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--line)] text-[var(--ink)] cursor-pointer transition text-center"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

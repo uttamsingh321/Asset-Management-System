@@ -239,7 +239,23 @@ export function IndiaStockCountView({
 
   // Step 3: Backend / Invariant QR Validation Engine
   const handleValidateQr = async (scannedCodeRaw: string) => {
-    const scannedCode = scannedCodeRaw.trim()
+    let scannedCode = scannedCodeRaw.trim()
+    try {
+      if (scannedCode.startsWith('http://') || scannedCode.startsWith('https://')) {
+        const u = new URL(scannedCode)
+        const fromParam = u.searchParams.get('asset') || u.searchParams.get('code')
+        if (fromParam) {
+          scannedCode = fromParam
+        } else if (u.hash.includes('code=')) {
+          const match = u.hash.match(/[?&]code=([^&]+)/)
+          if (match) scannedCode = decodeURIComponent(match[1])
+        } else if (u.hash.includes('asset=')) {
+          const match = u.hash.match(/[?&]asset=([^&]+)/)
+          if (match) scannedCode = decodeURIComponent(match[1])
+        }
+      }
+    } catch {}
+
     if (!scannedCode) {
       toast.error('Please scan or enter an asset QR code.')
       return

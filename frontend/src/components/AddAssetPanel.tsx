@@ -31,6 +31,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const [serialNumberUnavailable, setSerialNumberUnavailable] = React.useState(false)
   const [serialNumberReason, setSerialNumberReason] = React.useState('')
 
+  // Asset Name State (Explicitly requested for Label & QR printing)
+  const [assetName, setAssetName] = React.useState('')
   const [currentCategory, setCurrentCategory] = React.useState('')
   const [previousCategory, setPreviousCategory] = React.useState('')
   const [currentDescription, setCurrentDescription] = React.useState('')
@@ -163,7 +165,11 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setSerialNumberReason('')
       setCurrentCategory(initialAsset.currentCategory || initialAsset.category || '')
       setPreviousCategory(initialAsset.previousCategory || '')
-      setCurrentDescription(initialAsset.currentDescription || initialAsset.name || '')
+      const resolvedName = (initialAsset.name && initialAsset.name !== initialAsset.assetCode)
+        ? initialAsset.name
+        : (initialAsset.currentDescription && initialAsset.currentDescription !== initialAsset.assetCode ? initialAsset.currentDescription : '')
+      setAssetName(resolvedName)
+      setCurrentDescription(initialAsset.currentDescription || resolvedName || '')
       setPreviousDescription(initialAsset.previousDescription || '')
 
       const comp = initialAsset.company || 'IIPL'
@@ -223,6 +229,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setSerialNumberReason('')
       setCurrentCategory('')
       setPreviousCategory('')
+      setAssetName('')
       setCurrentDescription('')
       setPreviousDescription('')
       setCompany('IIPL')
@@ -486,6 +493,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       ? `${finalInChargeId} · ${finalInChargeName}`
       : (finalInChargeName || submitter.trim() || currentUser?.userName || 'Operations Staff')
 
+    const finalAssetName = assetName.trim() || currentDescription.trim() || (initialAsset?.name && initialAsset.name !== initialAsset.assetCode ? initialAsset.name : '') || 'Equipment Fixed Asset'
+    const finalDescription = currentDescription.trim() || assetName.trim() || finalAssetName
+
     const newAsset: Asset = {
       ...(initialAsset || {}),
       id: initialAsset?.id || `AST-${Date.now().toString().slice(-6)}`,
@@ -494,7 +504,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       serialNumber: effectiveSerialNumber,
       currentCategory: currentCategory.trim() || 'General Equipment',
       previousCategory: previousCategory.trim(),
-      currentDescription: currentDescription.trim() || effectiveAssetCode,
+      currentDescription: finalDescription,
       previousDescription: previousDescription.trim(),
       plant: effectivePlant || `${company} Central Plant`,
       building: building.trim() || 'C39',
@@ -519,7 +529,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       idCardPicture,
       date,
       // Compatibility fields
-      name: currentDescription.trim() || effectiveAssetCode,
+      name: finalAssetName,
       assetTag: effectiveAssetCode,
       category: currentCategory.trim() || 'IT Hardware',
       department: currentDepartment.trim() || 'Operations',
@@ -545,6 +555,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     setSerialNumberReason('')
     setCurrentCategory('')
     setPreviousCategory('')
+    setAssetName('')
     setCurrentDescription('')
     setPreviousDescription('')
     setCompany('IIPL')
@@ -882,6 +893,50 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     style={inputStyle}
                   />
                 </div>
+              </div>
+
+              {/* Dedicated Asset Name Section (Printed on QR Label) */}
+              <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="field-assetName" style={{ ...labelStyle, marginBottom: 0 }} className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
+                    <span>资产名称 / Asset Name</span>
+                    <span className="text-[var(--bad)]">*</span>
+                  </label>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
+                    Row 2 of Official QR Label
+                  </span>
+                </div>
+                <input
+                  id="field-assetName"
+                  type="text"
+                  value={assetName}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setAssetName(val)
+                    if (!currentDescription || currentDescription === assetName) {
+                      setCurrentDescription(val)
+                    }
+                    if (errors.assetName) {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.assetName
+                        return updated
+                      })
+                    }
+                  }}
+                  placeholder="e.g. SMT Mounter Machine, Dell Latitude 5420 Laptop, Laser Marker"
+                  style={{
+                    ...inputStyle,
+                    borderColor: errors.assetName ? 'var(--bad)' : 'rgba(59, 130, 246, 0.4)',
+                    fontWeight: 600,
+                  }}
+                />
+                {errors.assetName && (
+                  <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetName}</p>
+                )}
+                <p className="text-[11px] text-[var(--mute)]">
+                  Enter the real descriptive asset name. This will be stored with the asset and printed in the 资产名称/Asset Name field.
+                </p>
               </div>
 
               <div>
@@ -1236,7 +1291,12 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
 
               <div>
-                <label style={labelStyle}>Who in charge (ID, Name)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>
+                    责任人 / Custodian (Employee ID & Full Name)
+                  </label>
+                  <span className="text-[10px] text-[var(--mute)]">Printed on QR Label</span>
+                </div>
                 <div style={grid2Style}>
                   <div>
                     <input
@@ -1244,7 +1304,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       type="text"
                       value={inChargeId}
                       onChange={(e) => setInChargeId(e.target.value)}
-                      placeholder="Emp ID: e.g. EMP-102"
+                      placeholder="Emp ID: e.g. EMP-102 or MANISH5533"
                       style={inputStyle}
                     />
                   </div>
@@ -1257,7 +1317,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                         setInChargeName(e.target.value)
                         if (!submitter) setSubmitter(e.target.value)
                       }}
-                      placeholder="Name: e.g. Rajesh Kumar"
+                      placeholder="Full Name: e.g. Rajesh Kumar"
                       style={inputStyle}
                     />
                   </div>
