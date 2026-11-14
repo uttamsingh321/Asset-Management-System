@@ -4,6 +4,7 @@ import type { Asset } from '@/types/asset'
 import { checkAssetDataCompleteness, isAssetPrintable } from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
 import { toast } from 'sonner'
+import { getCompanyLogo } from '@/assets/companyLogos'
 
 interface IndiaLabelPrintViewProps {
   assets: Asset[]
@@ -111,6 +112,9 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
   // 1. Asset Code
   const assetCode = asset.assetCode || '-'
 
+  // Company Logo resolver (ismartu vs PadGET based on selected asset company)
+  const logoInfo = React.useMemo(() => getCompanyLogo(asset.company), [asset.company])
+
   // 2. Asset Name: prioritize explicit asset name, then description, avoiding repeating assetCode
   const assetName = React.useMemo(() => {
     const rawName = asset.name?.trim()
@@ -210,7 +214,7 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
           boxSizing: 'border-box',
         }}
       >
-        {/* Left: ismartu Logo */}
+        {/* Left: Company Logo (Original ismartu or PadGET) */}
         <div
           style={{
             width: '44%',
@@ -218,24 +222,26 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: `${6 * scale}px ${14 * scale}px`,
+            padding: `${5 * scale}px ${10 * scale}px`,
             boxSizing: 'border-box',
+            position: 'relative',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span
-              style={{
-                fontSize: `${33 * scale}px`,
-                fontWeight: 900,
-                letterSpacing: '-0.5px',
-                fontFamily: '"Arial", -apple-system, sans-serif',
-                lineHeight: 1,
-              }}
-            >
-              <span style={{ color: '#E53E3E' }}>i</span>
-              <span style={{ color: '#000000' }}>smartu</span>
-            </span>
-          </div>
+          <img
+            src={logoInfo.src}
+            alt={logoInfo.alt}
+            style={{
+              maxHeight: `${50 * scale}px`,
+              maxWidth: '94%',
+              width: 'auto',
+              height: 'auto',
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
+          <span style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', fontSize: 0, width: 0, height: 0, overflow: 'hidden' }}>
+            {logoInfo.isPadget ? 'PadGET' : 'smartu'}
+          </span>
         </div>
 
         {/* Right: Bilingual Title */}
@@ -597,12 +603,21 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
           <h1 className="text-xl font-bold flex items-center gap-2">
             <span>🏷️</span>
             <span>QR & Barcode Label Print</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-red-500/10 text-red-600 border border-red-500/20">
-              ismartu Standard Template
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                currentAsset?.company?.toLowerCase().includes('padget')
+                  ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                  : 'bg-red-500/10 text-red-600 border-red-500/20'
+              }`}
+            >
+              {currentAsset?.company?.toLowerCase().includes('padget')
+                ? 'PadGET Equipment Template'
+                : 'ismartu Standard Template'}
             </span>
           </h1>
           <p className="text-xs text-[var(--mute)] mt-1">
-            Official Equipment Fixed Asset label format with ismartu branding, Code-128 barcode, and strict QR verification rule.
+            Official Equipment Fixed Asset label format with{' '}
+            {currentAsset?.company?.toLowerCase().includes('padget') ? 'PadGET' : 'ismartu'} branding, Code-128 barcode, and strict QR verification rule.
           </p>
         </div>
 
@@ -650,7 +665,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
           </span>
           <div>
             <div className="font-bold text-[var(--ink)]">
-              ismartu Equipment Fixed Asset (设备固定资产) Specification
+              {currentAsset?.company?.toLowerCase().includes('padget') ? 'PadGET' : 'ismartu'} Equipment Fixed Asset (设备固定资产) Specification
             </div>
             <div className="text-[11px] text-[var(--mute)]">
               Dimensions: 100mm × 65mm · Rule: QR printing is strictly prohibited until asset details are fully filled
@@ -791,9 +806,20 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
                           {asset.currentDescription || asset.name} · {asset.building || 'C39'}
                         </div>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surf2)] text-[var(--mute)] font-medium">
-                        {asset.currentDepartment || asset.department || 'IT'}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
+                            asset.company?.toLowerCase().includes('padget')
+                              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                              : 'bg-red-500/10 text-red-600 border-red-500/20'
+                          }`}
+                        >
+                          {asset.company?.toLowerCase().includes('padget') ? 'PadGET' : (asset.company || 'ismartu')}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surf2)] text-[var(--mute)] font-medium">
+                          {asset.currentDepartment || asset.department || 'IT'}
+                        </span>
+                      </div>
                     </div>
                   )
                 })

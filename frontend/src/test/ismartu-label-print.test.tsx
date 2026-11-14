@@ -209,4 +209,22 @@ describe('ismartu Equipment Fixed Asset QR Label Specification', () => {
     // 2004218 shouldn't be in the left list when filtered by incomplete
     expect(screen.queryByText('Dell Precision Workstation · C39')).not.toBeInTheDocument()
   })
+
+  it('Company Branding Rule: switches between original ismartu and PadGET logos dynamically without backend storage', () => {
+    // 1. ismartu asset -> renders ismartu logo
+    const ismartuAsset: Asset = { ...sampleAsset, id: 'ism-1', company: 'ismartu' }
+    const { rerender } = render(<IsmartuAssetLabel asset={ismartuAsset} />)
+
+    const ismartuLogo = screen.getByRole('img', { name: /ismartu/i })
+    expect(ismartuLogo).toBeInTheDocument()
+    expect(ismartuLogo.getAttribute('src')).toContain('data:image/png;base64,')
+
+    // 2. Padget asset -> renders PadGET logo
+    const padgetAsset: Asset = { ...sampleAsset, id: 'pad-1', company: 'Padget' }
+    rerender(<IsmartuAssetLabel asset={padgetAsset} />)
+
+    const padgetLogo = screen.getByRole('img', { name: /padget/i })
+    expect(padgetLogo).toBeInTheDocument()
+    expect(padgetLogo.getAttribute('src')).toContain('data:image/png;base64,')
+  })
 })

@@ -2,6 +2,7 @@ import * as React from 'react'
 import type { Asset, AssetStatus } from '@/types/asset'
 import type { UserProfile } from '@/lib/deviceTracker'
 import { toast } from 'sonner'
+import { getCompanyLogo } from '@/assets/companyLogos'
 
 interface AddAssetPanelProps {
   open: boolean
@@ -39,18 +40,18 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const [previousDescription, setPreviousDescription] = React.useState('')
 
   // Company and Building state with dynamic custom additions
-  const [company, setCompany] = React.useState<string>('IIPL')
+  const [company, setCompany] = React.useState<string>('ismartu')
   const [companies, setCompanies] = React.useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('meridian_custom_companies')
       if (saved) {
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return Array.from(new Set(['IIPL', 'Padget', ...parsed]))
+          return Array.from(new Set(['ismartu', 'Padget', 'IIPL', ...parsed]))
         }
       }
     } catch {}
-    return ['IIPL', 'Padget']
+    return ['ismartu', 'Padget', 'IIPL']
   })
   const [showNewCompanyInput, setShowNewCompanyInput] = React.useState(false)
   const [newCompanyName, setNewCompanyName] = React.useState('')
@@ -172,7 +173,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setCurrentDescription(initialAsset.currentDescription || resolvedName || '')
       setPreviousDescription(initialAsset.previousDescription || '')
 
-      const comp = initialAsset.company || 'IIPL'
+      const comp = initialAsset.company || 'ismartu'
       setCompany(comp)
       if (comp && !companies.includes(comp)) {
         setCompanies((prev) => Array.from(new Set([...prev, comp])))
@@ -232,7 +233,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setAssetName('')
       setCurrentDescription('')
       setPreviousDescription('')
-      setCompany('IIPL')
+      setCompany('ismartu')
       setBuilding('C39')
       setFloor('')
       setPlant('')
@@ -558,7 +559,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     setAssetName('')
     setCurrentDescription('')
     setPreviousDescription('')
-    setCompany('IIPL')
+    setCompany('ismartu')
     setPlant('')
     setPlantUnavailable(false)
     setPlantReason('')
@@ -1028,22 +1029,51 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {companies.map((comp) => (
-                    <button
-                      key={comp}
-                      type="button"
-                      onClick={() => setCompany(comp)}
-                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                        company === comp
-                          ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
-                          : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
-                      }`}
-                    >
-                      <span>{comp === 'IIPL' ? '🏢' : comp === 'Padget' ? '🏭' : '🏛️'}</span>
-                      <span className="truncate">{comp}</span>
-                      {company === comp && <span className="text-[10px] ml-1">✓</span>}
-                    </button>
-                  ))}
+                  {companies.map((comp) => {
+                    const isPad = comp.toLowerCase().includes('padget')
+                    const isIsm = comp.toLowerCase().includes('ismartu')
+                    return (
+                      <button
+                        key={comp}
+                        type="button"
+                        onClick={() => setCompany(comp)}
+                        className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                          company === comp
+                            ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
+                            : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        <span>{isIsm ? '📱' : isPad ? '🏭' : '🏢'}</span>
+                        <span className="truncate">{comp}</span>
+                        {company === comp && <span className="text-[10px] ml-1">✓</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Printed QR Label Brand Preview */}
+                <div className="mt-2.5 p-2 rounded-lg bg-[var(--surf2)] border border-[var(--line)] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[var(--mute)]">Printed Label Brand:</span>
+                    <span className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                      {company.toLowerCase().includes('padget') ? (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold border border-blue-500/20 text-[10px]">
+                          PadGET Logo
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 font-semibold border border-red-500/20 text-[10px]">
+                          ismartu Logo
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-7 w-24 bg-white rounded border border-black/10 flex items-center justify-center p-0.5 shadow-2xs">
+                    <img
+                      src={getCompanyLogo(company).src}
+                      alt={company}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
                 </div>
               </div>
 
