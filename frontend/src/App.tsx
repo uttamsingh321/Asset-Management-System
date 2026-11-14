@@ -458,38 +458,86 @@ export function App() {
     )
   }
 
-  const handleImportAssetCodes = (codes: string[]) => {
+  const handleImportAssetCodes = (codesOrAssets: (string | Partial<Asset>)[]) => {
     const importedAt = new Date().toISOString().slice(0, 10)
-    const importedCodes: Asset[] = codes.map((code) => ({
-      id: `imported-${code}`,
-      assetCode: code,
-      serialNumber: '',
-      currentCategory: '',
-      currentDescription: '',
-      plant: '',
-      assetCondition: '',
-      date: importedAt,
-      name: code,
-      assetTag: code,
-      category: 'IT Hardware',
-      department: '',
-      status: 'Imported',
-      purchaseDate: importedAt,
-      purchaseCost: 0,
-      currentValue: 0,
-      assignedTo: '',
-      location: '',
-    }))
-    setAssets((prev) => [...importedCodes, ...prev])
+    const importedCodes: Asset[] = codesOrAssets.map((item) => {
+      if (typeof item === 'string') {
+        const code = item
+        return {
+          id: `imported-${code}`,
+          assetCode: code,
+          serialNumber: '',
+          currentCategory: 'Equipment',
+          currentDescription: '',
+          plant: 'Noida Central Plant',
+          building: 'C39',
+          company: 'ismartu',
+          assetCondition: '',
+          date: importedAt,
+          name: code,
+          assetTag: code,
+          category: 'Equipment',
+          department: '',
+          currentDepartment: '',
+          status: 'Pending Verification',
+          purchaseDate: importedAt,
+          purchaseCost: 0,
+          currentValue: 0,
+          assignedTo: '',
+          location: '',
+        }
+      }
+
+      // If Partial<Asset> from Excel Master Import
+      const code = item.assetCode || `AST-${Date.now()}`
+      return {
+        id: item.id || `imported-${code}`,
+        assetCode: code,
+        serialNumber: item.serialNumber || '',
+        currentCategory: item.currentCategory || item.category || 'Equipment',
+        category: item.category || item.currentCategory || 'Equipment',
+        assetClass: item.assetClass || item.currentCategory || '',
+        currentDescription: item.currentDescription || item.name || code,
+        name: item.name || item.currentDescription || code,
+        company: item.company || 'ismartu',
+        companyCode: item.companyCode || (item.company === 'Padget' ? '5030' : '5020'),
+        plant: item.plant || 'Noida Central Plant',
+        building: item.building || 'C39',
+        floor: item.floor || '',
+        location: item.location || 'C-39 Factory Noida',
+        currentLocation: item.currentLocation || item.location || '',
+        costCenter: item.costCenter || '',
+        department: item.department || item.currentDepartment || 'Production',
+        currentDepartment: item.currentDepartment || item.department || 'Production',
+        inChargeId: item.inChargeId || '',
+        inChargeName: item.inChargeName || '',
+        assetCondition: item.assetCondition || '',
+        purchaseDate: item.purchaseDate || importedAt,
+        capitalizationDate: item.capitalizationDate || item.purchaseDate || importedAt,
+        date: item.date || importedAt,
+        purchaseCost: item.purchaseCost ?? 0,
+        currentValue: item.currentValue ?? 0,
+        assignedTo: item.assignedTo || '',
+        assetTag: item.assetTag || code,
+        status: item.status || 'Pending Verification',
+        isExcelImported: true,
+      }
+    })
+
+    setAssets((prev) => {
+      const existingCodes = new Set(prev.map((a) => a.assetCode.toLowerCase()))
+      const deduped = importedCodes.filter((a) => !existingCodes.has(a.assetCode.toLowerCase()))
+      return [...deduped, ...prev]
+    })
+
     logAuditEvent(
       'ASSET_IMPORT',
       {
-        importedCount: codes.length,
-        firstCode: codes[0],
-        lastCode: codes[codes.length - 1],
-        sampleCodes: codes.slice(0, 5),
+        importedCount: importedCodes.length,
+        firstCode: importedCodes[0]?.assetCode,
+        lastCode: importedCodes[importedCodes.length - 1]?.assetCode,
       },
-      'ASSET-CODE-IMPORT'
+      'ASSET-EXCEL-IMPORT'
     )
   }
 

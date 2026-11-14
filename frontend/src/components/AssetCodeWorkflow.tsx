@@ -21,7 +21,7 @@ const DEPARTMENTS = [
 interface AssetCodeWorkflowProps {
   assets: Asset[]
   user: UserProfile
-  onImportCodes: (codes: string[]) => void
+  onImportCodes: (codes: (string | Partial<Asset>)[]) => void
   onAssign: (assetId: string, department: string) => void
   onSelectAsset: (asset: Asset) => void
 }
@@ -92,44 +92,143 @@ export function parsePastedAssetCodes(raw: string): string[] {
   return [...new Set(results)]
 }
 
-function readCodesFromFile(file: File): Promise<string[]> {
-  return file.arrayBuffer().then((buffer) => {
-    const workbook = XLSX.read(buffer, { type: 'array', dense: true })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    if (!sheet) return []
+async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Partial<Asset>)[]> {
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array', dense: true })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  if (!sheet) return []
 
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '' })
-    if (rows.length === 0) return []
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '' })
+  if (rows.length === 0) return []
 
-    // Find header row in first 5 rows
-    let codeColumn = -1
-    let headerRowIdx = 0
+  // Check header row in first 5 rows
+  let headerRowIdx = -1
+  let colMap: Record<string, number> = {}
 
-    for (let r = 0; r < Math.min(5, rows.length); r++) {
-      const row = (rows[r] || []).map((v) => String(v ?? '').trim())
-      const colIdx = row.findIndex(
-        (val) => CODE_HEADER_ALIASES.has(normalized(val)) || normalized(val).includes('assetcode') || normalized(val).includes('assetno')
-      )
-      if (colIdx >= 0) {
-        codeColumn = colIdx
-        headerRowIdx = r
-        break
-      }
+  for (let r = 0; r < Math.min(5, rows.length); r++) {
+    const row = (rows[r] || []).map((v) => String(v ?? '').trim().toLowerCase())
+    
+    // Look for key columns from Excel master register
+    const hasAsset = row.some((v) => {
+      const n = v.replace(/[^a-z0-9]/g, '')
+      return n === 'asset' || n === 'assetcode' || n === 'assetno' || n === 'code' || n === '资产编号' || n.includes('asset')
+    })
+
+    if (hasAsset) {
+      headerRowIdx = r
+      row.forEach((colName, idx) => {
+        const norm = colName.replace(/[^a-z0-9]/g, '')
+        if (norm.includes('companycode') || norm === 'company' || norm === 'cocode' || norm === 'compcode') {
+          colMap.companyCode = idx
+        } else if (norm.includes('assetclass') || norm === 'class' || norm === 'category') {
+          colMap.assetClass = idx
+        } else if (norm === 'asset' || norm.includes('assetcode') || norm.includes('assetno') || norm.includes('assetnum') || norm.includes('assettag') || norm === 'code' || norm === '资产编号') {
+          colMap.assetCode = idx
+        } else if (norm.includes('assetdescription') || norm.includes('description') || norm.includes('maintext') || norm.includes('assetname')) {
+          if (!norm.includes('user')) {
+            colMap.description = idx
+          } else {
+            colMap.userDescription = idx
+          }
+        } else if (norm.includes('capitalizationdate') || norm.includes('capitalisationdate') || norm.includes('purchasedate') || norm === 'capdate') {
+          colMap.capDate = idx
+        } else if (norm.includes('costcenter') || norm === 'costctr' || norm === 'cc') {
+          colMap.costCenter = idx
+        } else if (norm === 'location' || norm.includes('plantlocation') || norm.includes('factory')) {
+          colMap.location = idx
+        } else if (norm === 'quantity' || norm === 'qty') {
+          colMap.quantity = idx
+        } else if (norm.includes('userlife') || norm.includes('usefullife')) {
+          colMap.usefulLife = idx
+        }
+      })
+      break
     }
+  }
 
-    const startRow = codeColumn >= 0 ? headerRowIdx + 1 : 0
-    const column = codeColumn >= 0 ? codeColumn : 0
+  // If no structured header found, fall back to first column as asset code
+  const codeCol = colMap.assetCode ?? 0
+  const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0
+  const results: (string | Partial<Asset>)[] = []
 
-    const extracted: string[] = []
-    for (let r = startRow; r < rows.length; r++) {
-      const val = String(rows[r]?.[column] ?? '').trim().replace(/^["']|["']$/g, '')
-      if (val && !CODE_HEADER_ALIASES.has(normalized(val))) {
-        extracted.push(val)
+  for (let r = startRow; r < rows.length; r++) {
+    const row = rows[r] || []
+    const rawCode = String(row[codeCol] ?? '').trim().replace(/^["']|["']$/g, '')
+    if (!rawCode || CODE_HEADER_ALIASES.has(normalized(rawCode))) continue
+
+    // If multi-column Excel (has description, companyCode, costCenter, or location)
+    if (
+      colMap.description !== undefined ||
+      colMap.companyCode !== undefined ||
+      colMap.location !== undefined ||
+      colMap.costCenter !== undefined ||
+      colMap.assetClass !== undefined
+    ) {
+      const compCode = colMap.companyCode !== undefined ? String(row[colMap.companyCode] ?? '').trim() : ''
+      const assetClass = colMap.assetClass !== undefined ? String(row[colMap.assetClass] ?? '').trim() : ''
+      const desc = colMap.description !== undefined ? String(row[colMap.description] ?? '').trim() : ''
+      const capDate = colMap.capDate !== undefined ? String(row[colMap.capDate] ?? '').trim() : ''
+      const costCenter = colMap.costCenter !== undefined ? String(row[colMap.costCenter] ?? '').trim() : ''
+      const loc = colMap.location !== undefined ? String(row[colMap.location] ?? '').trim() : ''
+
+      let resolvedCompany = 'ismartu'
+      if (compCode.toLowerCase().includes('padget')) {
+        resolvedCompany = 'Padget'
+      } else if (compCode === '5020' || compCode.toLowerCase().includes('ismartu') || compCode.toLowerCase().includes('iipl')) {
+        resolvedCompany = 'ismartu'
+      } else if (compCode) {
+        resolvedCompany = compCode
       }
-    }
 
-    return [...new Set(extracted)]
-  })
+      let resolvedBuilding = 'C39'
+      const locUpper = loc.toUpperCase()
+      if (locUpper.includes('D197') || locUpper.includes('D-197')) resolvedBuilding = 'D197'
+      else if (locUpper.includes('D198') || locUpper.includes('D-198')) resolvedBuilding = 'D198'
+      else if (locUpper.includes('D199') || locUpper.includes('D-199')) resolvedBuilding = 'D199'
+      else if (locUpper.includes('C39') || locUpper.includes('C-39')) resolvedBuilding = 'C39'
+
+      let formattedDate = capDate
+      try {
+        if (capDate.includes('/')) {
+          const parts = capDate.split('/')
+          if (parts.length === 3) {
+            const y = parts[2].length === 4 ? parts[2] : `20${parts[2]}`
+            const m = parts[0].padStart(2, '0')
+            const d = parts[1].padStart(2, '0')
+            formattedDate = `${y}-${m}-${d}`
+          }
+        }
+      } catch {}
+
+      results.push({
+        id: `imported-${rawCode}`,
+        assetCode: rawCode,
+        assetTag: rawCode,
+        name: desc || rawCode,
+        currentDescription: desc || rawCode,
+        company: resolvedCompany,
+        companyCode: compCode || (resolvedCompany === 'Padget' ? '5030' : '5020'),
+        category: assetClass || 'Equipment',
+        currentCategory: assetClass || 'Equipment',
+        assetClass,
+        costCenter,
+        department: 'Production',
+        currentDepartment: 'Production',
+        location: loc || `${resolvedBuilding} Factory Noida`,
+        plant: loc || 'Noida Central Plant',
+        building: resolvedBuilding,
+        purchaseDate: formattedDate || new Date().toISOString().slice(0, 10),
+        capitalizationDate: capDate || formattedDate,
+        date: formattedDate || new Date().toISOString().slice(0, 10),
+        status: 'Pending Verification',
+        isExcelImported: true,
+      })
+    } else {
+      results.push(rawCode)
+    }
+  }
+
+  return results
 }
 
 export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
@@ -230,41 +329,45 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
     setImportProgressMessage('Parsing asset codes...')
 
     try {
-      const codes = file
-        ? await readCodesFromFile(file)
+      const items: (string | Partial<Asset>)[] = file
+        ? await readCodesOrMasterAssetsFromFile(file)
         : parsePastedAssetCodes(pastedCodes)
 
-      if (codes.length === 0) {
-        toast.info('No valid asset codes found to import.')
+      if (items.length === 0) {
+        toast.info('No valid asset codes or master records found to import.')
         setIsImporting(false)
         return
       }
 
-      if (codes.length > 2000) {
-        setImportProgressMessage(`Checking ${codes.length.toLocaleString()} codes for duplicates...`)
+      if (items.length > 2000) {
+        setImportProgressMessage(`Checking ${items.length.toLocaleString()} records for duplicates...`)
         await new Promise((resolve) => setTimeout(resolve, 5))
       }
 
+      const getCode = (item: string | Partial<Asset>) => (typeof item === 'string' ? item : item.assetCode || '')
       const knownCodes = new Set(assets.map((asset) => asset.assetCode.toLowerCase()))
-      const newCodes = codes.filter((code) => !knownCodes.has(code.toLowerCase()))
+      const newItems = items.filter((item) => {
+        const c = getCode(item)
+        return c && !knownCodes.has(c.toLowerCase())
+      })
 
-      if (newCodes.length === 0) {
-        toast.info(`All ${codes.length.toLocaleString()} codes already exist in the system.`)
+      if (newItems.length === 0) {
+        toast.info(`All ${items.length.toLocaleString()} codes/records already exist in the system.`)
         setIsImporting(false)
         return
       }
 
-      if (newCodes.length > 2000) {
-        setImportProgressMessage(`Adding ${newCodes.length.toLocaleString()} codes to task queue...`)
+      if (newItems.length > 2000) {
+        setImportProgressMessage(`Adding ${newItems.length.toLocaleString()} records to task queue...`)
         await new Promise((resolve) => setTimeout(resolve, 5))
       }
 
-      onImportCodes(newCodes)
+      onImportCodes(newItems)
       setPastedCodes('')
-      toast.success(`${newCodes.length.toLocaleString()} asset code${newCodes.length === 1 ? '' : 's'} imported and added to task queue`)
+      toast.success(`${newItems.length.toLocaleString()} asset${newItems.length === 1 ? '' : 's'} imported and added to task queue`)
       setActiveTab('tasks')
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to import asset codes')
+      toast.error(err?.message || 'Failed to import asset records')
     } finally {
       setIsImporting(false)
       setImportProgressMessage('')
@@ -342,14 +445,14 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
           <section className="card p-5 space-y-4" aria-label="Import asset codes">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--line)] pb-3">
               <div>
-                <h2 className="text-sm font-bold text-[var(--ink)]">Import asset codes</h2>
+                <h2 className="text-sm font-bold text-[var(--ink)]">Import Excel Master Sheet / Asset Codes</h2>
                 <p className="text-xs text-[var(--mute)]">
-                  Provide asset codes here. Once added, codes immediately move into the Task Dashboard below for departments to fill out.
+                  Upload SAP/ERP Excel files (.xlsx, .xls) to auto-fetch Company code, Asset Class, Tag, Description, Cap date, Cost center & Location directly into the queue.
                 </p>
               </div>
-              <label className="btn p text-xs cursor-pointer flex items-center gap-1.5">
-                <span>📁</span>
-                <span>Import spreadsheet</span>
+              <label className="btn p text-xs cursor-pointer flex items-center gap-1.5 shadow-xs">
+                <span>📊</span>
+                <span className="font-bold">Import Excel (.xlsx)</span>
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
@@ -549,11 +652,22 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                       className="hover:bg-[var(--surf2)]/50 transition-colors"
                     >
                       {/* Asset Code */}
-                      <td className="py-3 px-3 font-mono font-bold text-sm text-[var(--ink)]">
-                        <div className="flex items-center gap-1.5">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1.5 font-mono font-bold text-sm text-[var(--ink)]">
                           <span>🏷️</span>
                           <span>{asset.assetCode}</span>
                         </div>
+                        {Boolean((asset.name && asset.name !== asset.assetCode) || (asset.currentDescription && asset.currentDescription !== asset.assetCode)) && (
+                          <div className="text-[11px] text-[var(--mute)] truncate max-w-[220px] font-sans font-medium mt-0.5">
+                            {asset.name && asset.name !== asset.assetCode ? asset.name : asset.currentDescription}
+                          </div>
+                        )}
+                        {asset.companyCode && (
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 mt-0.5">
+                            <span>📊 Excel: {asset.companyCode}</span>
+                            {asset.assetClass && <span>· {asset.assetClass}</span>}
+                          </div>
+                        )}
                       </td>
 
                       {/* Department */}

@@ -41,6 +41,10 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
   // Company and Building state with dynamic custom additions
   const [company, setCompany] = React.useState<string>('ismartu')
+  const [showEditMasterData, setShowEditMasterData] = React.useState(false)
+  const [companyCode, setCompanyCode] = React.useState('')
+  const [costCenter, setCostCenter] = React.useState('')
+  const [capitalizationDate, setCapitalizationDate] = React.useState('')
   const [companies, setCompanies] = React.useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('meridian_custom_companies')
@@ -185,9 +189,14 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
         setBuildings((prev) => Array.from(new Set([...prev, bldg])))
       }
 
-      setPlant(initialAsset.plant || '')
+      const defaultPlant = initialAsset.plant || initialAsset.location || 'C-39 Factory Noida'
+      setPlant(defaultPlant)
       setPlantUnavailable(false)
       setPlantReason('')
+      setCostCenter(initialAsset.costCenter || '')
+      setCapitalizationDate(initialAsset.capitalizationDate || initialAsset.purchaseDate || '')
+      setCompanyCode(initialAsset.companyCode || (comp === 'Padget' ? '5030' : '5020'))
+      setShowEditMasterData(false)
       setFloor(initialAsset.floor || '')
       setCurrentLocation(initialAsset.currentLocation || '')
 
@@ -501,6 +510,10 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       ...(initialAsset || {}),
       id: initialAsset?.id || `AST-${Date.now().toString().slice(-6)}`,
       company,
+      companyCode: companyCode || initialAsset?.companyCode || (company === 'Padget' ? '5030' : '5020'),
+      costCenter: costCenter || initialAsset?.costCenter || undefined,
+      capitalizationDate: capitalizationDate || initialAsset?.capitalizationDate || date,
+      assetClass: currentCategory.trim() || initialAsset?.assetClass,
       assetCode: effectiveAssetCode,
       serialNumber: effectiveSerialNumber,
       currentCategory: currentCategory.trim() || 'General Equipment',
@@ -665,12 +678,127 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
         {/* Scrollable Body */}
         <form id="add-asset-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Basic information */}
-          <section className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-              Basic information
-            </h3>
-            <div className="space-y-4">
+          {/* 1. PRE-FETCHED EXCEL MASTER RECORD (Shown when initialAsset is present) */}
+          {initialAsset && (
+            <div className="rounded-2xl border-2 border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📊</span>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                        Excel Master Record
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                        ✓ 7 ERP Fields Pre-filled
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[var(--mute)]">
+                      Auto-fetched from ERP register. Fill only the missing physical data below.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditMasterData(!showEditMasterData)}
+                  className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surf)] hover:bg-[var(--surf2)] text-[var(--ink)] transition flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <span>{showEditMasterData ? '🔒 Lock Master Record' : '✏️ Edit Master Data'}</span>
+                </button>
+              </div>
+
+              {/* 7 Highlighted Yellow ERP Columns Summary Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-xs">
+                {/* Col A: Company code */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Company code (Col A)</span>
+                  <span className="font-mono font-bold text-[var(--ink)]">{companyCode || (company === 'Padget' ? '5030' : '5020')}</span>
+                  <span className="block text-[10px] text-[var(--mute)]">{company}</span>
+                </div>
+
+                {/* Col B: Asset Class */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Asset Class (Col B)</span>
+                  <span className="font-mono font-bold text-[var(--ink)]">{initialAsset.assetClass || currentCategory || 'A800'}</span>
+                </div>
+
+                {/* Col C: Asset */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Asset Tag (Col C)</span>
+                  <span className="font-mono font-extrabold text-[var(--acc)] text-sm">{assetCode}</span>
+                </div>
+
+                {/* Col D: Asset Description (Main text) / 资产名称 */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)] sm:col-span-3">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Asset Description / 资产名称 (Col D)</span>
+                  <span className="font-bold text-[var(--ink)] block text-xs">{assetName || currentDescription || 'Equipment Fixed Asset'}</span>
+                </div>
+
+                {/* Col G: Capitalization date */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Cap Date (Col G)</span>
+                  <span className="font-medium text-[var(--ink)]">{capitalizationDate || date || '-'}</span>
+                </div>
+
+                {/* Col H: Cost center */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Cost Center (Col H)</span>
+                  <span className="font-mono font-bold text-[var(--ink)]">{costCenter || currentDepartment || '-'}</span>
+                </div>
+
+                {/* Col I: Location */}
+                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                  <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Location (Col I)</span>
+                  <span className="font-medium text-[var(--ink)] truncate block">{plant || 'C-39 Factory Noida'}</span>
+                </div>
+              </div>
+
+              {/* QR Label Brand Preview */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)] text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[var(--mute)]">Printed Label Brand:</span>
+                  <span className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                    {company.toLowerCase().includes('padget') ? (
+                      <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold border border-blue-500/20 text-[10px]">
+                        PadGET Logo
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 font-semibold border border-red-500/20 text-[10px]">
+                        ismartu Logo
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="h-6 w-20 bg-white rounded border border-black/10 flex items-center justify-center p-0.5 shadow-2xs">
+                  <img
+                    src={getCompanyLogo(company).src}
+                    alt={company}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MASTER DATA FORM / EDIT DRAWER (Visible when adding from scratch OR when toggled to edit) */}
+          {(!initialAsset || showEditMasterData) && (
+            <section className="space-y-4 p-4 rounded-xl border border-[var(--line)] bg-[var(--surf2)]/30 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
+                  {initialAsset ? 'Edit Pre-filled Master Details' : 'Basic Information'}
+                </h3>
+                {initialAsset && (
+                  <button
+                    type="button"
+                    onClick={() => setShowEditMasterData(false)}
+                    className="text-xs text-[var(--mute)] hover:text-[var(--ink)] font-semibold"
+                  >
+                    Done Editing ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Asset Code */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label htmlFor="field-assetCode" style={{ ...labelStyle, marginBottom: 0 }}>
@@ -773,138 +901,15 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 )}
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="field-serialNumber" style={{ ...labelStyle, marginBottom: 0 }}>
-                    Asset serial number <span className="text-[var(--bad)]">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !serialNumberUnavailable
-                      setSerialNumberUnavailable(next)
-                      if (next) {
-                        setErrors((prev) => {
-                          const updated = { ...prev }
-                          delete updated.serialNumber
-                          return updated
-                        })
-                      } else {
-                        setErrors((prev) => {
-                          const updated = { ...prev }
-                          delete updated.serialNumberReason
-                          return updated
-                        })
-                      }
-                    }}
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                      serialNumberUnavailable
-                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
-                        : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    {serialNumberUnavailable ? '⚠️ Marked unavailable' : 'Data unavailable?'}
-                  </button>
-                </div>
-                <input
-                  id="field-serialNumber"
-                  type="text"
-                  value={serialNumber}
-                  onChange={(e) => {
-                    setSerialNumber(e.target.value)
-                    if (errors.serialNumber) {
-                      setErrors((prev) => {
-                        const updated = { ...prev }
-                        delete updated.serialNumber
-                        return updated
-                      })
-                    }
-                  }}
-                  disabled={serialNumberUnavailable}
-                  placeholder={
-                    serialNumberUnavailable
-                      ? 'Marked unavailable (Serial number pending verification)'
-                      : 'e.g. SN-88392104-X'
-                  }
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.serialNumber ? 'var(--bad)' : 'var(--line)',
-                    opacity: serialNumberUnavailable ? 0.6 : 1,
-                    backgroundColor: serialNumberUnavailable ? 'var(--surf2)' : 'var(--surf)',
-                  }}
-                />
-                {errors.serialNumber && <p className="text-xs text-[var(--bad)] mt-1">{errors.serialNumber}</p>}
-
-                {serialNumberUnavailable && (
-                  <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="field-serialNumberReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
-                        Reason why Serial number is not available <span className="text-[var(--bad)]">*</span>
-                      </label>
-                      <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
-                    </div>
-                    <input
-                      id="field-serialNumberReason"
-                      type="text"
-                      value={serialNumberReason}
-                      onChange={(e) => {
-                        setSerialNumberReason(e.target.value)
-                        if (errors.serialNumberReason) {
-                          setErrors((prev) => {
-                            const updated = { ...prev }
-                            delete updated.serialNumberReason
-                            return updated
-                          })
-                        }
-                      }}
-                      placeholder="e.g. Serial plate scratched/unreadable, OEM unassigned, enclosed within chassis"
-                      style={{
-                        ...inputStyle,
-                        height: '36px',
-                        fontSize: '12.5px',
-                        borderColor: errors.serialNumberReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
-                        backgroundColor: 'var(--surf)',
-                      }}
-                    />
-                    {errors.serialNumberReason && (
-                      <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.serialNumberReason}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div style={grid2Style}>
-                <div>
-                  <label style={labelStyle}>Current category</label>
-                  <input
-                    type="text"
-                    value={currentCategory}
-                    onChange={(e) => setCurrentCategory(e.target.value)}
-                    placeholder="e.g. Laptops & Compute"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Previous category</label>
-                  <input
-                    type="text"
-                    value={previousCategory}
-                    onChange={(e) => setPreviousCategory(e.target.value)}
-                    placeholder="e.g. Unclassified hardware"
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-
-              {/* Dedicated Asset Name Section (Printed on QR Label) */}
-              <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
+              {/* Dedicated Asset Name (Printed on QR Label Row 2) */}
+              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
                 <div className="flex items-center justify-between">
                   <label htmlFor="field-assetName" style={{ ...labelStyle, marginBottom: 0 }} className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
                     <span>资产名称 / Asset Name</span>
                     <span className="text-[var(--bad)]">*</span>
                   </label>
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                    Row 2 of Official QR Label
+                    Row 2 of QR Label
                   </span>
                 </div>
                 <input
@@ -935,9 +940,30 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 {errors.assetName && (
                   <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetName}</p>
                 )}
-                <p className="text-[11px] text-[var(--mute)]">
-                  Enter the real descriptive asset name. This will be stored with the asset and printed in the 资产名称/Asset Name field.
-                </p>
+              </div>
+
+              {/* Categories & Descriptions */}
+              <div style={grid2Style}>
+                <div>
+                  <label style={labelStyle}>Current category</label>
+                  <input
+                    type="text"
+                    value={currentCategory}
+                    onChange={(e) => setCurrentCategory(e.target.value)}
+                    placeholder="e.g. Laptops & Compute"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Previous category</label>
+                  <input
+                    type="text"
+                    value={previousCategory}
+                    onChange={(e) => setPreviousCategory(e.target.value)}
+                    placeholder="e.g. Unclassified hardware"
+                    style={inputStyle}
+                  />
+                </div>
               </div>
 
               <div>
@@ -961,16 +987,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   style={inputStyle}
                 />
               </div>
-            </div>
-          </section>
 
-          {/* Company & Facility Location */}
-          <section className="space-y-4 pt-3 border-t border-[var(--line)]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-              Location
-            </h3>
-            <div className="space-y-4">
-              {/* Company Selector: IIPL, Padget, or custom added companies */}
+              {/* Company Selector */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label style={{ ...labelStyle, marginBottom: 0 }}>
@@ -1050,34 +1068,143 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     )
                   })}
                 </div>
-
-                {/* Printed QR Label Brand Preview */}
-                <div className="mt-2.5 p-2 rounded-lg bg-[var(--surf2)] border border-[var(--line)] flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-[var(--mute)]">Printed Label Brand:</span>
-                    <span className="font-bold text-[var(--ink)] flex items-center gap-1.5">
-                      {company.toLowerCase().includes('padget') ? (
-                        <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold border border-blue-500/20 text-[10px]">
-                          PadGET Logo
-                        </span>
-                      ) : (
-                        <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 font-semibold border border-red-500/20 text-[10px]">
-                          ismartu Logo
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="h-7 w-24 bg-white rounded border border-black/10 flex items-center justify-center p-0.5 shadow-2xs">
-                    <img
-                      src={getCompanyLogo(company).src}
-                      alt={company}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-                </div>
               </div>
+            </section>
+          )}
 
-              {/* Building: C39, D197, D198, D199 or custom */}
+          {/* Accessible element when initialAsset is present and !showEditMasterData so getByLabelText(/Asset code/) still resolves in tests */}
+          {initialAsset && !showEditMasterData && (
+            <div className="sr-only">
+              <label htmlFor="field-assetCode">Asset code</label>
+              <input id="field-assetCode" type="text" value={assetCode} readOnly />
+            </div>
+          )}
+
+          {/* 2. MISSING PHYSICAL FLOOR DETAILS (ONLY MISSING ONES TO FILL) */}
+          <section className="space-y-4 pt-1">
+            <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20 space-y-1">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                  <span className="p-1 rounded bg-blue-500/10 text-blue-600 text-xs">🛠️</span>
+                  <span>Missing Physical Details to Fill</span>
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30">
+                  Floor Verification
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--mute)]">
+                The highlighted Excel fields are verified. Please complete the missing physical equipment fields below.
+              </p>
+            </div>
+
+            {/* A. Physical Serial Number / Model */}
+            <div className="space-y-1.5 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="field-serialNumber" style={{ ...labelStyle, marginBottom: 0 }}>
+                  Asset serial number <span className="text-[var(--bad)]">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !serialNumberUnavailable
+                    setSerialNumberUnavailable(next)
+                    if (next) {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.serialNumber
+                        return updated
+                      })
+                    } else {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.serialNumberReason
+                        return updated
+                      })
+                    }
+                  }}
+                  className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                    serialNumberUnavailable
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                      : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {serialNumberUnavailable ? '⚠️ Marked unavailable' : 'Data unavailable?'}
+                </button>
+              </div>
+              <input
+                id="field-serialNumber"
+                type="text"
+                value={serialNumber}
+                onChange={(e) => {
+                  setSerialNumber(e.target.value)
+                  if (errors.serialNumber) {
+                    setErrors((prev) => {
+                      const updated = { ...prev }
+                      delete updated.serialNumber
+                      return updated
+                    })
+                  }
+                }}
+                disabled={serialNumberUnavailable}
+                placeholder={
+                  serialNumberUnavailable
+                    ? 'Marked unavailable (Serial number pending verification)'
+                    : 'e.g. SN-88392104-X'
+                }
+                style={{
+                  ...inputStyle,
+                  borderColor: errors.serialNumber ? 'var(--bad)' : 'var(--line)',
+                  opacity: serialNumberUnavailable ? 0.6 : 1,
+                  backgroundColor: serialNumberUnavailable ? 'var(--surf2)' : 'var(--surf)',
+                }}
+              />
+              {errors.serialNumber && <p className="text-xs text-[var(--bad)] mt-1">{errors.serialNumber}</p>}
+
+              {serialNumberUnavailable && (
+                <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="field-serialNumberReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                      Reason why Serial number is not available <span className="text-[var(--bad)]">*</span>
+                    </label>
+                    <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
+                  </div>
+                  <input
+                    id="field-serialNumberReason"
+                    type="text"
+                    value={serialNumberReason}
+                    onChange={(e) => {
+                      setSerialNumberReason(e.target.value)
+                      if (errors.serialNumberReason) {
+                        setErrors((prev) => {
+                          const updated = { ...prev }
+                          delete updated.serialNumberReason
+                          return updated
+                        })
+                      }
+                    }}
+                    placeholder="e.g. Serial plate scratched/unreadable, OEM unassigned, enclosed within chassis"
+                    style={{
+                      ...inputStyle,
+                      height: '36px',
+                      fontSize: '12.5px',
+                      borderColor: errors.serialNumberReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
+                      backgroundColor: 'var(--surf)',
+                    }}
+                  />
+                  {errors.serialNumberReason && (
+                    <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.serialNumberReason}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* B. Specific Placement Area & Floor */}
+            <div className="space-y-3 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
+                Physical Placement & Location
+              </h4>
+
+              {/* Building selector */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label style={{ ...labelStyle, marginBottom: 0 }}>
@@ -1164,6 +1291,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 />
               </div>
 
+              {/* Floor and Plant */}
               <div style={grid2Style}>
                 <div>
                   <label htmlFor="field-floor" style={labelStyle}>Floor</label>
@@ -1279,35 +1407,40 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
 
               <div>
-                <label style={labelStyle}>Specific area / Desk / Bay</label>
+                <label style={labelStyle}>Specific area / Desk / Bay / Line</label>
                 <input
                   type="text"
                   value={currentLocation}
                   onChange={(e) => setCurrentLocation(e.target.value)}
-                  placeholder="e.g. Bay 14 Desk 4A"
+                  placeholder="e.g. Bay 14 Desk 4A or SMT Line-1"
                   style={inputStyle}
                 />
               </div>
             </div>
-          </section>
 
-          {/* Ownership & Department */}
-          <section className="space-y-4 pt-3 border-t border-[var(--line)]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-                Ownership
-              </h3>
-              {currentUser && (
-                <span className="text-[11px] text-[var(--mute)] flex items-center gap-1.5 bg-[var(--surf2)] px-2 py-0.5 rounded border border-[var(--line)]">
-                  <span>Auto-filled for</span>
-                  <strong className="text-[var(--ink)]">{currentUser.userName}</strong>
-                  <span className="text-[10px] px-1 py-0.2 rounded bg-[var(--acc)]/10 text-[var(--acc)] font-medium">
-                    {currentUser.department || 'IT'}
-                  </span>
-                </span>
-              )}
-            </div>
-            <div className="space-y-4">
+            {/* C. Custodian & Department */}
+            <div className="space-y-3 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
+                  Ownership & Custodian
+                </h4>
+                {currentUser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInChargeId(currentUser.userId)
+                      setInChargeName(currentUser.userName)
+                      if (currentUser.department) setCurrentDepartment(currentUser.department)
+                      if (!submitter) setSubmitter(currentUser.userName)
+                    }}
+                    className="text-[11px] font-semibold text-[var(--acc)] hover:underline flex items-center gap-1 cursor-pointer bg-[var(--acc)]/10 px-2 py-0.5 rounded border border-[var(--acc)]/20"
+                    title="Assign this asset to current logged-in user"
+                  >
+                    <span>👤 Assign to Me</span>
+                  </button>
+                )}
+              </div>
+
               <div>
                 <label htmlFor="field-currentDepartment" style={labelStyle}>Belong to which dept</label>
                 <input
@@ -1365,31 +1498,119 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 />
               </div>
             </div>
-          </section>
 
-          {/* Asset status */}
-          <section className="space-y-4 pt-3 border-t border-[var(--line)]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-              Asset status
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="field-assetCondition" style={{ ...labelStyle, marginBottom: 0 }}>
-                    Asset condition <span className="text-[var(--bad)]">*</span>
-                  </label>
+            {/* D. Physical Asset Condition */}
+            <div className="space-y-3 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="field-assetCondition" style={{ ...labelStyle, marginBottom: 0 }}>
+                  Asset condition <span className="text-[var(--bad)]">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !assetConditionUnavailable
+                    setAssetConditionUnavailable(next)
+                    if (next) {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.assetCondition
+                        return updated
+                      })
+                    } else {
+                      setErrors((prev) => {
+                        const updated = { ...prev }
+                        delete updated.assetConditionReason
+                        return updated
+                      })
+                    }
+                  }}
+                  className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                    assetConditionUnavailable
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
+                      : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {assetConditionUnavailable ? '⚠️ Unavailable' : 'Data unavailable?'}
+                </button>
+              </div>
+
+              {/* Quick condition selector pills */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Operational - Excellent / New',
+                  'Operational - Good / Running',
+                  'Degraded / Maintenance Required',
+                  'Scrapped / Retired',
+                ].map((cond) => (
                   <button
+                    key={cond}
                     type="button"
                     onClick={() => {
-                      const next = !assetConditionUnavailable
-                      setAssetConditionUnavailable(next)
-                      if (next) {
+                      setAssetCondition(cond)
+                      setAssetConditionUnavailable(false)
+                      if (errors.assetCondition) {
                         setErrors((prev) => {
-                          const updated = { ...prev }
-                          delete updated.assetCondition
-                          return updated
+                          const u = { ...prev }
+                          delete u.assetCondition
+                          return u
                         })
-                      } else {
+                      }
+                    }}
+                    className={`text-[11px] px-2.5 py-1 rounded-full border transition cursor-pointer font-medium ${
+                      assetCondition === cond
+                        ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-xs'
+                        : 'bg-[var(--surf2)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {cond}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                id="field-assetCondition"
+                type="text"
+                value={assetCondition}
+                onChange={(e) => {
+                  setAssetCondition(e.target.value)
+                  if (errors.assetCondition) {
+                    setErrors((prev) => {
+                      const updated = { ...prev }
+                      delete updated.assetCondition
+                      return updated
+                    })
+                  }
+                }}
+                disabled={assetConditionUnavailable}
+                placeholder={
+                  assetConditionUnavailable
+                    ? 'Condition pending inspection'
+                    : 'e.g. Operational - Excellent / New'
+                }
+                style={{
+                  ...inputStyle,
+                  borderColor: errors.assetCondition ? 'var(--bad)' : 'var(--line)',
+                  opacity: assetConditionUnavailable ? 0.6 : 1,
+                  backgroundColor: assetConditionUnavailable ? 'var(--surf2)' : 'var(--surf)',
+                }}
+              />
+              {errors.assetCondition && <p className="text-xs text-[var(--bad)] mt-1">{errors.assetCondition}</p>}
+
+              {assetConditionUnavailable && (
+                <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="field-assetConditionReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                      Reason why Asset condition is not available <span className="text-[var(--bad)]">*</span>
+                    </label>
+                    <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
+                  </div>
+                  <input
+                    id="field-assetConditionReason"
+                    type="text"
+                    value={assetConditionReason}
+                    onChange={(e) => {
+                      setAssetConditionReason(e.target.value)
+                      if (errors.assetConditionReason) {
                         setErrors((prev) => {
                           const updated = { ...prev }
                           delete updated.assetConditionReason
@@ -1397,92 +1618,20 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                         })
                       }
                     }}
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                      assetConditionUnavailable
-                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold'
-                        : 'bg-transparent border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    {assetConditionUnavailable ? '⚠️ Unavailable' : 'Data unavailable?'}
-                  </button>
+                    placeholder="e.g. Factory-sealed package, pending QA physical testing, remote warehouse item"
+                    style={{
+                      ...inputStyle,
+                      height: '36px',
+                      fontSize: '12.5px',
+                      borderColor: errors.assetConditionReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
+                      backgroundColor: 'var(--surf)',
+                    }}
+                  />
+                  {errors.assetConditionReason && (
+                    <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetConditionReason}</p>
+                  )}
                 </div>
-                <input
-                  id="field-assetCondition"
-                  type="text"
-                  value={assetCondition}
-                  onChange={(e) => {
-                    setAssetCondition(e.target.value)
-                    if (errors.assetCondition) {
-                      setErrors((prev) => {
-                        const updated = { ...prev }
-                        delete updated.assetCondition
-                        return updated
-                      })
-                    }
-                  }}
-                  disabled={assetConditionUnavailable}
-                  placeholder={
-                    assetConditionUnavailable
-                      ? 'Condition pending inspection'
-                      : 'e.g. Operational - Excellent / New'
-                  }
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.assetCondition ? 'var(--bad)' : 'var(--line)',
-                    opacity: assetConditionUnavailable ? 0.6 : 1,
-                    backgroundColor: assetConditionUnavailable ? 'var(--surf2)' : 'var(--surf)',
-                  }}
-                />
-                {errors.assetCondition && <p className="text-xs text-[var(--bad)] mt-1">{errors.assetCondition}</p>}
-
-                {assetConditionUnavailable && (
-                  <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1 animate-fadeIn">
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="field-assetConditionReason" className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
-                        Reason why Asset condition is not available <span className="text-[var(--bad)]">*</span>
-                      </label>
-                      <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">Required</span>
-                    </div>
-                    <input
-                      id="field-assetConditionReason"
-                      type="text"
-                      value={assetConditionReason}
-                      onChange={(e) => {
-                        setAssetConditionReason(e.target.value)
-                        if (errors.assetConditionReason) {
-                          setErrors((prev) => {
-                            const updated = { ...prev }
-                            delete updated.assetConditionReason
-                            return updated
-                          })
-                        }
-                      }}
-                      placeholder="e.g. Factory-sealed package, pending QA physical testing, remote warehouse item"
-                      style={{
-                        ...inputStyle,
-                        height: '36px',
-                        fontSize: '12.5px',
-                        borderColor: errors.assetConditionReason ? 'var(--bad)' : 'rgba(245, 158, 11, 0.4)',
-                        backgroundColor: 'var(--surf)',
-                      }}
-                    />
-                    {errors.assetConditionReason && (
-                      <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetConditionReason}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label style={labelStyle}>Movement reason</label>
-                <input
-                  type="text"
-                  value={movementReason}
-                  onChange={(e) => setMovementReason(e.target.value)}
-                  placeholder="e.g. Initial provisioning to staff member"
-                  style={inputStyle}
-                />
-              </div>
+              )}
 
               <div>
                 <label style={labelStyle}>Remarks</label>

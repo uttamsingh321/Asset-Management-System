@@ -190,6 +190,10 @@ export interface Asset {
 
   // Location & Entity Hierarchy (Plant -> Workshop -> Line -> Station)
   company?: 'IIPL' | 'Padget' | string
+  companyCode?: string
+  assetClass?: string
+  capitalizationDate?: string
+  isExcelImported?: boolean
   plant: string
   workshop?: string
   productionLine?: string

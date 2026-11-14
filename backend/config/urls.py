@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from dashboard.views import (
     api_health,
     api_assets,
@@ -51,4 +51,6 @@ urlpatterns = [
     # Asset Transfer Approval Workflow (Sequential RBAC)
     path('api/transfers/', api_transfers, name='api-transfers'),
     path('api/transfers/<str:transfer_id>/action/', api_transfer_action, name='api-transfer-action'),
+    # Master Mapping & RBAC Administration Module
+    path('api/master-mapping/', include('master_mapping.urls')),
 ]
