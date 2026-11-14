@@ -17,6 +17,7 @@ import type { Language } from '@/lib/indiaLocale'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 import { exportAssetsToExcel } from '@/lib/excelExport'
+import { saveAssetsToStorage, loadAssetsFromStorage } from '@/lib/assetStorage'
 import { DigitalTwinFacility3D } from '@/components/DigitalTwinFacility3D'
 import { ExecutiveBentoGrid3D } from '@/components/ExecutiveBentoGrid3D'
 
@@ -242,14 +243,28 @@ export function App() {
     toast.info('Logged out from workshop terminal')
   }
 
-  // Sync to local storage safely with quota protection
+  // Asynchronous large-capacity persistence (IndexedDB for 100k+ assets, localStorage for startup cache)
   React.useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(assets.slice(0, 500)))
-    } catch (err) {
-      console.warn('Storage quota exceeded, keeping in-memory assets', err)
-    }
+    void saveAssetsToStorage(assets)
   }, [assets])
+
+  // Hydrate full dataset from IndexedDB on initial mount
+  React.useEffect(() => {
+    let isMounted = true
+    loadAssetsFromStorage().then((stored) => {
+      if (isMounted && stored && stored.length > 0) {
+        setAssets((prev) => {
+          if (stored.length > prev.length) {
+            return stored
+          }
+          return prev
+        })
+      }
+    }).catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Instant QR Deep-Link Scanner: Opens asset details when camera scans printed label
   React.useEffect(() => {
@@ -465,7 +480,16 @@ export function App() {
       location: '',
     }))
     setAssets((prev) => [...importedCodes, ...prev])
-    logAuditEvent('ASSET_IMPORT', { importedCount: codes.length, assetCodes: codes }, 'ASSET-CODE-IMPORT')
+    logAuditEvent(
+      'ASSET_IMPORT',
+      {
+        importedCount: codes.length,
+        firstCode: codes[0],
+        lastCode: codes[codes.length - 1],
+        sampleCodes: codes.slice(0, 5),
+      },
+      'ASSET-CODE-IMPORT'
+    )
   }
 
   const handleAssignAssetCode = (assetId: string, department: string) => {

@@ -28,21 +28,107 @@ interface AssetCodeWorkflowProps {
 
 const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
+const CODE_HEADER_ALIASES = new Set([
+  'assetcode', 'code', 'assettag', 'tag', 'assetid', 'barcode', 'qrcode',
+  'assetnumber', 'assetno', 'assetnum', 'sno', 'slno', '资产编号', '资产条码', '固定资产编号', '设备编号',
+  'itemcode', 'equipmentcode', 'department', 'dept', 'model', 'category', 'plant', 'location', 'name', 'status', 'description'
+])
+
+export function parsePastedAssetCodes(raw: string): string[] {
+  if (!raw || !raw.trim()) return []
+  const lines = raw.split(/\r?\n/)
+  const results: string[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+    if (!trimmed) continue
+
+    // If first row is a header row (e.g. "Asset Code \t Department \t Model"), skip the entire line
+    if (i === 0) {
+      const lower = trimmed.toLowerCase()
+      if (
+        (lower.includes('code') && (lower.includes('asset') || lower.includes('dept') || lower.includes('tag'))) ||
+        lower.includes('资产编号') || lower.includes('资产条码') || lower.startsWith('s.no') || lower.startsWith('sno')
+      ) {
+        continue
+      }
+    }
+
+    // Comma-delimited list of codes (e.g. "AST-001, AST-002, AST-003")
+    if (trimmed.includes(',')) {
+      const parts = trimmed.split(',').map((p) => p.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
+      for (const p of parts) {
+        if (p && !CODE_HEADER_ALIASES.has(normalized(p))) {
+          results.push(p)
+        }
+      }
+      continue
+    }
+
+    // Tab-delimited (copied table columns from Excel/Sheets) -> extract code column
+    if (trimmed.includes('\t')) {
+      const parts = trimmed.split('\t').map((p) => p.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
+      const candidate = parts.find((p) => !CODE_HEADER_ALIASES.has(normalized(p))) || parts[0]
+      if (candidate && !CODE_HEADER_ALIASES.has(normalized(candidate))) {
+        results.push(candidate)
+      }
+      continue
+    }
+
+    const clean = trimmed.replace(/^["']|["']$/g, '').trim()
+    if (clean && !CODE_HEADER_ALIASES.has(normalized(clean))) {
+      results.push(clean)
+    }
+  }
+
+  // Fallback if user pasted comma-separated codes all on one line without newlines
+  if (results.length === 0 && raw.includes(',')) {
+    return raw
+      .split(',')
+      .map((s) => s.trim().replace(/^["']|["']$/g, ''))
+      .filter((p) => Boolean(p) && !CODE_HEADER_ALIASES.has(normalized(p)))
+  }
+
+  return [...new Set(results)]
+}
+
 function readCodesFromFile(file: File): Promise<string[]> {
   return file.arrayBuffer().then((buffer) => {
-    const workbook = XLSX.read(buffer, { type: 'array' })
+    const workbook = XLSX.read(buffer, { type: 'array', dense: true })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     if (!sheet) return []
 
     const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '' })
-    const firstRow = (rows[0] || []).map((value) => String(value).trim())
-    const codeColumn = firstRow.findIndex((value) =>
-      ['assetcode', 'code', 'assettag', 'tag', 'assetid', 'barcode', 'qrcode'].includes(normalized(value))
-    )
-    const startRow = codeColumn >= 0 ? 1 : 0
+    if (rows.length === 0) return []
+
+    // Find header row in first 5 rows
+    let codeColumn = -1
+    let headerRowIdx = 0
+
+    for (let r = 0; r < Math.min(5, rows.length); r++) {
+      const row = (rows[r] || []).map((v) => String(v ?? '').trim())
+      const colIdx = row.findIndex(
+        (val) => CODE_HEADER_ALIASES.has(normalized(val)) || normalized(val).includes('assetcode') || normalized(val).includes('assetno')
+      )
+      if (colIdx >= 0) {
+        codeColumn = colIdx
+        headerRowIdx = r
+        break
+      }
+    }
+
+    const startRow = codeColumn >= 0 ? headerRowIdx + 1 : 0
     const column = codeColumn >= 0 ? codeColumn : 0
 
-    return rows.slice(startRow).map((row) => String(row[column] ?? '').trim()).filter(Boolean)
+    const extracted: string[] = []
+    for (let r = startRow; r < rows.length; r++) {
+      const val = String(rows[r]?.[column] ?? '').trim().replace(/^["']|["']$/g, '')
+      if (val && !CODE_HEADER_ALIASES.has(normalized(val))) {
+        extracted.push(val)
+      }
+    }
+
+    return [...new Set(extracted)]
   })
 }
 
@@ -61,6 +147,17 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   const [departmentFilter, setDepartmentFilter] = React.useState<string>(isAdmin ? 'All' : userDepartment)
   const [pastedCodes, setPastedCodes] = React.useState('')
   const [query, setQuery] = React.useState('')
+  const [isImporting, setIsImporting] = React.useState(false)
+  const [importProgressMessage, setImportProgressMessage] = React.useState('')
+
+  // High-performance pagination state
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(50)
+
+  // Reset to page 1 on filter or search changes
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, departmentFilter, query])
 
   // Categorize Assets
   const unassignedAssets = assets.filter((asset) => asset.status === 'Imported')
@@ -114,23 +211,64 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
     })
   }, [assets, statusFilter, departmentFilter, query, isAdmin, userDepartment])
 
+  // Paginated task slice for 60fps instant rendering even with 100k+ assets
+  const totalFilteredTasks = filteredTaskAssets.length
+  const totalPages = Math.max(1, Math.ceil(totalFilteredTasks / pageSize))
+  const paginatedTasks = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredTaskAssets.slice(start, start + pageSize)
+  }, [filteredTaskAssets, currentPage, pageSize])
+
+  // Live count of detected codes in paste input
+  const detectedPastedCount = React.useMemo(() => {
+    if (!pastedCodes.trim()) return 0
+    return parsePastedAssetCodes(pastedCodes).length
+  }, [pastedCodes])
+
   const importCodes = async (file?: File) => {
-    const codes = file
-      ? await readCodesFromFile(file)
-      : pastedCodes.split(/[\s,;]+/).map((code) => code.trim()).filter(Boolean)
-    const knownCodes = new Set(assets.map((asset) => asset.assetCode.toLowerCase()))
-    const uniqueCodes = [...new Set(codes.map((code) => code.trim()).filter(Boolean))]
-    const newCodes = uniqueCodes.filter((code) => !knownCodes.has(code.toLowerCase()))
+    setIsImporting(true)
+    setImportProgressMessage('Parsing asset codes...')
 
-    if (newCodes.length === 0) {
-      toast.info('No new asset codes found')
-      return
+    try {
+      const codes = file
+        ? await readCodesFromFile(file)
+        : parsePastedAssetCodes(pastedCodes)
+
+      if (codes.length === 0) {
+        toast.info('No valid asset codes found to import.')
+        setIsImporting(false)
+        return
+      }
+
+      if (codes.length > 2000) {
+        setImportProgressMessage(`Checking ${codes.length.toLocaleString()} codes for duplicates...`)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+
+      const knownCodes = new Set(assets.map((asset) => asset.assetCode.toLowerCase()))
+      const newCodes = codes.filter((code) => !knownCodes.has(code.toLowerCase()))
+
+      if (newCodes.length === 0) {
+        toast.info(`All ${codes.length.toLocaleString()} codes already exist in the system.`)
+        setIsImporting(false)
+        return
+      }
+
+      if (newCodes.length > 2000) {
+        setImportProgressMessage(`Adding ${newCodes.length.toLocaleString()} codes to task queue...`)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+
+      onImportCodes(newCodes)
+      setPastedCodes('')
+      toast.success(`${newCodes.length.toLocaleString()} asset code${newCodes.length === 1 ? '' : 's'} imported and added to task queue`)
+      setActiveTab('tasks')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to import asset codes')
+    } finally {
+      setIsImporting(false)
+      setImportProgressMessage('')
     }
-
-    onImportCodes(newCodes)
-    setPastedCodes('')
-    toast.success(`${newCodes.length} asset code${newCodes.length === 1 ? '' : 's'} imported and added to task queue`)
-    setActiveTab('tasks')
   }
 
   // Completion percentage
@@ -229,23 +367,37 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
             <textarea
               value={pastedCodes}
               onChange={(event) => setPastedCodes(event.target.value)}
-              rows={3}
-              placeholder={'Paste asset codes, one per line (e.g. AST000001, AST000002...)'}
+              rows={4}
+              placeholder={'Paste asset codes, one per line (e.g. AST000001, AST000002... or copy an entire column from Excel/CSV)'}
               aria-label="Paste asset codes"
               className="w-full rounded-lg border border-[var(--line)] bg-[var(--surf)] p-3 text-xs text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--acc)]"
+              disabled={isImporting}
             />
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-xs text-[var(--mute)]">
-                {assets.length} codes total · {pendingAssets.length} awaiting data entry
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--mute)]">
+                  {assets.length.toLocaleString()} codes total · {pendingAssets.length.toLocaleString()} awaiting data entry
+                </span>
+                {detectedPastedCount > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                    ✨ {detectedPastedCount.toLocaleString()} codes ready to import
+                  </span>
+                )}
+                {isImporting && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+                    <span className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+                    <span>{importProgressMessage || 'Importing asset codes...'}</span>
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
-                className="btn p text-xs"
+                className="btn p text-xs flex items-center gap-1.5"
                 onClick={() => void importCodes()}
-                disabled={!pastedCodes.trim()}
+                disabled={!pastedCodes.trim() || isImporting}
               >
-                Import pasted codes
+                <span>{isImporting ? '⏳ Importing...' : 'Import pasted codes'}</span>
               </button>
             </div>
           </section>
@@ -258,7 +410,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                 <span className="text-xs text-[var(--mute)]">{unassignedAssets.length} unassigned</span>
               </div>
               <div className="divide-y divide-[var(--line)] max-h-60 overflow-y-auto">
-                {unassignedAssets.map((asset) => (
+                {unassignedAssets.slice(0, 25).map((asset) => (
                   <AssignmentRow key={asset.id} asset={asset} onAssign={onAssign} />
                 ))}
               </div>
@@ -384,8 +536,8 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {filteredTaskAssets.length > 0 ? (
-                filteredTaskAssets.map((asset) => {
+              {paginatedTasks.length > 0 ? (
+                paginatedTasks.map((asset) => {
                   const isCompleted = asset.status === 'Completed' || asset.status === 'Active'
                   const dept = asset.currentDepartment || asset.department || 'Unassigned'
                   const inCharge = asset.inChargeName || asset.submitter || asset.assignedTo || '-'
@@ -465,6 +617,78 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* High-Performance Pagination Toolbar */}
+        {totalFilteredTasks > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[var(--line)] text-xs text-[var(--mute)]">
+            <div className="flex items-center gap-2">
+              <span>
+                Showing <strong className="text-[var(--ink)] font-mono">{(currentPage - 1) * pageSize + 1}</strong> to{' '}
+                <strong className="text-[var(--ink)] font-mono">
+                  {Math.min(currentPage * pageSize, totalFilteredTasks).toLocaleString()}
+                </strong>{' '}
+                of <strong className="text-[var(--ink)] font-mono">{totalFilteredTasks.toLocaleString()}</strong> tasks
+              </span>
+              <div className="flex items-center gap-1 ml-2">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="bg-[var(--surf2)] border border-[var(--line)] rounded px-1.5 py-0.5 text-xs text-[var(--ink)] cursor-pointer"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                  <option value={500}>500</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--line)] transition cursor-pointer font-medium"
+                title="First Page"
+              >
+                « First
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--line)] transition cursor-pointer font-medium"
+              >
+                ‹ Prev
+              </button>
+              <span className="px-2 font-mono text-[var(--ink)] font-semibold">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2.5 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--line)] transition cursor-pointer font-medium"
+              >
+                Next ›
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--line)] transition cursor-pointer font-medium"
+                title="Last Page"
+              >
+                Last »
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   )
