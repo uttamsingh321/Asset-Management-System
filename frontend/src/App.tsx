@@ -20,6 +20,7 @@ import { exportAssetsToExcel } from '@/lib/excelExport'
 import { saveAssetsToStorage, loadAssetsFromStorage } from '@/lib/assetStorage'
 import { DigitalTwinFacility3D } from '@/components/DigitalTwinFacility3D'
 import { ExecutiveBentoGrid3D } from '@/components/ExecutiveBentoGrid3D'
+import { initialAssets } from '@/data/mockAssets'
 
 // Lazy-load heavy views to keep bundle fast
 const IndiaMaintenanceView = React.lazy(() => import('@/components/IndiaMaintenanceView'))
@@ -102,9 +103,9 @@ export function App() {
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
+      return saved ? JSON.parse(saved) : initialAssets
     } catch {
-      return []
+      return initialAssets
     }
   })
   const searchInputRef = React.useRef<HTMLInputElement>(null)

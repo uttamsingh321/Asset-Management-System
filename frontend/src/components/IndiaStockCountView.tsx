@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import jsQR from 'jsqr'
 import { toast } from 'sonner'
 import { t, formatDateIN, type Language } from '@/lib/indiaLocale'
 import type { Asset } from '@/types/asset'
@@ -130,7 +131,7 @@ export function IndiaStockCountView({
   const [taskItemRecords, setTaskItemRecords] = useState<Record<string, StockCountItemRecord>>({})
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'verified' | 'variances'>('all')
 
-  // 3. QR Scan Dialog State
+  // 3. QR Scan Dialog State & Real Hardware Camera Feed
   const [isScanModalOpen, setIsScanModalOpen] = useState(false)
   const [targetAsset, setTargetAsset] = useState<Asset | null>(null)
   const [scannedCodeInput, setScannedCodeInput] = useState('')
@@ -141,6 +142,20 @@ export function IndiaStockCountView({
     asset?: Asset
   } | null>(null)
   const [isValidatingScan, setIsValidatingScan] = useState(false)
+
+  // Real Camera Hardware Feed & QR Decoder State
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+  const [scannedFeedback, setScannedFeedback] = useState<string | null>(null)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const scanAnimFrameRef = useRef<number | null>(null)
+  const isProcessingScanRef = useRef(false)
+  const lastScannedCodeRef = useRef<string | null>(null)
+  const lastScannedTimeRef = useRef<number>(0)
 
   // 4. Asset Details Verification Modal
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
@@ -400,6 +415,179 @@ export function IndiaStockCountView({
       })
     }
   }
+
+  // ── Camera Controller & QR Scanning Engine ─────────────────────────────────
+
+  const stopCamera = useCallback(() => {
+    if (scanAnimFrameRef.current) {
+      cancelAnimationFrame(scanAnimFrameRef.current)
+      scanAnimFrameRef.current = null
+    }
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop()
+        })
+      } catch {}
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setCameraActive(false)
+  }, [])
+
+  const startCamera = useCallback(async (mode: 'environment' | 'user' = facingMode) => {
+    setCameraError(null)
+    setScannedFeedback(null)
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera API is not supported in this browser environment. You can enter or scan codes using a hardware scanner below.')
+      setCameraActive(false)
+      return
+    }
+
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: mode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      setCameraActive(true)
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        try {
+          await videoRef.current.play()
+        } catch {
+          // Playback constraint handled
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unable to access device camera'
+      setCameraError(msg)
+      setCameraActive(false)
+    }
+  }, [facingMode])
+
+  const toggleFacingMode = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment'
+    setFacingMode(nextMode)
+    startCamera(nextMode)
+  }
+
+  // Camera start / stop lifecycle tied to isScanModalOpen
+  useEffect(() => {
+    if (isScanModalOpen) {
+      startCamera(facingMode)
+    } else {
+      stopCamera()
+      setCameraError(null)
+      setScannedFeedback(null)
+      lastScannedCodeRef.current = null
+    }
+    return () => {
+      stopCamera()
+    }
+  }, [isScanModalOpen, startCamera, stopCamera, facingMode])
+
+  // Continuous Video Frame QR Decoder Loop
+  useEffect(() => {
+    if (!isScanModalOpen || !cameraActive) return
+
+    let isMounted = true
+
+    const scanFrame = async () => {
+      if (!isMounted || !isScanModalOpen) return
+
+      const video = videoRef.current
+      const canvas = canvasRef.current
+
+      if (video && canvas && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        if (ctx) {
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+          let detectedCode: string | null = null
+
+          // Method 1: BarcodeDetector API (fastest if supported)
+          if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+            try {
+              // @ts-ignore
+              const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'upc_a'] })
+              const barcodes = await detector.detect(canvas)
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                detectedCode = barcodes[0].rawValue
+              }
+            } catch {}
+          }
+
+          // Method 2: jsQR decoding fallback
+          if (!detectedCode) {
+            try {
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+              const qr = jsQR(imgData.data, imgData.width, imgData.height, {
+                inversionAttempts: 'attemptBoth',
+              })
+              if (qr && qr.data) {
+                detectedCode = qr.data
+              }
+            } catch {}
+          }
+
+          if (detectedCode && !isProcessingScanRef.current) {
+            const now = Date.now()
+            if (detectedCode !== lastScannedCodeRef.current || now - lastScannedTimeRef.current > 2500) {
+              lastScannedCodeRef.current = detectedCode
+              lastScannedTimeRef.current = now
+              isProcessingScanRef.current = true
+
+              setScannedFeedback(detectedCode)
+              setScannedCodeInput(detectedCode)
+
+              try {
+                if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                  navigator.vibrate(60)
+                }
+              } catch {}
+
+              await handleValidateQr(detectedCode)
+
+              setTimeout(() => {
+                isProcessingScanRef.current = false
+              }, 1200)
+            }
+          }
+        }
+      }
+
+      if (isMounted && isScanModalOpen) {
+        scanAnimFrameRef.current = requestAnimationFrame(scanFrame)
+      }
+    }
+
+    scanAnimFrameRef.current = requestAnimationFrame(scanFrame)
+
+    return () => {
+      isMounted = false
+      if (scanAnimFrameRef.current) {
+        cancelAnimationFrame(scanAnimFrameRef.current)
+      }
+    }
+  }, [isScanModalOpen, cameraActive, handleValidateQr])
 
   // Step 4A: Decision: Information Correct
   const handleMarkCorrect = async () => {
@@ -1147,14 +1335,104 @@ export function IndiaStockCountView({
               </div>
             )}
 
-            {/* Simulated Live Viewfinder */}
-            <div className="relative w-full h-44 rounded-xl bg-black/90 flex flex-col items-center justify-center overflow-hidden border-2 border-dashed border-blue-500/60 p-4 text-center">
-              <div className="w-28 h-28 border-2 border-emerald-400 rounded-lg relative flex items-center justify-center">
-                <div className="w-full h-0.5 bg-red-500 shadow-sm animate-pulse" />
-              </div>
-              <span className="text-[11px] text-white/70 mt-2 font-mono">
-                [Point Camera or Hardware Scanner at Asset QR Code]
-              </span>
+            {/* Live Camera Viewfinder & QR Scanner */}
+            <div className="relative w-full h-56 rounded-xl bg-black overflow-hidden border-2 border-emerald-500/40 p-0 shadow-inner flex items-center justify-center">
+              {/* Hidden Canvas for Frame Decoding */}
+              <canvas ref={canvasRef} className="hidden" />
+
+              {/* Video Element */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                  cameraActive ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+
+              {/* Live Scanning Reticle Overlay */}
+              {cameraActive && (
+                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-3 z-10">
+                  {/* Top Bar: Live Status and Switch Camera */}
+                  <div className="w-full flex items-center justify-between pointer-events-auto">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-xs text-[10px] font-medium text-emerald-400 border border-emerald-500/30">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      Camera Live • Scanning
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleFacingMode}
+                      className="px-2.5 py-1 rounded bg-black/75 hover:bg-black/90 text-white text-[11px] font-medium border border-white/20 transition cursor-pointer flex items-center gap-1"
+                      title="Switch between rear and front camera"
+                    >
+                      <span>🔄</span>
+                      <span>{facingMode === 'environment' ? 'Rear' : 'Front'} Camera</span>
+                    </button>
+                  </div>
+
+                  {/* Target Alignment Reticle */}
+                  <div className="relative w-36 h-36 border-2 border-emerald-400/90 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.35)] flex items-center justify-center overflow-hidden">
+                    {/* Reticle Corner Marks */}
+                    <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-300" />
+                    <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-300" />
+                    <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-300" />
+                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-300" />
+
+                    {/* Sweeping Laser Line */}
+                    <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-lg animate-pulse" />
+                  </div>
+
+                  {/* Bottom Guide */}
+                  <div className="px-2.5 py-0.5 rounded bg-black/75 backdrop-blur-xs text-[10px] text-white/80 font-mono">
+                    Point camera at Asset QR code label
+                  </div>
+                </div>
+              )}
+
+              {/* Instant Detection Flash Banner */}
+              {scannedFeedback && (
+                <div className="absolute inset-0 bg-emerald-500/20 backdrop-blur-2xs flex items-center justify-center z-20 animate-in fade-in">
+                  <div className="bg-black/90 text-emerald-300 px-4 py-2 rounded-lg border border-emerald-500/50 text-xs font-mono font-bold flex items-center gap-2 shadow-xl">
+                    <span className="text-base">✓</span>
+                    <span>Detected: {scannedFeedback}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Camera Inactive / Permission Prompt / Error Fallback */}
+              {!cameraActive && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-zinc-950/95 space-y-2 z-10">
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center text-xl text-zinc-400">
+                    📷
+                  </div>
+                  <div className="text-xs font-semibold text-white/90">
+                    {cameraError ? 'Camera Permission Required' : 'Initializing Camera...'}
+                  </div>
+                  <p className="text-[11px] text-white/60 max-w-xs leading-relaxed">
+                    {cameraError ||
+                      'Please allow camera access when prompted by your browser to scan physical equipment QR labels.'}
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => startCamera(facingMode)}
+                      className="px-3 py-1.5 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-500 text-white cursor-pointer shadow-xs transition"
+                    >
+                      📷 Retry Camera
+                    </button>
+                    {cameraError && (
+                      <button
+                        type="button"
+                        onClick={toggleFacingMode}
+                        className="px-3 py-1.5 text-xs font-semibold rounded bg-zinc-800 hover:bg-zinc-700 text-white cursor-pointer shadow-xs transition"
+                      >
+                        🔄 Switch Device
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Input for Manual Code / Hardware Barcode Scanner Gun */}
