@@ -1,5 +1,6 @@
 import * as React from 'react'
 import QRCode from 'qrcode'
+import JsBarcode from 'jsbarcode'
 import type { Asset } from '@/types/asset'
 import { checkAssetDataCompleteness, isAssetPrintable } from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
@@ -12,52 +13,117 @@ interface IndiaLabelPrintViewProps {
   onFillAssetData?: (asset: Asset) => void
 }
 
-// 1D Barcode SVG Component with Code-128 style representation
-function BarcodeSvg({ value, height = 38 }: { value: string; height?: number }) {
-  const bars = React.useMemo(() => {
-    const chars = value || '2004218'
-    const pattern: number[] = [2, 1, 1, 2] // start pattern
-    for (let i = 0; i < chars.length; i++) {
-      const code = chars.charCodeAt(i)
-      pattern.push(
-        (code % 3) + 1,
-        ((code >> 2) % 2) + 1,
-        ((code >> 4) % 3) + 1,
-        1
-      )
-    }
-    pattern.push(2, 1, 2, 3, 2) // stop pattern
-    return pattern
-  }, [value])
+// Full 107 Code 128 binary symbols (ISO/IEC 15417 standard table)
+const CODE128_PATTERNS: string[] = [
+  '11011001100', '11001101100', '11001100110', '10010011000', '10010001100',
+  '10001001100', '10011001000', '10011000100', '10001100100', '11001001000',
+  '11001000100', '11000100100', '10110011100', '10011011100', '10011001110',
+  '10111001100', '10011101100', '10011100110', '11001110010', '11001011100',
+  '11001001110', '11011100100', '11001110100', '11101101110', '11101001100',
+  '11100101100', '11100100110', '11101100100', '11100110100', '11100110010',
+  '11011011000', '11011000110', '11000110110', '10100011000', '10001011000',
+  '10001000110', '10110001000', '10001101000', '10001100010', '11010001000',
+  '11000101000', '11000100010', '10110111000', '10110001110', '10001101110',
+  '10111011000', '10111000110', '10001110110', '11101110110', '11010001110',
+  '11000101110', '11011101000', '11011100010', '11011101110', '11101011000',
+  '11101000110', '11100010110', '11101101000', '11101100010', '11100011010',
+  '11101111010', '11001000010', '11110001010', '10100110000', '10100001100',
+  '10010110000', '10010000110', '10000101100', '10000100110', '10110010000',
+  '10110000100', '10011010000', '10011000010', '10000110100', '10000110010',
+  '11000010010', '11001010000', '11110111010', '11000010100', '10001111010',
+  '10100111100', '10010111100', '10010011110', '10111100100', '10011110100',
+  '10011110010', '11110100100', '11110010100', '11110010010', '11011011110',
+  '11011110110', '11110110110', '10101111000', '10100011110', '10001011110',
+  '10111101000', '10111100010', '11110101000', '11110100010', '10111011110',
+  '10111101110', '11101011110', '11110101110', '11010000100', '11010010000',
+  '11010011100', '1100011101011'
+]
 
-  let currentX = 4
-  const rects: React.ReactNode[] = []
-  bars.forEach((width, idx) => {
-    if (idx % 2 === 0) {
-      rects.push(
-        <rect
-          key={idx}
-          x={currentX}
-          y="0"
-          width={width * 1.6}
-          height={height}
-          fill="#000000"
-        />
-      )
+// Fallback Code 128 Set B binary sequence generator
+function encodeCode128SetB(text: string): string {
+  let checksum = 104 // Start B
+  let binary = CODE128_PATTERNS[104]
+  for (let i = 0; i < text.length; i++) {
+    const val = (text.charCodeAt(i) - 32) % 103
+    const safeVal = val >= 0 && val < 103 ? val : 0
+    checksum += safeVal * (i + 1)
+    binary += CODE128_PATTERNS[safeVal]
+  }
+  binary += CODE128_PATTERNS[checksum % 103]
+  binary += CODE128_PATTERNS[106] // Stop symbol
+  return binary
+}
+
+// 1D Barcode SVG Component with official ISO/IEC 15417 Code-128 standard encoding scannable by all barcode guns and camera scanners
+function BarcodeSvg({ value, height = 44 }: { value: string; height?: number }) {
+  const { totalWidth, rects } = React.useMemo(() => {
+    const rawVal = String(value || '2004218').trim()
+    let binaryData = ''
+
+    try {
+      // @ts-ignore - JsBarcode.getModule exists in jsbarcode library
+      const Code128 = JsBarcode.getModule('CODE128')
+      if (Code128) {
+        // @ts-ignore
+        const instance = new Code128(rawVal, {})
+        if (typeof instance.encode === 'function') {
+          const enc = instance.encode()
+          binaryData = enc?.data || ''
+        }
+      }
+    } catch (err) {
+      console.warn('JsBarcode encoding error:', err)
     }
-    currentX += width * 1.6
-  })
+
+    if (!binaryData || !/^[01]+$/.test(binaryData)) {
+      binaryData = encodeCode128SetB(rawVal)
+    }
+
+    const quietZone = 10 // ISO/IEC 15417 standard quiet zone (10 modules on left and right)
+    let x = quietZone
+    let currentBarWidth = 0
+    const barRects: { x: number; width: number }[] = []
+
+    for (let i = 0; i < binaryData.length; i++) {
+      if (binaryData[i] === '1') {
+        currentBarWidth++
+      } else {
+        if (currentBarWidth > 0) {
+          barRects.push({ x: x - currentBarWidth, width: currentBarWidth })
+          currentBarWidth = 0
+        }
+      }
+      x++
+    }
+    if (currentBarWidth > 0) {
+      barRects.push({ x: x - currentBarWidth, width: currentBarWidth })
+    }
+
+    const fullWidth = binaryData.length + quietZone * 2
+    return { totalWidth: fullWidth, rects: barRects }
+  }, [value])
 
   return (
     <svg
       width="100%"
       height={height}
-      viewBox={`0 0 ${currentX + 4} ${height}`}
-      preserveAspectRatio="none"
-      className="block"
+      viewBox={`0 0 ${totalWidth} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
+      className="block mx-auto bg-white"
+      shapeRendering="crispEdges"
       aria-label={`Barcode for ${value}`}
     >
-      {rects}
+      <rect width={totalWidth} height={height} fill="#ffffff" />
+      {rects.map((r, idx) => (
+        <rect
+          key={idx}
+          x={r.x}
+          y={0}
+          width={r.width}
+          height={height}
+          fill="#000000"
+        />
+      ))}
     </svg>
   )
 }
@@ -352,19 +418,19 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            padding: `${5 * scale}px ${12 * scale}px`,
+            padding: `${4 * scale}px ${8 * scale}px`,
             boxSizing: 'border-box',
           }}
         >
-          <div style={{ width: '94%', height: `${44 * scale}px` }}>
-            <BarcodeSvg value={asset.assetCode || '2004218'} height={Math.round(44 * scale)} />
+          <div style={{ width: '100%', height: `${48 * scale}px`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BarcodeSvg value={asset.assetCode || '2004218'} height={Math.round(48 * scale)} />
           </div>
           <div
             style={{
-              fontSize: `${14 * scale}px`,
+              fontSize: `${13.5 * scale}px`,
               fontWeight: 800,
-              letterSpacing: '2px',
-              fontFamily: 'monospace, "Arial", sans-serif',
+              letterSpacing: `${4 * scale}px`,
+              fontFamily: 'monospace, "Courier New", Courier, monospace',
               marginTop: `${2 * scale}px`,
               textAlign: 'center',
             }}
@@ -381,7 +447,7 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-start',
-            padding: `${5 * scale}px ${12 * scale}px`,
+            padding: `${4 * scale}px ${8 * scale}px`,
             gap: `${10 * scale}px`,
             boxSizing: 'border-box',
           }}

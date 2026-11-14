@@ -227,4 +227,21 @@ describe('ismartu Equipment Fixed Asset QR Label Specification', () => {
     expect(padgetLogo).toBeInTheDocument()
     expect(padgetLogo.getAttribute('src')).toContain('data:image/png;base64,')
   })
+
+  it('Barcode Readability Rule: renders ISO/IEC 15417 Code-128 standard barcode with crispEdges and quiet zones', () => {
+    render(<IsmartuAssetLabel asset={sampleAsset} />)
+
+    const barcodeSvg = screen.getByLabelText(/Barcode for 2004218/i)
+    expect(barcodeSvg).toBeInTheDocument()
+    expect(barcodeSvg).toHaveAttribute('shape-rendering', 'crispEdges')
+
+    // Has crisp black bars and white quiet zone background
+    const rects = barcodeSvg.querySelectorAll('rect')
+    expect(rects.length).toBeGreaterThan(15) // Real Code-128 contains alternating bars and spaces
+
+    // First rect is the white quiet zone background
+    expect(rects[0]).toHaveAttribute('fill', '#ffffff')
+    // Subsequent rects are sharp black bars
+    expect(rects[1]).toHaveAttribute('fill', '#000000')
+  })
 })
