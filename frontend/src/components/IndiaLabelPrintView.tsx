@@ -489,7 +489,40 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
   )
 }
 
+export interface LabelSizePreset {
+  id: string
+  name: string
+  widthMm: number
+  heightMm: number
+  scale: number
+  desc: string
+}
+
+export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
+  { id: '100x65', name: '100 × 65 mm', widthMm: 100, heightMm: 65, scale: 1.0, desc: 'Enterprise Standard (Default)' },
+  { id: '80x50', name: '80 × 50 mm', widthMm: 80, heightMm: 50, scale: 0.8, desc: 'Medium Machinery' },
+  { id: '75x50', name: '75 × 50 mm (3" × 2")', widthMm: 75, heightMm: 50, scale: 0.75, desc: 'Standard Thermal Roll' },
+  { id: '70x45', name: '70 × 45 mm', widthMm: 70, heightMm: 45, scale: 0.7, desc: 'Compact Equipment' },
+  { id: '50x35', name: '50 × 35 mm (2" × 1.4")', widthMm: 50, heightMm: 35, scale: 0.52, desc: 'Mini Asset Tag' },
+  { id: 'custom', name: 'Custom Size', widthMm: 100, heightMm: 65, scale: 1.0, desc: 'User-defined Dimensions' },
+]
+
 export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabelPrintViewProps) {
+  // Label Print Size Management State
+  const [selectedPresetId, setSelectedPresetId] = React.useState<string>('100x65')
+  const [customWidthMm, setCustomWidthMm] = React.useState<number>(100)
+  const [customHeightMm, setCustomHeightMm] = React.useState<number>(65)
+  const [customScalePercent, setCustomScalePercent] = React.useState<number>(100)
+  const [showSizeManager, setShowSizeManager] = React.useState<boolean>(false)
+
+  const activePreset = React.useMemo(() => {
+    return LABEL_SIZE_PRESETS.find((p) => p.id === selectedPresetId) || LABEL_SIZE_PRESETS[0]
+  }, [selectedPresetId])
+
+  const activeWidthMm = selectedPresetId === 'custom' ? customWidthMm : activePreset.widthMm
+  const activeHeightMm = selectedPresetId === 'custom' ? customHeightMm : activePreset.heightMm
+  const activeScale = selectedPresetId === 'custom' ? customScalePercent / 100 : activePreset.scale
+
   const [selectedAssetId, setSelectedAssetId] = React.useState<string>(() => {
     try {
       const stored = sessionStorage.getItem('meridian_print_asset_id')
@@ -626,8 +659,8 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
       <style>{`
         @media print {
           @page {
-            size: auto;
-            margin: 6mm;
+            size: ${activeWidthMm}mm ${activeHeightMm}mm;
+            margin: 0;
           }
           body {
             background: #ffffff !important;
@@ -653,9 +686,13 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
           .ismartu-print-item {
             page-break-after: always;
             break-after: page;
-            margin: 0 auto 20px auto !important;
+            margin: 0 auto !important;
             display: flex !important;
             justify-content: center !important;
+            align-items: center !important;
+            width: ${activeWidthMm}mm !important;
+            height: ${activeHeightMm}mm !important;
+            box-sizing: border-box !important;
           }
           .ismartu-label-card {
             box-shadow: none !important;
@@ -919,18 +956,166 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
         {/* Right Column: Live Label Preview */}
         <div className="lg:col-span-7 space-y-4">
           <div className="card p-6 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-[var(--line)]">
-              <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)]">
-                  Exact Label Preview
-                </h2>
-                <span className="text-[11px] text-[var(--mute)]">
-                  Exact representation that will print on thermal sticker or laser printer
-                </span>
+            <div className="flex flex-col gap-2 pb-3 border-b border-[var(--line)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)]">
+                    Exact Label Preview
+                  </h2>
+                  <span className="text-[11px] text-[var(--mute)]">
+                    Exact representation that will print on thermal sticker or laser printer
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--acc)] font-mono font-bold">
+                    {activeWidthMm}mm × {activeHeightMm}mm
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeManager(!showSizeManager)}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--surf)] text-[var(--ink)] cursor-pointer flex items-center gap-1.5 shadow-2xs transition"
+                    title="Change print label dimensions and scale"
+                  >
+                    <span>📐</span>
+                    <span>{showSizeManager ? 'Close Size Manager' : 'Manage Size'}</span>
+                  </button>
+                </div>
               </div>
-              <span className="text-xs text-[var(--acc)] font-mono font-bold">
-                100mm × 65mm
-              </span>
+
+              {/* Manage Label Size Control Bar */}
+              {showSizeManager && (
+                <div className="p-3.5 rounded-xl border border-[var(--acc)]/30 bg-[var(--acc)]/5 space-y-3 animate-fadeIn">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[var(--ink)] flex items-center gap-1.5">
+                      <span>⚙️</span>
+                      <span>Label Print Dimensions & Scaling</span>
+                    </span>
+                    <span className="text-[11px] text-[var(--mute)]">
+                      Configure thermal roll sticker (Zebra/TSC/TVS) or laser printer output
+                    </span>
+                  </div>
+
+                  {/* Standard Presets */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-[var(--mute)]">Standard Roll Presets</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LABEL_SIZE_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPresetId(preset.id)
+                            if (preset.id !== 'custom') {
+                              setCustomWidthMm(preset.widthMm)
+                              setCustomHeightMm(preset.heightMm)
+                              setCustomScalePercent(Math.round(preset.scale * 100))
+                            }
+                          }}
+                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                            selectedPresetId === preset.id
+                              ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-xs font-bold'
+                              : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                          }`}
+                          title={preset.desc}
+                        >
+                          <span>{preset.name}</span>
+                          {selectedPresetId === preset.id && <span className="text-[10px]">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Width, Height & Zoom Scale */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[var(--line)]/50 text-xs">
+                    {/* Custom Width */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-[var(--mute)] block">
+                        Width (mm)
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={30}
+                          max={250}
+                          value={activeWidthMm}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 30
+                            setSelectedPresetId('custom')
+                            setCustomWidthMm(val)
+                            setCustomScalePercent(Math.round((val / 100) * 100))
+                          }}
+                          className="w-full text-xs font-mono font-bold p-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
+                        />
+                        <span className="text-[11px] text-[var(--mute)] font-medium">mm</span>
+                      </div>
+                    </div>
+
+                    {/* Custom Height */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-[var(--mute)] block">
+                        Height (mm)
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={20}
+                          max={200}
+                          value={activeHeightMm}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 20
+                            setSelectedPresetId('custom')
+                            setCustomHeightMm(val)
+                          }}
+                          className="w-full text-xs font-mono font-bold p-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
+                        />
+                        <span className="text-[11px] text-[var(--mute)] font-medium">mm</span>
+                      </div>
+                    </div>
+
+                    {/* Scale / Zoom Slider */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-semibold text-[var(--mute)]">
+                          Visual Scale
+                        </label>
+                        <span className="text-[11px] font-mono font-bold text-[var(--acc)]">
+                          {Math.round(activeScale * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={40}
+                          max={160}
+                          step={5}
+                          value={Math.round(activeScale * 100)}
+                          onChange={(e) => {
+                            const val = Number(e.target.value)
+                            setSelectedPresetId('custom')
+                            setCustomScalePercent(val)
+                            setCustomWidthMm(Math.round((100 * val) / 100))
+                            setCustomHeightMm(Math.round((65 * val) / 100))
+                          }}
+                          className="w-full accent-[var(--acc)] cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPresetId('100x65')
+                            setCustomWidthMm(100)
+                            setCustomHeightMm(65)
+                            setCustomScalePercent(100)
+                          }}
+                          className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)] whitespace-nowrap cursor-pointer"
+                          title="Reset to 100% (100×65mm)"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Incomplete Asset Warning Banner */}
@@ -982,7 +1167,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
               <div className="flex flex-col items-center justify-center py-6 bg-[var(--surf2)]/50 rounded-xl p-4 overflow-x-auto relative">
                 {/* Visual Label Presentation */}
                 <div className={`transform transition-transform ${isCurrentPrintable ? 'hover:scale-[1.01]' : 'opacity-85'}`}>
-                  <IsmartuAssetLabel asset={currentAsset} scale={1} />
+                  <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
                 </div>
 
                 {!isCurrentPrintable && (
@@ -1037,12 +1222,12 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData }: IndiaLabe
         {selectedBulkCount > 0 ? (
           printableBulkAssets.map((asset) => (
             <div key={asset.id} className="ismartu-print-item">
-              <IsmartuAssetLabel asset={asset} scale={1} />
+              <IsmartuAssetLabel asset={asset} scale={activeScale} />
             </div>
           ))
         ) : currentAsset && isCurrentPrintable ? (
           <div className="ismartu-print-item">
-            <IsmartuAssetLabel asset={currentAsset} scale={1} />
+            <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
           </div>
         ) : null}
       </div>

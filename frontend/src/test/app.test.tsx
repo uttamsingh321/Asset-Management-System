@@ -7,6 +7,7 @@ describe('Meridian UI/UX Zero Dummy Data & Responsive Collapsible Navigation', (
   beforeEach(() => {
     window.location.hash = ''
     localStorage.clear()
+    localStorage.setItem('meridian_assets', '[]')
     window.innerWidth = 1024
   })
 

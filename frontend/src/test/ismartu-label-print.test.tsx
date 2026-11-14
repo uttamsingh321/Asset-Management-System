@@ -244,4 +244,29 @@ describe('ismartu Equipment Fixed Asset QR Label Specification', () => {
     // Subsequent rects are sharp black bars
     expect(rects[1]).toHaveAttribute('fill', '#000000')
   })
+
+  it('Label Size Manager: allows selecting roll presets or custom mm dimensions and scale', () => {
+    render(<IndiaLabelPrintView assets={[sampleAsset]} lang="en" />)
+
+    // Check that default dimensions (100mm × 65mm) are displayed
+    expect(screen.getByText('100mm × 65mm')).toBeInTheDocument()
+
+    // Open the Size Manager
+    const manageBtn = screen.getByRole('button', { name: /Manage Size/i })
+    expect(manageBtn).toBeInTheDocument()
+    fireEvent.click(manageBtn)
+
+    // Size manager toolbar should appear with presets
+    expect(screen.getByText('Standard Roll Presets')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /75 × 50 mm/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /50 × 35 mm/i })).toBeInTheDocument()
+
+    // Select 75 x 50 mm preset
+    fireEvent.click(screen.getByRole('button', { name: /75 × 50 mm/i }))
+    expect(screen.getByText('75mm × 50mm')).toBeInTheDocument()
+
+    // Select 50 x 35 mm preset
+    fireEvent.click(screen.getByRole('button', { name: /50 × 35 mm/i }))
+    expect(screen.getByText('50mm × 35mm')).toBeInTheDocument()
+  })
 })

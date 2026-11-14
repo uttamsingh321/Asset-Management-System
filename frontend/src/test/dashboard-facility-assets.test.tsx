@@ -7,6 +7,7 @@ describe('Main Dashboard Facility Assets Register Specification', () => {
   beforeEach(() => {
     window.location.hash = '#dashboard'
     localStorage.clear()
+    localStorage.setItem('meridian_assets', '[]')
     window.innerWidth = 1024
   })
 

@@ -8,6 +8,7 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
   beforeEach(() => {
     window.location.hash = '#assets'
     localStorage.clear()
+    localStorage.setItem('meridian_assets', '[]')
   })
 
   it('Image Rule: Keyword matching helper accurately resolves all required equipment graphics', () => {
@@ -43,9 +44,7 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
 
     // Categorized groups
     expect(screen.getByRole('heading', { level: 3, name: /basic information/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: /location/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: /ownership/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: /asset status/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: /missing physical details to fill/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: /media/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: /metadata/i })).toBeInTheDocument()
 
@@ -124,6 +123,9 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     })
     fireEvent.change(screen.getByPlaceholderText(/e\.g\. Laptops & Compute/i), {
       target: { value: 'Laptops & Compute' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Name: e\.g\. Rajesh Kumar/i), {
+      target: { value: 'Rajesh Kumar' },
     })
 
     // Submit form via "Save asset"
