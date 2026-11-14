@@ -99,6 +99,12 @@ export function App() {
   const [dashSearchQuery, setDashSearchQuery] = React.useState<string>('')
   const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string; code: string } | null>(null)
   const [qrScannedAsset, setQrScannedAsset] = React.useState<Asset | null>(null)
+  const [qrAccessDenied, setQrAccessDenied] = React.useState<{
+    assetCode: string
+    assetDepartment: string
+    userDepartment: string
+    userName: string
+  } | null>(null)
   const addAssetButtonRef = React.useRef<HTMLButtonElement>(null)
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
@@ -132,6 +138,43 @@ export function App() {
       currentUser.userId?.toUpperCase() === 'USR-ADMIN'
     )
   }, [currentUser])
+
+  // Check if a specific asset can be viewed by the user under department RBAC
+  const checkAssetAccess = React.useCallback(
+    (targetAsset: Asset, user: UserProfile): boolean => {
+      if (
+        user.isSuperuser ||
+        user.role === 'Admin' ||
+        user.role === 'Administrator' ||
+        user.userId?.toUpperCase() === 'USR-ADMIN'
+      ) {
+        return true
+      }
+
+      const userDept = (user.department || '').trim().toLowerCase()
+      const userId = (user.userId || '').trim().toLowerCase()
+      const userName = (user.userName || '').trim().toLowerCase()
+
+      const assetDept = (targetAsset.currentDepartment || targetAsset.department || '').trim().toLowerCase()
+      const inChargeId = (targetAsset.inChargeId || '').trim().toLowerCase()
+      const inChargeName = (targetAsset.inChargeName || targetAsset.whoInCharge || '').trim().toLowerCase()
+      const submitter = (targetAsset.submitter || '').trim().toLowerCase()
+
+      // 1. Matches user's department
+      if (userDept && assetDept && (assetDept === userDept || assetDept.includes(userDept) || userDept.includes(assetDept))) {
+        return true
+      }
+      // 2. Matches user's identity
+      if (userId && inChargeId === userId) {
+        return true
+      }
+      if (userName && (inChargeName.includes(userName) || submitter.includes(userName))) {
+        return true
+      }
+      return false
+    },
+    []
+  )
 
   // Scope assets strictly by the active user's department or identity
   const scopedAssets = React.useMemo(() => {
@@ -267,8 +310,13 @@ export function App() {
     }
   }, [])
 
-  // Instant QR Deep-Link Scanner: Opens asset details when camera scans printed label
+  // Instant QR Deep-Link Scanner: Opens asset details or enforces Department RBAC restriction
   React.useEffect(() => {
+    // CRITICAL SECURITY: If user is not authenticated, DO NOT process or expose deep-link asset data!
+    if (!isAuthenticated) {
+      return
+    }
+
     const checkDeepLink = () => {
       try {
         const searchParams = new URLSearchParams(window.location.search)
@@ -287,9 +335,50 @@ export function App() {
               (a.assetTag && a.assetTag.toLowerCase() === targetCode.toLowerCase())
           )
           if (match) {
-            setQrScannedAsset(match)
-            logAuditEvent('QR_VERIFY_SCAN', { assetCode: match.assetCode, origin: window.location.href }, match.assetCode)
-            toast.success(`Scanned QR Verified: ${match.name || match.assetCode}`)
+            // Check if active authenticated user has department permission for this asset
+            if (checkAssetAccess(match, currentUser)) {
+              setQrAccessDenied(null)
+              setQrScannedAsset(match)
+              logAuditEvent(
+                'QR_VERIFY_SCAN',
+                {
+                  assetCode: match.assetCode,
+                  department: match.currentDepartment || match.department,
+                  userDepartment: currentUser.department,
+                  userId: currentUser.userId,
+                  origin: window.location.href,
+                },
+                match.assetCode
+              )
+              toast.success(`Scanned Asset Verified: ${match.name || match.assetCode}`)
+            } else {
+              // Block cross-department data exposure! User is logged in, but not authorized for this department's data
+              setQrScannedAsset(null)
+              setQrAccessDenied({
+                assetCode: match.assetCode,
+                assetDepartment: match.currentDepartment || match.department || 'Restricted Department',
+                userDepartment: currentUser.department || 'General',
+                userName: currentUser.userName,
+              })
+              logAuditEvent(
+                'CROSS_DEPARTMENT_SCAN_DENIED',
+                {
+                  assetCode: match.assetCode,
+                  assetDepartment: match.currentDepartment || match.department,
+                  userDepartment: currentUser.department,
+                  userId: currentUser.userId,
+                  userName: currentUser.userName,
+                  reason: 'User not authorized for this asset department',
+                  origin: window.location.href,
+                },
+                match.assetCode
+              )
+              toast.error(
+                `Access Denied: Asset ${match.assetCode} belongs to ${match.currentDepartment || match.department || 'another department'}. You cannot view this product.`
+              )
+            }
+          } else {
+            toast.error(`Asset not found for scanned code: ${targetCode}`)
           }
         }
       } catch {}
@@ -302,7 +391,7 @@ export function App() {
       window.removeEventListener('hashchange', checkDeepLink)
       window.removeEventListener('popstate', checkDeepLink)
     }
-  }, [assets])
+  }, [isAuthenticated, assets, currentUser, checkAssetAccess])
 
   const handleClearAllAssets = () => {
     if (assets.length === 0) return
@@ -870,8 +959,59 @@ export function App() {
               <input
                 ref={searchInputRef}
                 id="search-input"
-                placeholder="Search assets, people, work orders"
+                placeholder="Search assets, people, work orders (Scan barcode or Ctrl+K)"
                 aria-label="Search assets, people, work orders"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const query = e.currentTarget.value.trim()
+                    if (query) {
+                      const match = assets.find(
+                        (a) =>
+                          a.assetCode.toLowerCase() === query.toLowerCase() ||
+                          (a.assetTag && a.assetTag.toLowerCase() === query.toLowerCase())
+                      )
+                      if (match) {
+                        if (checkAssetAccess(match, currentUser)) {
+                          setQrAccessDenied(null)
+                          setQrScannedAsset(match)
+                          logAuditEvent(
+                            'QR_VERIFY_SCAN',
+                            {
+                              assetCode: match.assetCode,
+                              department: match.currentDepartment || match.department,
+                              origin: 'barcode_gun_header_search',
+                            },
+                            match.assetCode
+                          )
+                          toast.success(`Scanned Asset Verified: ${match.name || match.assetCode}`)
+                        } else {
+                          setQrScannedAsset(null)
+                          setQrAccessDenied({
+                            assetCode: match.assetCode,
+                            assetDepartment: match.currentDepartment || match.department || 'Restricted Department',
+                            userDepartment: currentUser.department || 'General',
+                            userName: currentUser.userName,
+                          })
+                          logAuditEvent(
+                            'CROSS_DEPARTMENT_SCAN_DENIED',
+                            {
+                              assetCode: match.assetCode,
+                              assetDepartment: match.currentDepartment || match.department,
+                              userDepartment: currentUser.department,
+                              userId: currentUser.userId,
+                              userName: currentUser.userName,
+                              origin: 'barcode_gun_header_search',
+                            },
+                            match.assetCode
+                          )
+                          toast.error(
+                            `Access Denied: Asset ${match.assetCode} belongs to ${match.currentDepartment || match.department}. You cannot view this product.`
+                          )
+                        }
+                      }
+                    }
+                  }
+                }}
               />
               <kbd>Ctrl K</kbd>
             </div>
@@ -1955,6 +2095,105 @@ export function App() {
                   className="py-2 px-4 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--line)] text-[var(--ink)] cursor-pointer transition text-center"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Department Access Restricted Modal (Cross-Department RBAC Enforced) */}
+      {qrAccessDenied && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fadeIn"
+          role="alertdialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-[var(--surf)] border-2 border-red-500/50 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 p-4 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🚫</span>
+                  <h2 className="font-bold text-sm tracking-tight uppercase">
+                    Department Access Restricted / 部门权限受限
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQrAccessDenied(null)
+                    try {
+                      window.history.replaceState({}, '', window.location.pathname)
+                    } catch {}
+                  }}
+                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white flex items-center justify-center text-xs font-bold cursor-pointer transition"
+                  aria-label="Close access denied modal"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-xs text-red-100 mt-1">
+                You are authenticated, but unauthorized to view equipment outside your department.
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 text-xs text-[var(--ink)]">
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <span>🔒</span>
+                  <span>Confidential Equipment Data Blocked</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Per factory RBAC security policy, equipment specifications, depreciation schedules, and hardware configurations are strictly isolated by department.
+                </p>
+              </div>
+
+              {/* Department Comparison Table */}
+              <div className="border border-[var(--line)] rounded-xl divide-y divide-[var(--line)] overflow-hidden">
+                <div className="p-2.5 flex justify-between items-center bg-[var(--surf2)]/40">
+                  <span className="text-[var(--mute)] font-medium">Scanned Asset Code:</span>
+                  <span className="font-mono font-bold text-[var(--ink)]">{qrAccessDenied.assetCode}</span>
+                </div>
+                <div className="p-2.5 flex justify-between items-center">
+                  <span className="text-[var(--mute)] font-medium">Product Owning Dept:</span>
+                  <span className="font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    {qrAccessDenied.assetDepartment}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between items-center">
+                  <span className="text-[var(--mute)] font-medium">Your Active Account:</span>
+                  <span className="font-semibold">{qrAccessDenied.userName}</span>
+                </div>
+                <div className="p-2.5 flex justify-between items-center">
+                  <span className="text-[var(--mute)] font-medium">Your Assigned Dept:</span>
+                  <span className="font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                    {qrAccessDenied.userDepartment}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-[var(--mute)] bg-[var(--surf2)]/30 p-2.5 rounded-lg border border-[var(--line)]">
+                ℹ️ If you need access to this equipment, please contact the <b>{qrAccessDenied.assetDepartment}</b> HOD or a Plant Administrator to transfer asset custodianship or request elevated permissions.
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQrAccessDenied(null)
+                    try {
+                      window.history.replaceState({}, '', window.location.pathname)
+                    } catch {}
+                  }}
+                  className="w-full py-2.5 px-4 text-xs font-bold rounded-xl bg-[var(--acc)] hover:opacity-90 text-white cursor-pointer transition shadow-sm text-center"
+                >
+                  Return to My Department Dashboard
                 </button>
               </div>
             </div>

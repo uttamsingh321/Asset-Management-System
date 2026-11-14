@@ -36,6 +36,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [lockoutRemaining, setLockoutRemaining] = React.useState<number | null>(null)
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = React.useState(false)
 
+  // Detect scanned asset code from deep-link URL if user arrived via barcode / QR scan
+  const scannedAssetCode = React.useMemo(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      const fromParam = searchParams.get('asset') || searchParams.get('code')
+      if (fromParam) return fromParam
+      if (window.location.hash) {
+        const match = window.location.hash.match(/[?&](?:asset|code)=([^&]+)/)
+        if (match) return decodeURIComponent(match[1])
+      }
+    } catch {}
+    return null
+  }, [])
+
   // Check stored lockout in local session
   React.useEffect(() => {
     const lockUntilStr = localStorage.getItem(`meridian_lockout_${userId.toUpperCase()}`)
@@ -307,6 +321,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <span>
                 Invalid credentials. Attempt <b>{failedAttempts} of 5</b>. Account locks for 15 minutes after 5 failures.
               </span>
+            </div>
+          )}
+
+          {/* Barcode / QR Scan Notification Banner */}
+          {scannedAssetCode && (
+            <div className="p-3.5 rounded-xl border border-amber-500/50 bg-amber-500/15 text-amber-200 text-xs flex items-start gap-3 animate-fadeIn">
+              <span className="text-xl shrink-0">🔒</span>
+              <div className="space-y-1">
+                <div className="font-bold text-white flex items-center gap-2">
+                  <span>Scanned Code Detected:</span>
+                  <span className="font-mono bg-amber-400/20 px-2 py-0.5 rounded text-amber-300 font-bold tracking-wider">
+                    {scannedAssetCode}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  Sign in required. Equipment specifications and details are strictly isolated by department. Please log in with your assigned department credentials.
+                </p>
+              </div>
             </div>
           )}
 
