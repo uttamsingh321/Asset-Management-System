@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class Asset(models.Model):
     STATUS_CHOICES = [
@@ -140,6 +141,21 @@ class AuditLog(models.Model):
         ("ASSET_TRANSFER", "Asset Custody Transfer"),
         ("ASSET_APPROVAL", "Asset Action Approval"),
         ("ASSET_DELETE", "Asset Deletion"),
+        ("USER_CREATE", "User Creation & RBAC"),
+        ("USER_UPDATE", "User Update & Password Reset"),
+        ("USER_DELETE", "User Deactivation"),
+        ("STOCK_COUNT_START", "Stock Count Started"),
+        ("STOCK_COUNT_SCAN_SUCCESS", "Stock Count QR Scan Authorized"),
+        ("STOCK_COUNT_SCAN_REJECTED", "Stock Count QR Scan Rejected"),
+        ("STOCK_COUNT_VERIFIED", "Stock Count Asset Verified"),
+        ("STOCK_COUNT_VARIANCE", "Stock Count Variance Recorded"),
+        ("STOCK_COUNT_COMPLETE", "Stock Count Completed"),
+        ("TRANSFER_CREATE", "Transfer Request Created"),
+        ("TRANSFER_APPROVE_LEVEL_1", "Transfer Level 1 Approved"),
+        ("TRANSFER_APPROVE_LEVEL_2", "Transfer Level 2 Approved"),
+        ("TRANSFER_APPROVE_LEVEL_3", "Transfer Level 3 Approved"),
+        ("TRANSFER_REJECT", "Transfer Request Rejected"),
+        ("TRANSFER_COMPLETE", "Transfer Request Completed"),
     ]
 
     DEVICE_CHOICES = [
@@ -264,4 +280,77 @@ class UserSession(models.Model):
             "os": self.os,
             "browser": self.browser,
         }
+
+
+class AppUser(models.Model):
+    """
+    Department-based Role-Based Access Control (RBAC) User model.
+    Superuser sets passwords manually upon user creation (no random passwords generated)
+    so credentials can be handed directly to department staff.
+    """
+    DEPARTMENT_CHOICES = [
+        ("IT", "IT & Systems"),
+        ("Production", "Production & SMT"),
+        ("Maintenance", "Maintenance & Calibration"),
+        ("Store", "Warehouse & Store"),
+        ("Finance", "Finance & Accounts"),
+        ("Quality", "Quality & Audit"),
+        ("Operations", "Operations & Facilities"),
+        ("Administration", "Administration & HR"),
+    ]
+
+    ROLE_CHOICES = [
+        ("Admin", "Superuser / Administrator"),
+        ("Plant Manager", "Plant Manager"),
+        ("Maintenance", "Maintenance Specialist"),
+        ("Store", "Store / Warehouse Keeper"),
+        ("Auditor", "Internal Auditor"),
+        ("Viewer", "Viewer (Read Only)"),
+        ("Employee", "Department Employee"),
+    ]
+
+    user_id = models.CharField(max_length=64, unique=True, db_index=True)
+    name = models.CharField(max_length=128)
+    email = models.EmailField(blank=True)
+    department = models.CharField(max_length=64, default="IT")
+    role = models.CharField(max_length=64, default="Employee")
+    password = models.CharField(max_length=128)
+    is_superuser = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    failed_login_attempts = models.IntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    lockout_reason = models.CharField(max_length=255, blank=True)
+    created_by = models.CharField(max_length=128, default="Superuser")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["department", "name"]
+        verbose_name = "App User"
+        verbose_name_plural = "App Users"
+
+    def __str__(self):
+        return f"{self.user_id} - {self.name} ({self.department} · {self.role})"
+
+    def to_dict(self, include_password=False):
+        data = {
+            "id": self.id,
+            "userId": self.user_id,
+            "name": self.name,
+            "email": self.email,
+            "department": self.department,
+            "role": self.role,
+            "isSuperuser": self.is_superuser,
+            "isActive": self.is_active,
+            "failedLoginAttempts": self.failed_login_attempts,
+            "lockedUntil": self.locked_until.isoformat() if self.locked_until else None,
+            "isLocked": bool(self.locked_until and self.locked_until > timezone.now()),
+            "lockoutReason": self.lockout_reason,
+            "createdBy": self.created_by,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_password:
+            data["password"] = self.password
+        return data
+
 

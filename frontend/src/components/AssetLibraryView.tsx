@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { Asset, AssetTypeTemplate } from '@/types/asset'
+import { isAssetTaskCompleted } from '@/types/asset'
 import { initialAssetTypes } from '@/data/assetLibraryData'
 import { AssetIllustration } from '@/components/AssetIllustrations'
 import { parseExcelOrCsvFile, type ImportSummary } from '@/lib/excelImporter'
@@ -69,6 +70,15 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
   const [importFileName, setImportFileName] = React.useState('')
   const [importSummary, setImportSummary] = React.useState<ImportSummary | null>(null)
 
+  // Only completed/filled physical assets count in the Asset Gallery and stats
+  const completedAssets = React.useMemo(() => {
+    return assets.filter(isAssetTaskCompleted)
+  }, [assets])
+
+  const pendingTaskCount = React.useMemo(() => {
+    return assets.filter((a) => !isAssetTaskCompleted(a)).length
+  }, [assets])
+
   // Compute category stats
   const categoryStats = React.useMemo(() => {
     const map = new Map<string, { typesCount: number; assetsCount: number }>()
@@ -79,7 +89,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
       map.set(t.category, existing)
     })
 
-    assets.forEach((a) => {
+    completedAssets.forEach((a) => {
       const cat = a.currentCategory || a.category || 'General Equipment'
       const existing = map.get(cat) || { typesCount: 0, assetsCount: 0 }
       existing.assetsCount += 1
@@ -93,7 +103,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
       assetsCount: stats.assetsCount,
       percentage: Math.min(100, Math.round((stats.typesCount / totalTypes) * 100)),
     }))
-  }, [assetTypes, assets])
+  }, [assetTypes, completedAssets])
 
   // Count specs across all types
   const totalSpecsCount = React.useMemo(() => {
@@ -234,9 +244,9 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     }
   }
 
-  // Filtered Assets for Gallery
+  // Filtered Assets for Gallery (Only completed units)
   const filteredAssets = React.useMemo(() => {
-    return assets.filter((asset) => {
+    return completedAssets.filter((asset) => {
       const matchesCategory = !filterCategory || (asset.currentCategory || asset.category) === filterCategory
       if (!matchesCategory) return false
 
@@ -253,7 +263,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
         (asset.submitter || '').toLowerCase().includes(q)
       )
     })
-  }, [assets, filterCategory, gallerySearch])
+  }, [completedAssets, filterCategory, gallerySearch])
 
   // Paged Assets
   const totalGalleryPages = Math.max(1, Math.ceil(filteredAssets.length / GALLERY_PAGE_SIZE))
@@ -459,19 +469,25 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
           <div className="kpis">
             <div className="card k">
               <div className="l">Total assets</div>
-              <div className="v">{assets.length.toLocaleString()}</div>
-              <div className="d">0 this month</div>
+              <div className="v">{completedAssets.length.toLocaleString()}</div>
+              <div className="d">
+                {pendingTaskCount > 0 ? (
+                  <span className="text-amber-500 font-semibold">{pendingTaskCount} codes pending in Task Queue</span>
+                ) : (
+                  '0 this month'
+                )}
+              </div>
             </div>
             <div className="card k">
               <div className="l">Assigned</div>
               <div className="v">
-                {assets.filter((a) => a.submitter || (a.assignedTo && a.assignedTo !== 'Unassigned')).length.toLocaleString()}
+                {completedAssets.filter((a) => a.submitter || (a.assignedTo && a.assignedTo !== 'Unassigned')).length.toLocaleString()}
               </div>
               <div className="d">
-                {assets.length > 0
+                {completedAssets.length > 0
                   ? `${Math.round(
-                      (assets.filter((a) => a.submitter || (a.assignedTo && a.assignedTo !== 'Unassigned')).length /
-                        assets.length) *
+                      (completedAssets.filter((a) => a.submitter || (a.assignedTo && a.assignedTo !== 'Unassigned')).length /
+                        completedAssets.length) *
                         100
                     )}% in use`
                   : '0% in use'}
@@ -480,14 +496,14 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
             <div className="card k">
               <div className="l">In storage</div>
               <div className="v">
-                {assets.filter((a) => !a.submitter && (!a.assignedTo || a.assignedTo === 'Unassigned')).length.toLocaleString()}
+                {completedAssets.filter((a) => !a.submitter && (!a.assignedTo || a.assignedTo === 'Unassigned')).length.toLocaleString()}
               </div>
-              <div className="d">{new Set(assets.map((a) => a.plant).filter(Boolean)).size} sites</div>
+              <div className="d">{new Set(completedAssets.map((a) => a.plant).filter(Boolean)).size} sites</div>
             </div>
             <div className="card k">
               <div className="l">Retired this year</div>
               <div className="v">
-                {assets.filter((a) => a.status === 'Retired').length.toLocaleString()}
+                {completedAssets.filter((a) => a.status === 'Retired').length.toLocaleString()}
               </div>
               <div className="d">Disposal value $0</div>
             </div>
@@ -533,7 +549,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                 }}
                 className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
               >
-                <option value="">All Categories ({assets.length})</option>
+                <option value="">All Categories ({completedAssets.length})</option>
                 {categoryStats.map((c) => (
                   <option key={c.category} value={c.category}>
                     {c.category} ({c.assetsCount})
@@ -580,10 +596,20 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                 <div className="py-12 text-center space-y-2">
                   <div className="text-3xl">📦</div>
                   <div className="text-xs text-[var(--mute)]">
-                    {assets.length === 0
-                      ? 'No physical assets registered yet. Click "Add asset" or "Import assets" to load inventory.'
+                    {completedAssets.length === 0
+                      ? pendingTaskCount > 0
+                        ? `0 Physical Assets Deployed (${pendingTaskCount} task codes pending in Task Queue). Complete tasks to register equipment.`
+                        : 'No physical assets registered yet. Click "Add asset" or "Import assets" to load inventory.'
                       : 'No assets match the search criteria.'}
                   </div>
+                  {completedAssets.length === 0 && pendingTaskCount > 0 && (
+                    <a
+                      href="#tasks"
+                      className="inline-block mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--acc)] text-white hover:opacity-90 transition"
+                    >
+                      Go to Task Queue ({pendingTaskCount} pending) →
+                    </a>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">

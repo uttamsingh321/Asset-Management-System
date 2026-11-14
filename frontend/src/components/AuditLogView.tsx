@@ -66,16 +66,19 @@ export const AuditLogView: React.FC = () => {
 
   const deviceCounts = React.useMemo(() => {
     const counts: Record<string, number> = { Desktop: 0, Laptop: 0, Tablet: 0, Mobile: 0 }
-    counts[currentDevice.deviceType] = 1
-
     trackedDevices.forEach((d) => {
-      counts[d.deviceType] = Math.max(counts[d.deviceType] || 0, 1)
+      if (counts[d.deviceType] !== undefined) {
+        counts[d.deviceType]++
+      } else {
+        counts[d.deviceType] = 1
+      }
     })
-    logs.forEach((l) => {
-      counts[l.deviceType] = (counts[l.deviceType] || 0) + 1
-    })
+    // Guarantee at least the active session device is represented
+    if (counts[currentDevice.deviceType] === 0) {
+      counts[currentDevice.deviceType] = 1
+    }
     return counts
-  }, [logs, trackedDevices, currentDevice])
+  }, [trackedDevices, currentDevice])
 
   const handleExportAuditLogs = async () => {
     if (logs.length === 0) {

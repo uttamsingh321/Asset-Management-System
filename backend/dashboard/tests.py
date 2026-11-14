@@ -4,7 +4,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Asset, AuditLog, UserSession
+from .models import Asset, AuditLog, UserSession, AppUser
 from .device_detector import parse_device_and_browser, _detect_device_type, _detect_os, _detect_browser
 
 
@@ -349,3 +349,214 @@ class AuditAndDeviceTrackingTests(TestCase):
         filter_res = self.client.get(reverse('api-audit-logs') + "?action=ASSET_IMPORT")
         self.assertEqual(filter_res.json()["totalCount"], 1)
         self.assertEqual(filter_res.json()["auditLogs"][0]["details"]["filename"], "factory_assets_q1.xlsx")
+
+
+class RBACUserManagementTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+
+    def test_superuser_creates_user_with_explicit_password_by_department(self):
+        # 1. Superuser creates a Maintenance specialist
+        payload = {
+            "userId": "MNT-101",
+            "name": "Rajesh Kumar",
+            "department": "Maintenance",
+            "role": "Maintenance",
+            "password": "PlantMntSecurePass#2026",
+            "createdBy": "Superuser",
+        }
+        res = self.client.post(
+            reverse('api-users'),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 201)
+        data = res.json()
+        self.assertEqual(data["user"]["userId"], "MNT-101")
+        self.assertEqual(data["user"]["department"], "Maintenance")
+        self.assertEqual(data["user"]["role"], "Maintenance")
+        self.assertEqual(data["user"]["password"], "PlantMntSecurePass#2026")
+
+        # 2. Check audit log for USER_CREATE
+        user_audit = AuditLog.objects.filter(action="USER_CREATE", entity_id="MNT-101").first()
+        self.assertIsNotNone(user_audit)
+        self.assertTrue(user_audit.details.get("passwordSetBySuperuser"))
+
+        # 3. Test department filtering
+        res_dep = self.client.get(reverse('api-users') + "?department=Maintenance")
+        self.assertEqual(res_dep.status_code, 200)
+        self.assertEqual(len(res_dep.json()["users"]), 1)
+
+        res_other = self.client.get(reverse('api-users') + "?department=Finance")
+        self.assertEqual(len(res_other.json()["users"]), 0)
+
+        # 4. Authenticate using the exact password set by Superuser
+        auth_res = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({
+                "userId": "MNT-101",
+                "password": "PlantMntSecurePass#2026",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(auth_res.status_code, 200)
+        self.assertEqual(auth_res.json()["status"], "authenticated")
+        self.assertEqual(auth_res.json()["user"]["department"], "Maintenance")
+
+        # 5. Wrong password rejected
+        wrong_auth = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({
+                "userId": "MNT-101",
+                "password": "WrongPassword",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(wrong_auth.status_code, 401)
+
+    def test_random_password_disabled_password_is_mandatory(self):
+        # Attempt to create user without password must be rejected
+        payload = {
+            "userId": "PROD-201",
+            "name": "Sunil Verma",
+            "department": "Production",
+            "role": "Employee",
+            # No password provided
+        }
+        res = self.client.post(
+            reverse('api-users'),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("Password must be explicitly set by Superuser", res.json()["error"])
+
+    def test_superuser_updates_user_password_and_department(self):
+        # Create initial user
+        self.client.post(
+            reverse('api-users'),
+            data=json.dumps({
+                "userId": "STR-301",
+                "name": "Pooja Sharma",
+                "department": "Store",
+                "role": "Store",
+                "password": "InitialStorePass1",
+            }),
+            content_type="application/json",
+        )
+
+        # Superuser updates department to Finance and changes password manually
+        update_res = self.client.put(
+            reverse('api-user-detail', kwargs={"user_id": "STR-301"}),
+            data=json.dumps({
+                "department": "Finance",
+                "role": "Auditor",
+                "password": "NewManualSuperuserPass2026",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(update_res.status_code, 200)
+        updated = update_res.json()["user"]
+        self.assertEqual(updated["department"], "Finance")
+        self.assertEqual(updated["role"], "Auditor")
+        self.assertEqual(updated["password"], "NewManualSuperuserPass2026")
+
+        # Old password fails
+        old_auth = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({"userId": "STR-301", "password": "InitialStorePass1"}),
+            content_type="application/json",
+        )
+        self.assertEqual(old_auth.status_code, 401)
+
+        # New password succeeds
+        new_auth = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({"userId": "STR-301", "password": "NewManualSuperuserPass2026"}),
+            content_type="application/json",
+        )
+        self.assertEqual(new_auth.status_code, 200)
+
+    def test_security_lockout_after_five_failed_attempts_and_superuser_unlock(self):
+        """
+        Verify:
+        1. 5 consecutive failed login attempts locks account for 15 minutes.
+        2. AuditLog records IP and failure reasons.
+        3. Non-superuser cannot access security audit endpoints (403 Forbidden).
+        4. Superuser can inspect security login audit and unlock the locked user.
+        """
+        AppUser.objects.create(
+            user_id="SMT-LOCK-1",
+            name="Ramesh Yadav",
+            department="Production",
+            role="Employee",
+            password="CorrectPassword123",
+            is_active=True,
+        )
+
+        # 4 consecutive failed attempts -> account still not locked, but counts attempts
+        for attempt in range(1, 5):
+            res = self.client.post(
+                reverse('api-user-login'),
+                data=json.dumps({"userId": "SMT-LOCK-1", "password": f"WrongPass{attempt}"}),
+                content_type="application/json",
+                REMOTE_ADDR="192.168.10.45",
+            )
+            self.assertEqual(res.status_code, 401)
+            self.assertEqual(res.json()["failedAttempts"], attempt)
+            self.assertEqual(res.json()["attemptsRemaining"], 5 - attempt)
+
+        # 5th failed attempt -> account is LOCKED
+        lock_res = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({"userId": "SMT-LOCK-1", "password": "WrongPass5"}),
+            content_type="application/json",
+            REMOTE_ADDR="192.168.10.45",
+        )
+        self.assertEqual(lock_res.status_code, 403)
+        self.assertTrue(lock_res.json()["isLocked"])
+
+        # Subsequent attempt even with CORRECT password is rejected while locked
+        blocked_res = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({"userId": "SMT-LOCK-1", "password": "CorrectPassword123"}),
+            content_type="application/json",
+            REMOTE_ADDR="192.168.10.45",
+        )
+        self.assertEqual(blocked_res.status_code, 403)
+        self.assertTrue(blocked_res.json()["isLocked"])
+
+        # Non-superuser receives 403 on security audit endpoint
+        non_su_res = self.client.get(reverse('api-security-login-audit'))
+        self.assertEqual(non_su_res.status_code, 403)
+
+        # Superuser can access security audit endpoint
+        su_res = self.client.get(
+            reverse('api-security-login-audit'),
+            HTTP_X_SUPERUSER="true",
+            HTTP_X_USER_ID="USR-ADMIN",
+        )
+        self.assertEqual(su_res.status_code, 200)
+        data = su_res.json()
+        self.assertGreaterEqual(data["lockedAccountsCount"], 1)
+        self.assertGreaterEqual(data["totalSecurityLogs"], 5)
+
+        # Superuser manually unlocks the user
+        unlock_res = self.client.post(
+            reverse('api-security-unlock-user', kwargs={"user_id": "SMT-LOCK-1"}),
+            HTTP_X_SUPERUSER="true",
+            HTTP_X_USER_ID="USR-ADMIN",
+        )
+        self.assertEqual(unlock_res.status_code, 200)
+        self.assertEqual(unlock_res.json()["status"], "unlocked")
+
+        # Now login succeeds with correct password
+        success_res = self.client.post(
+            reverse('api-user-login'),
+            data=json.dumps({"userId": "SMT-LOCK-1", "password": "CorrectPassword123"}),
+            content_type="application/json",
+            REMOTE_ADDR="192.168.10.45",
+        )
+        self.assertEqual(success_res.status_code, 200)
+
+

@@ -3,6 +3,8 @@ import { meridianPages } from '@/data/meridianData'
 import { AddAssetPanel } from '@/components/AddAssetPanel'
 import { AssetLibraryView } from '@/components/AssetLibraryView'
 import { AuditLogView } from '@/components/AuditLogView'
+import { AssetCodeWorkflow } from '@/components/AssetCodeWorkflow'
+import { LoginPage } from '@/components/LoginPage'
 import {
   logAuditEvent,
   getCurrentUserProfile,
@@ -10,22 +12,86 @@ import {
   type UserProfile,
 } from '@/lib/deviceTracker'
 import type { Asset } from '@/types/asset'
+import { isAssetTaskCompleted } from '@/types/asset'
+import type { Language } from '@/lib/indiaLocale'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
+import { exportAssetsToExcel } from '@/lib/excelExport'
+import { DigitalTwinFacility3D } from '@/components/DigitalTwinFacility3D'
+import { ExecutiveBentoGrid3D } from '@/components/ExecutiveBentoGrid3D'
+
+// Lazy-load heavy views to keep bundle fast
+const IndiaMaintenanceView = React.lazy(() => import('@/components/IndiaMaintenanceView'))
+const IndiaStockCountView = React.lazy(() => import('@/components/IndiaStockCountView'))
+const IndiaDepreciationView = React.lazy(() => import('@/components/IndiaDepreciationView'))
+const IndiaDisposalView = React.lazy(() => import('@/components/IndiaDisposalView'))
+const IndiaTransferView = React.lazy(() =>
+  import('@/components/IndiaTransferView').then((m) => ({ default: m.IndiaTransferView }))
+)
+const IndiaLabelPrintView = React.lazy(() =>
+  import('@/components/IndiaLabelPrintView').then((m) => ({ default: m.IndiaLabelPrintView }))
+)
+const UserManagementView = React.lazy(() => import('@/components/UserManagementView'))
+const SuperuserSecurityView = React.lazy(() => import('@/components/SuperuserSecurityView'))
 
 const STORAGE_KEY = 'meridian_assets'
 
 export function App() {
+  const [isAuthenticated, setIsAuthenticated] = React.useState<boolean>(() => {
+    return (
+      sessionStorage.getItem('meridian_auth') === 'true' ||
+      localStorage.getItem('meridian_remember_user') !== null ||
+      window.location.hash.includes('offline')
+    )
+  })
+  const [activeFactory, setActiveFactory] = React.useState<string>(() => {
+    return (
+      sessionStorage.getItem('meridian_active_factory') ||
+      localStorage.getItem('meridian_remember_factory') ||
+      'Noida Plant (SMT Line & Assembly)'
+    )
+  })
+
   const [currentHash, setCurrentHash] = React.useState<string>(() => {
     const h = window.location.hash.replace('#', '')
-    return h && meridianPages[h] ? h : 'dashboard'
+    return h &&
+      (meridianPages[h] ||
+        [
+          'tasks',
+          'verification',
+          'maintenance-india',
+          'stockcount',
+          'depreciation',
+          'disposal',
+          'transfer',
+          'labels',
+          'users',
+          'rbac',
+          'security',
+        ].includes(h))
+      ? h
+      : 'dashboard'
   })
   const [isMini, setIsMini] = React.useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
   const [theme, setTheme] = React.useState<'light' | 'dark'>(() => {
     return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
   })
+
+  // ── India localization: language state ──
+  const [lang, setLang] = React.useState<Language>(() => {
+    return (localStorage.getItem('meridian_lang') as Language) || 'en'
+  })
+  const toggleLang = () => {
+    setLang((prev) => {
+      const next: Language = prev === 'en' ? 'hi' : 'en'
+      localStorage.setItem('meridian_lang', next)
+      return next
+    })
+  }
+
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+  const [workflowAsset, setWorkflowAsset] = React.useState<Asset | null>(null)
   const [dashCompanyFilter, setDashCompanyFilter] = React.useState<'All' | 'IIPL' | 'Padget'>('All')
   const [dashBuildingFilter, setDashBuildingFilter] = React.useState<string>('All')
   const [dashSearchQuery, setDashSearchQuery] = React.useState<string>('')
@@ -45,6 +111,7 @@ export function App() {
   const [tempUserName, setTempUserName] = React.useState(currentUser.userName)
   const [tempUserId, setTempUserId] = React.useState(currentUser.userId)
   const [tempUserRole, setTempUserRole] = React.useState(currentUser.role)
+  const [tempUserDepartment, setTempUserDepartment] = React.useState(currentUser.department || 'IT')
 
   const dynamicGreeting = React.useMemo(() => {
     const hour = new Date().getHours()
@@ -53,9 +120,53 @@ export function App() {
     return 'Good evening'
   }, [])
 
-  const filteredDashboardAssets = React.useMemo(() => {
-    if (assets.length === 0) return []
+  // Check if current user has full administrative oversight
+  const isSuperuserOrAdmin = React.useMemo(() => {
+    return Boolean(
+      currentUser.isSuperuser ||
+      currentUser.role === 'Admin' ||
+      currentUser.role === 'Administrator' ||
+      currentUser.userId?.toUpperCase() === 'USR-ADMIN'
+    )
+  }, [currentUser])
+
+  // Scope assets strictly by the active user's department or identity
+  const scopedAssets = React.useMemo(() => {
+    if (isSuperuserOrAdmin) {
+      return assets
+    }
+    const userDept = (currentUser.department || '').trim().toLowerCase()
+    const userId = (currentUser.userId || '').trim().toLowerCase()
+    const userName = (currentUser.userName || '').trim().toLowerCase()
+
     return assets.filter((a) => {
+      const assetDept = (a.currentDepartment || a.department || '').trim().toLowerCase()
+      const inChargeId = (a.inChargeId || '').trim().toLowerCase()
+      const inChargeName = (a.inChargeName || a.whoInCharge || '').trim().toLowerCase()
+      const submitter = (a.submitter || '').trim().toLowerCase()
+
+      // 1. Matches user's department
+      if (userDept && assetDept && (assetDept === userDept || assetDept.includes(userDept) || userDept.includes(assetDept))) {
+        return true
+      }
+      // 2. Matches user's identity (in-charge ID or name or submitter)
+      if (userId && inChargeId === userId) {
+        return true
+      }
+      if (userName && (inChargeName.includes(userName) || submitter.includes(userName))) {
+        return true
+      }
+      return false
+    })
+  }, [assets, isSuperuserOrAdmin, currentUser.department, currentUser.userId, currentUser.userName])
+
+  const filteredDashboardAssets = React.useMemo(() => {
+    if (scopedAssets.length === 0) return []
+    return scopedAssets.filter((a) => {
+      // Exclude pending/incomplete task queue codes that have not yet had their data filled
+      if (!isAssetTaskCompleted(a)) {
+        return false
+      }
       // Company filter: IIPL or Padget
       if (dashCompanyFilter !== 'All') {
         const comp = a.company || (a.location?.includes('Padget') ? 'Padget' : 'IIPL')
@@ -88,7 +199,7 @@ export function App() {
       }
       return true
     })
-  }, [assets, dashCompanyFilter, dashBuildingFilter, dashSearchQuery])
+  }, [scopedAssets, dashCompanyFilter, dashBuildingFilter, dashSearchQuery])
 
   const userInitials = React.useMemo(() => {
     return (
@@ -112,78 +223,94 @@ export function App() {
       userName: tempUserName.trim(),
       userId: tempUserId.trim() || 'USR-101',
       role: tempUserRole.trim() || 'Employee',
+      department: tempUserDepartment,
+      isSuperuser: tempUserRole === 'Admin' || tempUserId.toUpperCase() === 'USR-ADMIN',
     }
     setCurrentUserProfile(updated)
     setCurrentUser(updated)
     setIsProfileModalOpen(false)
     logAuditEvent('LOGIN', { authMethod: 'Profile Switch', user: updated })
-    toast.success(`Logged in as ${updated.userName} (${updated.role})`)
+    toast.success(`Active session switched to ${updated.userName} (${updated.role})`)
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('meridian_auth')
+    sessionStorage.removeItem('meridian_offline_mode')
+    logAuditEvent('LOGOUT', { user: currentUser }, currentUser.userId)
+    setIsAuthenticated(false)
+    toast.info('Logged out from workshop terminal')
   }
 
   // Sync to local storage safely with quota protection
   React.useEffect(() => {
     try {
-      const safeSubset = assets.length > 2000 ? assets.slice(0, 2000) : assets
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSubset))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(assets.slice(0, 500)))
     } catch (err) {
-      console.warn('Failed to sync assets to localStorage', err)
+      console.warn('Storage quota exceeded, keeping in-memory assets', err)
     }
   }, [assets])
 
+  const handleClearAllAssets = () => {
+    if (assets.length === 0) return
+    const count = assets.length
+    setAssets([])
+    logAuditEvent(
+      'ASSET_DELETE',
+      {
+        deletedItemType: 'Bulk Purge',
+        count,
+        deletionTimestamp: new Date().toISOString(),
+        deletionReason: 'User initiated clear all assets',
+      },
+      'ALL-ASSETS'
+    )
+    toast.success('All assets removed from local ledger')
+  }
+
+  const handleToggleSidebar = () => {
+    if (window.innerWidth <= 768) {
+      setIsDrawerOpen(!isDrawerOpen)
+    } else {
+      setIsMini(!isMini)
+    }
+  }
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    document.documentElement.dataset.theme = next
+    logAuditEvent('THEME_TOGGLE', { theme: next }, 'SYSTEM')
+  }
+
   // Sync hash routing
   React.useEffect(() => {
-    // Record LOGIN audit event with auto device tracking on initial mount
-    logAuditEvent('LOGIN', { authMethod: 'Session Auto-Resume', platform: 'Web' })
-
     const onHashChange = () => {
       const h = window.location.hash.replace('#', '')
-      const key = h && meridianPages[h] ? h : 'dashboard'
-      setCurrentHash(key)
-      setIsDrawerOpen(false)
-      window.scrollTo(0, 0)
+      if (
+        h &&
+        (meridianPages[h] ||
+          [
+            'tasks',
+            'verification',
+            'maintenance-india',
+            'stockcount',
+            'depreciation',
+            'disposal',
+            'transfer',
+            'labels',
+            'users',
+            'rbac',
+            'security',
+          ].includes(h))
+      ) {
+        setCurrentHash(h)
+      } else if (!h) {
+        setCurrentHash('dashboard')
+      }
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
-
-  // Auto-close mobile drawer on window resize to desktop
-  React.useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth > 768) {
-        setIsDrawerOpen(false)
-      }
-    }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  // Ctrl+K shortcut
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        searchInputRef.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
-  // Theme toggle
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(nextTheme)
-    document.documentElement.dataset.theme = nextTheme
-  }
-
-  // Handle sidebar collapse toggle
-  const handleToggleSidebar = () => {
-    if (window.innerWidth <= 768) {
-      setIsDrawerOpen((prev) => !prev)
-    } else {
-      setIsMini((prev) => !prev)
-    }
-  }
 
   const handleNavClick = (key: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -194,82 +321,74 @@ export function App() {
   }
 
   const handleSaveAsset = (newAsset: Asset) => {
+    if (workflowAsset) {
+      setAssets((prev) => prev.map((asset) => (asset.id === workflowAsset.id ? newAsset : asset)))
+      logAuditEvent(
+        'ASSET_UPDATE',
+        {
+          assetCode: newAsset.assetCode,
+          status: newAsset.status,
+          department: newAsset.currentDepartment,
+          condition: newAsset.assetCondition,
+        },
+        newAsset.assetCode
+      )
+      setWorkflowAsset(null)
+      return
+    }
+
     setAssets((prev) => [newAsset, ...prev])
     logAuditEvent(
       'ASSET_CREATE',
       {
         assetCode: newAsset.assetCode,
-        serialNumber: newAsset.serialNumber,
-        name: newAsset.currentDescription || newAsset.name,
-        category: newAsset.currentCategory || newAsset.category,
-        plant: newAsset.plant,
-        department: newAsset.currentDepartment || newAsset.department,
+        name: newAsset.name,
+        company: newAsset.company,
+        building: newAsset.building,
+        floor: newAsset.floor,
+        department: newAsset.currentDepartment,
+        whoInCharge: newAsset.whoInCharge,
         condition: newAsset.assetCondition,
-        unavailabilityReasons: newAsset.unavailabilityReasons,
-        remarks: newAsset.remarks,
+        date: newAsset.date,
       },
       newAsset.assetCode
     )
-    setCurrentHash('assets')
-    window.location.hash = '#assets'
   }
 
   const handleDeleteAsset = (id: string) => {
-    const target = assets.find((a) => a.id === id || a.assetCode === id)
-    setAssets((prev) => prev.filter((a) => a.id !== id && a.assetCode !== id))
-
-    const assetCode = target?.assetCode || id
-    const assetName = target?.currentDescription || target?.name || 'Equipment Unit'
-    const category = target?.currentCategory || target?.category || 'General Equipment'
-    const plant = target?.plant || target?.location || 'Main Center'
-
+    const target = assets.find((a) => a.id === id)
+    setAssets((prev) => prev.filter((a) => a.id !== id))
     logAuditEvent(
       'ASSET_DELETE',
       {
         deletedItemType: 'Physical Asset',
-        deletedId: id,
-        assetCode,
-        name: assetName,
+        assetCode: target?.assetCode || id,
+        name: target?.name || target?.currentDescription || 'Asset Unit',
         serialNumber: target?.serialNumber || 'N/A',
-        category,
-        plant,
-        condition: target?.assetCondition || 'Good',
+        company: target?.company || 'IIPL',
+        building: target?.building || 'C39',
+        floor: target?.floor || 'Ground Floor',
         department: target?.currentDepartment || target?.department || 'Operations',
-        assignedTo: target?.assignedTo || target?.submitter || 'Unassigned',
-        remarks: target?.remarks || '',
+        whoInCharge: target?.whoInCharge || target?.assignedTo || 'Operations Staff',
+        condition: target?.assetCondition || 'Operational',
         deletionTimestamp: new Date().toISOString(),
         deletionReason: 'User initiated deletion from Asset Registry',
       },
-      assetCode,
-      'Asset'
+      target?.assetCode || id
     )
-    toast.success(`Asset "${assetCode} (${assetName})" deleted`)
+    toast.success(`Asset "${target?.assetCode || id}" removed from registry`)
   }
 
-  const handleClearAllAssets = () => {
-    if (assets.length === 0) return
-    const count = assets.length
-    const deletedSummary = assets.slice(0, 10).map((a) => `${a.assetCode} (${a.currentDescription || a.name})`)
-    setAssets([])
-    logAuditEvent(
-      'ASSET_DELETE',
-      {
-        deletedItemType: 'Bulk Asset Purge',
-        count,
-        summary: deletedSummary.join(', ') + (count > 10 ? ` and ${count - 10} more` : ''),
-        deletedAssetsList: assets.slice(0, 50).map((a) => ({
-          code: a.assetCode,
-          name: a.name || a.currentDescription,
-          serial: a.serialNumber,
-          plant: a.plant,
-        })),
-        deletionTimestamp: new Date().toISOString(),
-        deletionReason: 'User purged all physical assets from inventory',
-      },
-      'ALL-PHYSICAL-ASSETS',
-      'Asset'
+  const handleDisposeAsset = (assetId: string, reason: string, method: string, proceeds: number) => {
+    setAssets((prev) =>
+      prev.map((a) =>
+        a.id === assetId || a.assetCode === assetId
+          ? { ...a, status: 'Disposed', assetCondition: 'Disposed / Scrapped' }
+          : a
+      )
     )
-    toast.success('All physical assets removed from registry')
+    logAuditEvent('ASSET_UPDATE', { status: 'Disposed', reason, method, proceeds }, assetId)
+    toast.success(`Asset ${assetId} marked Disposed. Documentation locked for tax audit.`)
   }
 
   const handleImportAssets = (importedAssets: Asset[]) => {
@@ -285,16 +404,110 @@ export function App() {
     )
   }
 
+  const handleImportAssetCodes = (codes: string[]) => {
+    const importedAt = new Date().toISOString().slice(0, 10)
+    const importedCodes: Asset[] = codes.map((code) => ({
+      id: `imported-${code}`,
+      assetCode: code,
+      serialNumber: '',
+      currentCategory: '',
+      currentDescription: '',
+      plant: '',
+      assetCondition: '',
+      date: importedAt,
+      name: code,
+      assetTag: code,
+      category: 'IT Hardware',
+      department: '',
+      status: 'Imported',
+      purchaseDate: importedAt,
+      purchaseCost: 0,
+      currentValue: 0,
+      assignedTo: '',
+      location: '',
+    }))
+    setAssets((prev) => [...importedCodes, ...prev])
+    logAuditEvent('ASSET_IMPORT', { importedCount: codes.length, assetCodes: codes }, 'ASSET-CODE-IMPORT')
+  }
+
+  const handleAssignAssetCode = (assetId: string, department: string) => {
+    const asset = assets.find((item) => item.id === assetId)
+    if (!asset || asset.status !== 'Imported') return
+    setAssets((prev) =>
+      prev.map((item) =>
+        item.id === assetId
+          ? { ...item, department, currentDepartment: department, status: 'Pending Verification' }
+          : item
+      )
+    )
+    logAuditEvent('ASSET_UPDATE', { status: 'Pending Verification', department }, asset.assetCode)
+    toast.success(`${asset.assetCode} assigned to ${department}`)
+  }
+
   const isDashboard = currentHash === 'dashboard'
   const activePage = meridianPages[currentHash]
 
-  // Calculated dynamic metrics
-  const totalAssets = assets.length
-  const healthyCount = assets.filter((a) => a.status === 'Active').length
-  const maintenanceCount = assets.filter((a) => a.status === 'Maintenance').length
-  const reservedCount = assets.filter((a) => a.status === 'Reserved').length
-  const retiredCount = assets.filter((a) => a.status === 'Retired').length
+  // Only completed/filled physical assets count towards active deployed fleet
+  const completedAssetsList = React.useMemo(() => {
+    return scopedAssets.filter(isAssetTaskCompleted)
+  }, [scopedAssets])
 
+  const pendingTaskCount = React.useMemo(() => {
+    return scopedAssets.filter((a) => !isAssetTaskCompleted(a)).length
+  }, [scopedAssets])
+
+  const totalAssets = completedAssetsList.length
+  const healthyCount = completedAssetsList.filter((a) => a.status === 'Active' || a.status === 'Completed').length
+  const maintenanceCount = completedAssetsList.filter((a) => a.status === 'Maintenance').length
+  const reservedCount = completedAssetsList.filter((a) => a.status === 'Reserved').length
+  const retiredCount = completedAssetsList.filter((a) => a.status === 'Retired').length
+
+  // ────────────────────────────────────────────────────────────
+  // RENDER: Login Page if not authenticated
+  // ────────────────────────────────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Toaster position="top-right" richColors closeButton />
+        <LoginPage
+          lang={lang}
+          onToggleLang={toggleLang}
+          onLoginSuccess={(user, factory) => {
+            setCurrentUser(user)
+            setCurrentUserProfile(user)
+            setTempUserName(user.userName)
+            setTempUserId(user.userId)
+            setTempUserRole(user.role)
+            setTempUserDepartment(user.department || 'IT')
+            setActiveFactory(factory)
+            sessionStorage.setItem('meridian_auth', 'true')
+            sessionStorage.setItem('meridian_active_factory', factory)
+            setIsAuthenticated(true)
+          }}
+          onEnterOfflineMode={() => {
+            const offlineUser: UserProfile = {
+              userId: 'OFFLINE-OPERATOR',
+              userName: 'Workshop Offline Staff',
+              role: 'Employee',
+              department: 'Operations',
+              isSuperuser: false,
+            }
+            setCurrentUser(offlineUser)
+            setCurrentUserProfile(offlineUser)
+            setActiveFactory('Noida Plant (Offline Mode)')
+            sessionStorage.setItem('meridian_auth', 'true')
+            sessionStorage.setItem('meridian_offline_mode', 'true')
+            setIsAuthenticated(true)
+            toast.info('Entered Workshop Offline Mode. Barcode scanning and local cached data active.')
+          }}
+        />
+      </>
+    )
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // RENDER: Authenticated Main App Shell
+  // ────────────────────────────────────────────────────────────
   return (
     <>
       <Toaster position="top-right" richColors closeButton />
@@ -324,6 +537,7 @@ export function App() {
           </div>
 
           <nav className="nav" aria-label="Main">
+            {/* 1. Dashboard */}
             <a
               className={currentHash === 'dashboard' ? 'on' : ''}
               href="#dashboard"
@@ -339,122 +553,183 @@ export function App() {
               <span>Dashboard</span>
             </a>
 
-            <a
-              className={currentHash === 'library' ? 'on' : ''}
-              href="#library"
-              onClick={(e) => handleNavClick('library', e)}
-              title={isMini ? 'Asset Library' : undefined}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="4" y="4" width="4" height="16" rx="1" />
-                <rect x="10" y="4" width="4" height="16" rx="1" />
-                <path d="M16 4.5l3.5 15" strokeLinecap="round" />
-              </svg>
-              <span>Asset Library</span>
-            </a>
-
+            {/* 2. Asset Gallery */}
             <a
               className={currentHash === 'assets' ? 'on' : ''}
               href="#assets"
               onClick={(e) => handleNavClick('assets', e)}
               title={isMini ? 'Asset Gallery' : undefined}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="3" y="4" width="18" height="12" rx="2" />
-                <path d="M8 20h8M12 16v4" strokeLinecap="round" />
+              <svg viewBox="0 0 24 24">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
               </svg>
               <span>Asset Gallery</span>
             </a>
 
+            {/* 3. Task Queue */}
+            <a
+              className={currentHash === 'tasks' || currentHash === 'verification' ? 'on' : ''}
+              href="#tasks"
+              onClick={(e) => handleNavClick('tasks', e)}
+              title={isMini ? 'Task Queue' : undefined}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 14l2 2 4-4" />
+              </svg>
+              <span>Task Queue</span>
+              {pendingTaskCount > 0 && (
+                <span className="ml-auto px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-500">
+                  {pendingTaskCount}
+                </span>
+              )}
+            </a>
+
+            {/* 4. Asset Library */}
+            <a
+              className={currentHash === 'library' ? 'on' : ''}
+              href="#library"
+              onClick={(e) => handleNavClick('library', e)}
+              title={isMini ? 'Asset Library' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+              </svg>
+              <span>Asset Library</span>
+            </a>
+
+            {/* 5. QR Label Print */}
+            <a
+              className={currentHash === 'labels' ? 'on' : ''}
+              href="#labels"
+              onClick={(e) => handleNavClick('labels', e)}
+              title={isMini ? 'QR Label Print' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" />
+                <rect x="6" y="14" width="12" height="8" rx="1" />
+              </svg>
+              <span>QR Label Print</span>
+            </a>
+
+            {/* ── India Factory Operations ── */}
+            <div
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                color: 'var(--mute)',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                padding: '12px 14px 4px',
+                borderTop: '1px solid var(--line)',
+                marginTop: '8px',
+              }}
+            >
+              🏭 Factory Operations
+            </div>
+
+            {/* 6. Plant Maintenance */}
+            <a
+              className={currentHash === 'maintenance-india' ? 'on' : ''}
+              href="#maintenance-india"
+              onClick={(e) => handleNavClick('maintenance-india', e)}
+              title={isMini ? 'Plant Maintenance' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-2.6-.6-.6-2.6 2.6-2.2Z" />
+              </svg>
+              <span>Plant Maintenance</span>
+            </a>
+
+            {/* 7. Stock Count (Audit) */}
+            <a
+              className={currentHash === 'stockcount' ? 'on' : ''}
+              href="#stockcount"
+              onClick={(e) => handleNavClick('stockcount', e)}
+              title={isMini ? 'Stock Count (Audit)' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+              </svg>
+              <span>Stock Count (Audit)</span>
+            </a>
+
+            {/* 8. Asset Transfer */}
+            <a
+              className={currentHash === 'transfer' ? 'on' : ''}
+              href="#transfer"
+              onClick={(e) => handleNavClick('transfer', e)}
+              title={isMini ? 'Asset Transfer' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="m17 2 4 4-4 4" />
+                <path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" />
+                <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+              </svg>
+              <span>Asset Transfer</span>
+            </a>
+
+            {/* 9. Tax Depreciation */}
+            <a
+              className={currentHash === 'depreciation' ? 'on' : ''}
+              href="#depreciation"
+              onClick={(e) => handleNavClick('depreciation', e)}
+              title={isMini ? 'Tax Depreciation' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+              <span>Tax Depreciation</span>
+            </a>
+
+            {/* 10. Scrapping & Disposal */}
+            <a
+              className={currentHash === 'disposal' ? 'on' : ''}
+              href="#disposal"
+              onClick={(e) => handleNavClick('disposal', e)}
+              title={isMini ? 'Scrapping & Disposal' : undefined}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Scrapping & Disposal</span>
+            </a>
+
+            {/* ── Governance & Administration ── */}
+            <div
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                color: 'var(--mute)',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                padding: '12px 14px 4px',
+                borderTop: '1px solid var(--line)',
+                marginTop: '8px',
+              }}
+            >
+              ⚙️ System & Governance
+            </div>
+
+            {/* 11. Audit & Tracking */}
             <a
               className={currentHash === 'audit' ? 'on' : ''}
               href="#audit"
               onClick={(e) => handleNavClick('audit', e)}
               title={isMini ? 'Audit & Tracking' : undefined}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+              <svg viewBox="0 0 24 24">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                <path d="m9 12 2 2 4-4" />
               </svg>
               <span>Audit & Tracking</span>
             </a>
 
-            <a
-              className={currentHash === 'inventory' ? 'on' : ''}
-              href="#inventory"
-              onClick={(e) => handleNavClick('inventory', e)}
-              title={isMini ? 'Inventory' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
-                <path d="m3 8 9 5 9-5M12 13v8" />
-              </svg>
-              <span>Inventory</span>
-            </a>
-
-            <a
-              className={currentHash === 'maintenance' ? 'on' : ''}
-              href="#maintenance"
-              onClick={(e) => handleNavClick('maintenance', e)}
-              title={isMini ? 'Maintenance' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-2.6-.6-.6-2.6 2.6-2.2Z" />
-              </svg>
-              <span>Maintenance</span>
-            </a>
-
-            <a
-              className={currentHash === 'workorders' ? 'on' : ''}
-              href="#workorders"
-              onClick={(e) => handleNavClick('workorders', e)}
-              title={isMini ? 'Work orders' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <rect x="5" y="3" width="14" height="18" rx="2" />
-                <path d="M9 8h6M9 12h6M9 16h3" />
-              </svg>
-              <span>Work orders</span>
-            </a>
-
-            <a
-              className={currentHash === 'employees' ? 'on' : ''}
-              href="#employees"
-              onClick={(e) => handleNavClick('employees', e)}
-              title={isMini ? 'Employees' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="9" cy="8" r="3.5" />
-                <path d="M2.5 20c.6-3.5 3.2-5.5 6.5-5.5s5.9 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 15c2 .7 3.2 2.4 3.5 5" />
-              </svg>
-              <span>Employees</span>
-            </a>
-
-            <a
-              className={currentHash === 'locations' ? 'on' : ''}
-              href="#locations"
-              onClick={(e) => handleNavClick('locations', e)}
-              title={isMini ? 'Locations' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z" />
-                <circle cx="12" cy="10" r="2.5" />
-              </svg>
-              <span>Locations</span>
-            </a>
-
-            <a
-              className={currentHash === 'reports' ? 'on' : ''}
-              href="#reports"
-              onClick={(e) => handleNavClick('reports', e)}
-              title={isMini ? 'Reports' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-              </svg>
-              <span>Reports</span>
-            </a>
-
+            {/* 12. Administration */}
             <a
               className={currentHash === 'administration' ? 'on' : ''}
               href="#administration"
@@ -467,6 +742,23 @@ export function App() {
               </svg>
               <span>Administration</span>
             </a>
+
+            {/* 13. SUPERUSER ONLY: Security Lockout & IP Audit */}
+            {currentUser.isSuperuser && (
+              <a
+                className={currentHash === 'security' ? 'on' : ''}
+                href="#security"
+                onClick={(e) => handleNavClick('security', e)}
+                title={isMini ? 'Security & Lockouts' : undefined}
+                style={{ color: currentHash === 'security' ? undefined : '#a855f7' }}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span>Security & Lockouts</span>
+              </a>
+            )}
           </nav>
         </aside>
 
@@ -498,6 +790,12 @@ export function App() {
                 aria-label="Search assets, people, work orders"
               />
               <kbd>Ctrl K</kbd>
+            </div>
+
+            {/* Active Factory Badge */}
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surf2)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)]">
+              <span>🏭</span>
+              <span className="truncate max-w-[180px]">{activeFactory}</span>
             </div>
 
             <span style={{ flex: 1 }} />
@@ -539,6 +837,7 @@ export function App() {
               <i className="dot" />
             </button>
 
+            {/* User Profile Avatar */}
             <button
               type="button"
               className="me cursor-pointer border-none font-bold"
@@ -546,12 +845,27 @@ export function App() {
                 setTempUserName(currentUser.userName)
                 setTempUserId(currentUser.userId)
                 setTempUserRole(currentUser.role)
+                setTempUserDepartment(currentUser.department || 'IT')
                 setIsProfileModalOpen(true)
               }}
               title={`Logged in as ${currentUser.userName} (${currentUser.role}) · Click to switch user profile`}
               aria-label="User profile and login session"
             >
               {userInitials}
+            </button>
+
+            {/* Logout Button */}
+            <button
+              type="button"
+              className="ico"
+              onClick={handleLogout}
+              title="Sign Out from workshop terminal"
+              aria-label="Logout"
+              style={{ color: 'var(--bad)' }}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
             </button>
           </header>
 
@@ -571,70 +885,139 @@ export function App() {
                         day: 'numeric',
                         month: 'long',
                       })}{' '}
-                      · 0 active alerts · last synced just now
+                      · 0 active alerts · {activeFactory} · last synced just now
                     </div>
                   </div>
                   <div className="btns">
                     <button
                       className="btn"
                       onClick={() => {
-                        if (assets.length === 0) {
-                          toast.warning('Register at least one asset before exporting.')
-                          return
-                        }
-                        toast.success('Export report initiated')
+                        toast.success('Live inventory telemetry refreshed')
                       }}
                     >
-                      Export report
+                      Refresh
                     </button>
-                    <button className="btn p" onClick={() => setIsAddModalOpen(true)}>
-                      Add asset
+                    <button
+                      ref={addAssetButtonRef}
+                      className="btn p"
+                      onClick={() => {
+                        setWorkflowAsset(null)
+                        setIsAddModalOpen(true)
+                      }}
+                    >
+                      + Add Asset
                     </button>
                   </div>
                 </div>
 
-                {/* Fleet Health Hero Band */}
-                <section className="card hero" aria-label="Fleet health">
-                  <div className="big">
-                    <span className="n">{totalAssets}</span>
-                    <span>assets under management</span>
-                    <span className="chg">
-                      {totalAssets === 0 ? 'Register equipment to begin tracking' : `${totalAssets} active records`}
-                    </span>
+                {/* Fleet Health Bar & Executive Command Center */}
+                <section className="card p-5 space-y-4 bg-gradient-to-r from-[var(--surf)] via-[var(--surf)] to-[var(--surf2)] border border-[var(--line)] shadow-xs">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#165DFF] to-[#0f44bd] text-white flex items-center justify-center text-xl font-black shadow-md shadow-[#165DFF]/20">
+                        {totalAssets}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-[var(--ink)]">
+                            Active Deployed Fleet
+                          </h3>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Telemetry
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[var(--mute)] mt-0.5">
+                          Enterprise equipment tracking across IIPL & Padget manufacturing sites
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--ok)]/40 transition">
+                        <span className="sw" style={{ background: 'var(--ok)' }} />
+                        <span className="text-[var(--mute)]">Operational:</span>
+                        <b className="font-bold text-[var(--ink)]">{healthyCount}</b>
+                        <span className="text-[10px] text-[var(--mute)]">operational</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--warn)]/40 transition">
+                        <span className="sw" style={{ background: 'var(--warn)' }} />
+                        <span className="text-[var(--mute)]">Service Due:</span>
+                        <b className="font-bold text-[var(--ink)]">{maintenanceCount}</b>
+                        <span className="text-[10px] text-[var(--mute)]">service due</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--acc)]/40 transition">
+                        <span className="sw" style={{ background: 'var(--acc)' }} />
+                        <span className="text-[var(--mute)]">Reserved:</span>
+                        <b className="font-bold text-[var(--ink)]">{reservedCount}</b>
+                        <span className="text-[10px] text-[var(--mute)]">reserved</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--bad)]/40 transition">
+                        <span className="sw" style={{ background: 'var(--bad)' }} />
+                        <span className="text-[var(--mute)]">Retired:</span>
+                        <b className="font-bold text-[var(--ink)]">{retiredCount}</b>
+                        <span className="text-[10px] text-[var(--mute)]">retired</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="band" role="img" aria-label="Fleet health status band">
-                    {totalAssets > 0 ? (
-                      <>
-                        <i style={{ flex: healthyCount || 1, background: 'var(--ok)' }} />
-                        <i style={{ flex: reservedCount || 0, background: '#7fbf9f' }} />
-                        <i style={{ flex: maintenanceCount || 0, background: 'var(--warn)' }} />
-                        <i style={{ flex: retiredCount || 0, background: 'var(--bad)' }} />
-                      </>
-                    ) : (
-                      <i style={{ flex: 1, background: 'var(--surf2)' }} />
-                    )}
-                  </div>
-                  <div className="leg">
-                    <div>
-                      <span className="sw" style={{ background: 'var(--ok)' }} />
-                      <b>{healthyCount}</b> healthy
-                    </div>
-                    <div>
-                      <span className="sw" style={{ background: '#7fbf9f' }} />
-                      <b>{reservedCount}</b> reserved
-                    </div>
-                    <div>
-                      <span className="sw" style={{ background: 'var(--warn)' }} />
-                      <b>{maintenanceCount}</b> service due
-                    </div>
-                    <div>
-                      <span className="sw" style={{ background: 'var(--bad)' }} />
-                      <b>{retiredCount}</b> retired
-                    </div>
+
+                  {/* Visual Status Allocation Meter */}
+                  <div className="w-full bg-[var(--surf2)] h-2 rounded-full overflow-hidden flex border border-[var(--line)]/50">
+                    <div
+                      style={{ width: `${totalAssets > 0 ? (healthyCount / totalAssets) * 100 : 0}%` }}
+                      className="bg-[var(--ok)] transition-all duration-500"
+                      title={`${healthyCount} Operational`}
+                    />
+                    <div
+                      style={{ width: `${totalAssets > 0 ? (maintenanceCount / totalAssets) * 100 : 0}%` }}
+                      className="bg-[var(--warn)] transition-all duration-500"
+                      title={`${maintenanceCount} Service Due`}
+                    />
+                    <div
+                      style={{ width: `${totalAssets > 0 ? (reservedCount / totalAssets) * 100 : 0}%` }}
+                      className="bg-[var(--acc)] transition-all duration-500"
+                      title={`${reservedCount} Reserved`}
+                    />
+                    <div
+                      style={{ width: `${totalAssets > 0 ? (retiredCount / totalAssets) * 100 : 0}%` }}
+                      className="bg-[var(--bad)] transition-all duration-500"
+                      title={`${retiredCount} Retired`}
+                    />
                   </div>
                 </section>
 
-                {/* Facility Assets Register - IIPL & Padget Deployed Units (C39, D197, D198, D199) */}
+                {/* 3D Bento-Box Command Grid */}
+                <div className="mt-5">
+                  <ExecutiveBentoGrid3D
+                    assets={completedAssetsList}
+                    pendingTaskCount={pendingTaskCount}
+                    onNavigate={(hash) => {
+                      setCurrentHash(hash)
+                      window.location.hash = '#' + hash
+                    }}
+                    onAddAsset={() => {
+                      setWorkflowAsset(null)
+                      setIsAddModalOpen(true)
+                    }}
+                  />
+                </div>
+
+                {/* 3D Spatial Digital Twin Facility Visualizer */}
+                <div className="mt-5">
+                  <DigitalTwinFacility3D
+                    assets={completedAssetsList}
+                    activeBuildingFilter={dashBuildingFilter}
+                    onSelectBuilding={(bldg) => {
+                      setDashBuildingFilter(bldg as any)
+                    }}
+                    onOpenAsset={(asset) => {
+                      setWorkflowAsset(asset)
+                      setIsAddModalOpen(true)
+                    }}
+                  />
+                </div>
+
+                {/* Facility Assets Register */}
                 <section className="card" style={{ marginTop: '20px', padding: '20px' }} aria-label="Facility Assets Register">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--line)]">
                     <div>
@@ -644,8 +1027,27 @@ export function App() {
                           Facility Assets Register
                         </h2>
                         <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-[var(--acc)]/10 text-[var(--acc)]">
-                          {filteredDashboardAssets.length} of {assets.length} Deployed
+                          {filteredDashboardAssets.length} of {completedAssetsList.length} Deployed
                         </span>
+                        {!isSuperuserOrAdmin && currentUser.department && (
+                          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                            {currentUser.department} Dept View
+                          </span>
+                        )}
+                        {pendingTaskCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCurrentHash('tasks')
+                              window.location.hash = '#tasks'
+                            }}
+                            className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 hover:bg-amber-500/20 transition cursor-pointer flex items-center gap-1"
+                            title="Click to view pending asset codes in Task Queue"
+                          >
+                            <span>⏳</span>
+                            <span>{pendingTaskCount} pending task entry</span>
+                          </button>
+                        )}
                       </div>
                       <p className="text-xs text-[var(--mute)] mt-1">
                         Enterprise tracking across <b>IIPL</b> & <b>Padget</b> facilities (Buildings: <b>C39, D197, D198, D199</b>)
@@ -675,16 +1077,16 @@ export function App() {
                       </div>
 
                       {/* Company Filter */}
-                      <div className="flex items-center rounded-lg border border-[var(--line)] p-0.5 bg-[var(--surf)]" title="Filter by Company">
+                      <div className="flex items-center rounded-lg border border-[var(--line)] overflow-hidden text-xs">
                         {(['All', 'IIPL', 'Padget'] as const).map((comp) => (
                           <button
                             key={comp}
                             type="button"
                             onClick={() => setDashCompanyFilter(comp)}
-                            className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                            className={`px-2.5 py-1 transition-colors cursor-pointer ${
                               dashCompanyFilter === comp
-                                ? 'bg-[var(--acc)] text-white shadow-xs'
-                                : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                                ? 'bg-[var(--acc)] text-white font-bold'
+                                : 'bg-[var(--surf)] text-[var(--mute)] hover:text-[var(--ink)]'
                             }`}
                           >
                             {comp === 'All' ? 'All Co.' : comp}
@@ -693,16 +1095,16 @@ export function App() {
                       </div>
 
                       {/* Building Filter */}
-                      <div className="flex items-center rounded-lg border border-[var(--line)] p-0.5 bg-[var(--surf)]" title="Filter by Building">
-                        {(['All', 'C39', 'D197', 'D198', 'D199'] as const).map((bldg) => (
+                      <div className="flex items-center rounded-lg border border-[var(--line)] overflow-hidden text-xs">
+                        {['All', 'C39', 'D197', 'D198', 'D199'].map((bldg) => (
                           <button
                             key={bldg}
                             type="button"
                             onClick={() => setDashBuildingFilter(bldg)}
-                            className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                            className={`px-2 py-1 transition-colors cursor-pointer ${
                               dashBuildingFilter === bldg
-                                ? 'bg-[var(--acc)] text-white shadow-xs'
-                                : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                                ? 'bg-[var(--acc)] text-white font-bold'
+                                : 'bg-[var(--surf)] text-[var(--mute)] hover:text-[var(--ink)]'
                             }`}
                           >
                             {bldg === 'All' ? 'All Bldgs' : bldg}
@@ -710,10 +1112,26 @@ export function App() {
                         ))}
                       </div>
 
+                      {/* Export to Excel Button */}
                       <button
                         type="button"
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="btn p text-xs py-1 px-3"
+                        onClick={() => exportAssetsToExcel(filteredDashboardAssets, `${currentUser.department || 'Asset'}_Inventory`)}
+                        className="btn text-xs py-1 px-3 flex items-center gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition shadow-xs"
+                        title="Export current assets to Excel (.xlsx)"
+                        aria-label="Export to Excel"
+                      >
+                        <span>📊</span>
+                        <span>Export Excel</span>
+                      </button>
+
+                      {/* Add Asset Quick Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorkflowAsset(null)
+                          setIsAddModalOpen(true)
+                        }}
+                        className="btn p text-xs py-1 px-3 cursor-pointer"
                       >
                         + Add Asset
                       </button>
@@ -769,7 +1187,7 @@ export function App() {
                                   ) : (
                                     <div
                                       className="w-10 h-10 rounded-md bg-[var(--surf2)] border border-[var(--line)] flex items-center justify-center text-base"
-                                      title="No photo uploaded"
+                                      title="No photo attached"
                                     >
                                       📦
                                     </div>
@@ -777,22 +1195,28 @@ export function App() {
                                 </td>
 
                                 {/* Asset Code */}
-                                <td className="py-2.5 px-3">
-                                  <div className="font-mono font-bold text-[var(--ink)] text-xs">
-                                    {asset.assetCode}
-                                  </div>
-                                  <div className="text-[11px] text-[var(--mute)] truncate max-w-[150px]" title={asset.currentDescription || asset.name}>
-                                    {asset.currentDescription || asset.name}
-                                  </div>
+                                <td className="py-2.5 px-3 font-mono font-bold text-[var(--ink)]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setWorkflowAsset(asset)
+                                      setIsAddModalOpen(true)
+                                    }}
+                                    className="text-left group cursor-pointer bg-transparent border-none p-0 focus:outline-none"
+                                    title={`Open ${asset.assetCode} form`}
+                                  >
+                                    <div className="group-hover:text-[var(--acc)] group-hover:underline transition-colors">{asset.assetCode}</div>
+                                    <div className="text-[10px] text-[var(--mute)] font-sans">{asset.serialNumber || 'SN: N/A'}</div>
+                                  </button>
                                 </td>
 
-                                {/* Company: IIPL or Padget */}
+                                {/* Company */}
                                 <td className="py-2.5 px-3">
                                   <span
-                                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
                                       comp === 'Padget'
-                                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
-                                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                                        ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                                        : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
                                     }`}
                                   >
                                     <span>{comp === 'Padget' ? '🏭' : '🏢'}</span>
@@ -800,57 +1224,73 @@ export function App() {
                                   </span>
                                 </td>
 
-                                {/* Building: C39, D197, D198, D199 */}
-                                <td className="py-2.5 px-3">
-                                  <span className="inline-flex items-center gap-1 font-semibold text-xs text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] bg-[var(--surf)]">
+                                {/* Building */}
+                                <td className="py-2.5 px-3 font-semibold text-[var(--ink)]">
+                                  <span className="inline-flex items-center gap-1">
                                     <span>🏛️</span>
                                     <span>{bldg}</span>
                                   </span>
                                 </td>
 
                                 {/* Floor */}
-                                <td className="py-2.5 px-3 text-xs text-[var(--ink)]">
-                                  <span className="inline-flex items-center gap-1 text-[var(--mute)]">
+                                <td className="py-2.5 px-3 text-[var(--mute)]">
+                                  <span className="inline-flex items-center gap-1">
                                     <span>📍</span>
-                                    <span className="font-medium text-[var(--ink)]">{flr}</span>
+                                    <span>{flr}</span>
                                   </span>
                                 </td>
 
-                                {/* Belong to which dept */}
+                                {/* Belong to Dept */}
                                 <td className="py-2.5 px-3">
-                                  <span className="inline-block px-2 py-0.5 rounded bg-[var(--acc)]/10 text-[var(--acc)] font-medium text-xs">
+                                  <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-[var(--surf2)] text-[var(--ink)] border border-[var(--line)]">
                                     {dept}
                                   </span>
                                 </td>
 
-                                {/* Who in charge (ID, name) */}
+                                {/* Who in Charge (ID, Name) */}
                                 <td className="py-2.5 px-3">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-[var(--surf2)] border border-[var(--line)] text-xs flex items-center justify-center font-bold text-[var(--acc)] shrink-0">
+                                    <div className="w-6 h-6 rounded-full bg-[var(--acc)]/10 text-[var(--acc)] flex items-center justify-center text-[10px] font-bold">
                                       👤
                                     </div>
                                     <div>
-                                      <div className="font-semibold text-xs text-[var(--ink)]">
+                                      <div className="font-semibold text-[var(--ink)] leading-tight">
                                         {inChargeDisplayName}
                                       </div>
-                                      <div className="text-[10.5px] font-mono text-[var(--mute)]">
-                                        ID: <span className="font-bold text-[var(--ink)]">{inChargeDisplayId}</span>
+                                      <div className="font-mono text-[10px] text-[var(--mute)] leading-tight">
+                                        ID: {inChargeDisplayId}
                                       </div>
                                     </div>
                                   </div>
                                 </td>
 
-                                {/* Action: Bin delete */}
+                                {/* Action */}
                                 <td className="py-2.5 px-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteAsset(asset.id)}
-                                    className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors cursor-pointer border border-transparent hover:border-red-500/20"
-                                    title={`Delete asset ${asset.assetCode}`}
-                                    aria-label={`Delete asset ${asset.assetCode}`}
-                                  >
-                                    🗑️
-                                  </button>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        try {
+                                          sessionStorage.setItem('meridian_print_asset_id', asset.id)
+                                        } catch {}
+                                        window.location.hash = '#labels'
+                                      }}
+                                      className="p-1 rounded text-[var(--mute)] hover:text-[var(--acc)] hover:bg-[var(--surf2)] transition cursor-pointer"
+                                      title={`Print QR Label for ${asset.assetCode}`}
+                                      aria-label={`Print QR Label for ${asset.assetCode}`}
+                                    >
+                                      🏷️
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAsset(asset.id)}
+                                      className="p-1 rounded text-[var(--mute)] hover:text-[var(--bad)] hover:bg-[var(--surf2)] transition cursor-pointer"
+                                      title={`Delete asset ${asset.assetCode}`}
+                                      aria-label={`Delete asset ${asset.assetCode}`}
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             )
@@ -862,24 +1302,44 @@ export function App() {
                     <div className="text-center py-12 px-4">
                       <div className="text-3xl mb-2">🏢</div>
                       <h3 className="text-sm font-bold text-[var(--ink)]">
-                        {assets.length === 0
-                          ? 'Zero Assets Registered in Dashboard'
+                        {completedAssetsList.length === 0
+                          ? pendingTaskCount > 0
+                            ? `0 Deployed Assets (${pendingTaskCount} Codes Pending in Task Queue)`
+                            : 'Zero Assets Registered in Dashboard'
                           : 'No matching assets found for active filters'}
                       </h3>
                       <p className="text-xs text-[var(--mute)] max-w-md mx-auto mt-1 mb-4">
-                        {assets.length === 0
-                          ? 'Add equipment or import an Excel spreadsheet to view real-time facility deployments for IIPL and Padget across buildings C39, D197, D198, and D199.'
+                        {completedAssetsList.length === 0
+                          ? pendingTaskCount > 0
+                            ? 'Asset codes have been imported into the Task Queue, but departmental data has not been filled out yet. Open the Task Queue to select codes and register equipment details.'
+                            : 'Add equipment or import an Excel spreadsheet to view real-time facility deployments for IIPL and Padget across buildings C39, D197, D198, and D199.'
                           : 'Try clearing your search term or switching the Company and Building filters.'}
                       </p>
                       <div className="flex items-center justify-center gap-2">
-                        {assets.length === 0 ? (
+                        {completedAssetsList.length === 0 ? (
                           <>
+                            {pendingTaskCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCurrentHash('tasks')
+                                  window.location.hash = '#tasks'
+                                }}
+                                className="btn p text-xs flex items-center gap-1"
+                              >
+                                <span>📋</span>
+                                <span>Open Task Queue ({pendingTaskCount} Pending)</span>
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => setIsAddModalOpen(true)}
-                              className="btn p text-xs"
+                              onClick={() => {
+                                setWorkflowAsset(null)
+                                setIsAddModalOpen(true)
+                              }}
+                              className="btn text-xs"
                             >
-                              + Add First Asset
+                              + Add Asset
                             </button>
                             <button
                               type="button"
@@ -910,16 +1370,30 @@ export function App() {
                   )}
                 </section>
               </div>
+            ) : currentHash === 'verification' || currentHash === 'tasks' ? (
+              <AssetCodeWorkflow
+                assets={assets}
+                user={currentUser}
+                onImportCodes={handleImportAssetCodes}
+                onAssign={handleAssignAssetCode}
+                onSelectAsset={(asset) => {
+                  setWorkflowAsset(asset)
+                  setIsAddModalOpen(true)
+                }}
+              />
             ) : currentHash === 'assets' || currentHash === 'library' ? (
               <AssetLibraryView
-                assets={assets}
+                assets={scopedAssets}
                 activeSubTab={currentHash === 'library' ? 'library' : 'gallery'}
                 setActiveSubTab={(tab) => {
                   const targetHash = tab === 'library' ? 'library' : 'assets'
                   setCurrentHash(targetHash)
                   window.location.hash = `#${targetHash}`
                 }}
-                onOpenAddAsset={() => setIsAddModalOpen(true)}
+                onOpenAddAsset={() => {
+                  setWorkflowAsset(null)
+                  setIsAddModalOpen(true)
+                }}
                 onDeleteAsset={handleDeleteAsset}
                 onClearAllAssets={handleClearAllAssets}
                 onImportAssets={handleImportAssets}
@@ -927,6 +1401,74 @@ export function App() {
               />
             ) : currentHash === 'audit' ? (
               <AuditLogView />
+            ) : currentHash === 'security' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Superuser Security Console...</div>}>
+                <SuperuserSecurityView currentUser={currentUser} lang={lang} />
+              </React.Suspense>
+            ) : currentHash === 'maintenance-india' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Maintenance Module...</div>}>
+                <IndiaMaintenanceView lang={lang} />
+              </React.Suspense>
+            ) : currentHash === 'stockcount' || currentHash === 'stock-count' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Stock Count Module...</div>}>
+                <IndiaStockCountView
+                  lang={lang}
+                  assets={scopedAssets}
+                  currentUser={currentUser}
+                  onUpdateAsset={(updated) => {
+                    setAssets((prev) =>
+                      prev.map((a) => (a.id === updated.id || a.assetCode === updated.assetCode ? updated : a))
+                    )
+                  }}
+                />
+              </React.Suspense>
+            ) : currentHash === 'transfer' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Transfer Module...</div>}>
+                <IndiaTransferView
+                  assets={scopedAssets}
+                  lang={lang}
+                  currentUser={currentUser}
+                  onUpdateAsset={(updated) => {
+                    setAssets((prev) =>
+                      prev.map((a) => (a.id === updated.id || a.assetCode === updated.assetCode ? updated : a))
+                    )
+                  }}
+                />
+              </React.Suspense>
+            ) : currentHash === 'disposal' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Disposal Module...</div>}>
+                <IndiaDisposalView assets={scopedAssets} onDisposeAsset={handleDisposeAsset} lang={lang} />
+              </React.Suspense>
+            ) : currentHash === 'depreciation' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Depreciation Module...</div>}>
+                <IndiaDepreciationView assets={scopedAssets} lang={lang} />
+              </React.Suspense>
+            ) : currentHash === 'labels' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Label Print Module...</div>}>
+                <IndiaLabelPrintView
+                  assets={scopedAssets}
+                  lang={lang}
+                  onFillAssetData={(asset) => {
+                    setWorkflowAsset(asset)
+                    setIsAddModalOpen(true)
+                  }}
+                />
+              </React.Suspense>
+            ) : currentHash === 'users' || currentHash === 'rbac' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Department RBAC & User Management...</div>}>
+                <UserManagementView
+                  currentUser={currentUser}
+                  onSwitchUser={(user) => {
+                    setCurrentUser(user)
+                    setCurrentUserProfile(user)
+                    setTempUserName(user.userName)
+                    setTempUserId(user.userId)
+                    setTempUserRole(user.role)
+                    setTempUserDepartment(user.department || 'IT')
+                  }}
+                  lang={lang}
+                />
+              </React.Suspense>
             ) : activePage ? (
               /* All Other 11 Dashboards (#assets, #inventory, #maintenance, etc.) */
               <div id="v-page">
@@ -952,6 +1494,7 @@ export function App() {
                       className="btn p"
                       onClick={() => {
                         if (activePage.btn === 'Add asset') {
+                          setWorkflowAsset(null)
                           setIsAddModalOpen(true)
                         } else {
                           toast.info(`Action triggered: ${activePage.btn}`)
@@ -1034,6 +1577,25 @@ export function App() {
                     )}
                   </section>
                 </div>
+
+                {currentHash === 'administration' && (
+                  <div style={{ marginTop: '24px' }}>
+                    <React.Suspense fallback={<div className="p-4 text-center text-xs text-[var(--mute)]">Loading Department RBAC & User Management...</div>}>
+                      <UserManagementView
+                        currentUser={currentUser}
+                        onSwitchUser={(user) => {
+                          setCurrentUser(user)
+                          setCurrentUserProfile(user)
+                          setTempUserName(user.userName)
+                          setTempUserId(user.userId)
+                          setTempUserRole(user.role)
+                          setTempUserDepartment(user.department || 'IT')
+                        }}
+                        lang={lang}
+                      />
+                    </React.Suspense>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
@@ -1118,6 +1680,36 @@ export function App() {
                   Save & Switch
                 </button>
               </div>
+
+              <div className="pt-2 border-t border-[var(--line)] space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileModalOpen(false)
+                    setCurrentHash('administration')
+                    window.location.hash = '#administration'
+                  }}
+                  className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-[var(--acc)]/30 text-[var(--acc)] bg-[var(--acc)]/5 hover:bg-[var(--acc)]/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>🛡️</span>
+                  <span>Manage Department Users & Passwords (RBAC)</span>
+                </button>
+
+                {currentUser.isSuperuser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileModalOpen(false)
+                      setCurrentHash('security')
+                      window.location.hash = '#security'
+                    }}
+                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>🔒</span>
+                    <span>Superuser Security & IP Audit</span>
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         </div>
@@ -1159,9 +1751,14 @@ export function App() {
 
       <AddAssetPanel
         open={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false)
+          setWorkflowAsset(null)
+        }}
         onSave={handleSaveAsset}
+        initialAsset={workflowAsset}
         triggerRef={addAssetButtonRef}
+        currentUser={currentUser}
       />
     </>
   )

@@ -140,8 +140,13 @@ describe('Comprehensive Audit & Device Tracking System Specification', () => {
     })
 
     // Click "View Details" to open inspection modal
-    const viewDetailsBtns = await screen.findAllByRole('button', { name: /View Details/i })
-    fireEvent.click(viewDetailsBtns[0])
+    await waitFor(() => {
+      const viewDetailsBtns = screen.queryAllByRole('button', { name: /View Details/i })
+      expect(viewDetailsBtns.length).toBeGreaterThan(0)
+      if (viewDetailsBtns[0]) {
+        fireEvent.click(viewDetailsBtns[0])
+      }
+    })
 
     await waitFor(() => {
       expect(screen.getByText(/Audit Entry Details:/i)).toBeInTheDocument()
@@ -200,9 +205,13 @@ describe('Comprehensive Audit & Device Tracking System Specification', () => {
     })
 
     // Open Deleted Item inspection modal specifically for the AST-DEL-9921 row
-    const targetRow = screen.getAllByText('AST-DEL-9921')[0].closest('tr')!
-    const viewDeletedBtn = within(targetRow).getByRole('button', { name: /View Details/i })
-    fireEvent.click(viewDeletedBtn)
+    await waitFor(() => {
+      const match = screen.getAllByText('AST-DEL-9921')[0]
+      expect(match).toBeInTheDocument()
+      const targetRow = match.closest('tr')!
+      const viewDeletedBtn = within(targetRow).getByRole('button', { name: /View Details/i })
+      fireEvent.click(viewDeletedBtn)
+    })
 
     // Verify preserved specifications are shown in modal
     await waitFor(() => {

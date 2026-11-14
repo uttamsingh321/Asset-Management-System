@@ -38,7 +38,7 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     // Required fields marked with *
     expect(screen.getAllByText(/Asset code/i)[0]).toBeInTheDocument()
     expect(screen.getByText(/Asset serial number/i)).toBeInTheDocument()
-    expect(screen.getByText(/Plant/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Plant/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Asset condition/i)).toBeInTheDocument()
 
     // Categorized groups

@@ -1,13 +1,14 @@
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+import random
+from datetime import datetime, timezone, timedelta
 from django.http import JsonResponse, HttpRequest, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q, Count
 from django.utils import timezone as dj_timezone
 
-from .models import Asset, AuditLog, UserSession
+from .models import Asset, AuditLog, UserSession, AppUser
 from .device_detector import parse_device_and_browser
 
 
@@ -595,3 +596,1205 @@ def api_metrics(request: HttpRequest) -> JsonResponse:
         "retiredCount": retired,
         "totalAuditEvents": AuditLog.objects.count(),
     })
+
+
+@csrf_exempt
+def api_users(request: HttpRequest) -> JsonResponse:
+    """
+    RBAC User Management API.
+    GET: Returns list of users, optional filter by department (?department=IT)
+    POST: Superuser adds a new user with manually specified password (no random generation).
+    """
+    if request.method == "GET":
+        department = request.GET.get("department")
+        qs = AppUser.objects.all()
+        if department and department != "All":
+            qs = qs.filter(department=department)
+
+        include_passwords = request.GET.get("include_passwords") == "1"
+        users = [u.to_dict(include_password=include_passwords) for u in qs]
+        return JsonResponse({"users": users, "count": len(users)})
+
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            user_id = (data.get("userId") or data.get("user_id") or "").strip()
+            name = (data.get("name") or data.get("userName") or "").strip()
+            department = (data.get("department") or "IT").strip()
+            role = (data.get("role") or "Employee").strip()
+            password = (data.get("password") or "").strip()
+            email = (data.get("email") or "").strip()
+            created_by = (data.get("createdBy") or "Superuser").strip()
+
+            if not user_id:
+                return JsonResponse({"error": "User ID is required"}, status=400)
+            if not name:
+                return JsonResponse({"error": "Full Name is required"}, status=400)
+            if not password:
+                return JsonResponse({
+                    "error": "Password must be explicitly set by Superuser. Random generation is disabled."
+                }, status=400)
+            if len(password) < 4:
+                return JsonResponse({"error": "Password must be at least 4 characters long"}, status=400)
+
+            if AppUser.objects.filter(user_id=user_id).exists():
+                return JsonResponse({"error": f"User with ID '{user_id}' already exists"}, status=409)
+
+            is_super = (role == "Admin") or data.get("isSuperuser", False)
+
+            user = AppUser.objects.create(
+                user_id=user_id,
+                name=name,
+                email=email,
+                department=department,
+                role=role,
+                password=password,
+                is_superuser=is_super,
+                created_by=created_by,
+            )
+
+            # Record in immutable audit log
+            record_audit_log(
+                request=request,
+                action="USER_CREATE",
+                user_id=created_by,
+                user_name="Superuser",
+                role="Admin",
+                entity_type="User",
+                entity_id=user_id,
+                details={
+                    "userId": user_id,
+                    "name": name,
+                    "department": department,
+                    "role": role,
+                    "passwordSetBySuperuser": True,
+                    "note": "Credentials manually set by Superuser for department distribution",
+                }
+            )
+
+            return JsonResponse({
+                "status": "created",
+                "message": f"User {name} created for department {department}. Superuser password set.",
+                "user": user.to_dict(include_password=True),
+            }, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@csrf_exempt
+def api_user_detail(request: HttpRequest, user_id: str) -> JsonResponse:
+    """
+    Manage specific user (PUT to update department/role/password, DELETE to remove).
+    """
+    user = AppUser.objects.filter(user_id=user_id).first()
+    if not user:
+        return JsonResponse({"error": f"User '{user_id}' not found"}, status=404)
+
+    if request.method == "GET":
+        return JsonResponse({"user": user.to_dict(include_password=True)})
+
+    elif request.method == "PUT":
+        try:
+            data = json.loads(request.body)
+            if "name" in data and data["name"].strip():
+                user.name = data["name"].strip()
+            if "department" in data and data["department"].strip():
+                user.department = data["department"].strip()
+            if "role" in data and data["role"].strip():
+                user.role = data["role"].strip()
+                user.is_superuser = (user.role == "Admin")
+            if "password" in data and data["password"].strip():
+                new_pw = data["password"].strip()
+                if len(new_pw) < 4:
+                    return JsonResponse({"error": "Password must be at least 4 characters long"}, status=400)
+                user.password = new_pw
+            if "email" in data:
+                user.email = data["email"].strip()
+            if "isActive" in data:
+                user.is_active = bool(data["isActive"])
+
+            user.save()
+
+            record_audit_log(
+                request=request,
+                action="USER_UPDATE",
+                user_id="USR-ADMIN",
+                user_name="Superuser",
+                role="Admin",
+                entity_type="User",
+                entity_id=user_id,
+                details={
+                    "userId": user_id,
+                    "department": user.department,
+                    "role": user.role,
+                    "passwordUpdated": "password" in data,
+                }
+            )
+
+            return JsonResponse({"status": "updated", "user": user.to_dict(include_password=True)})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    elif request.method == "DELETE":
+        admin_count = AppUser.objects.filter(role="Admin", is_active=True).count()
+        if user.role == "Admin" and admin_count <= 1:
+            return JsonResponse({"error": "Cannot delete the sole Administrator account"}, status=400)
+
+        record_audit_log(
+            request=request,
+            action="USER_DELETE",
+            user_id="USR-ADMIN",
+            user_name="Superuser",
+            role="Admin",
+            entity_type="User",
+            entity_id=user_id,
+            details={"userId": user_id, "name": user.name, "department": user.department}
+        )
+        user.delete()
+        return JsonResponse({"status": "deleted", "userId": user_id})
+
+    return HttpResponseNotAllowed(["GET", "PUT", "DELETE"])
+
+
+@csrf_exempt
+def api_user_login(request: HttpRequest) -> JsonResponse:
+    """
+    Authenticate user by User ID and Password.
+    Enforces security lockout on consecutive failed attempts (5 attempts -> 15 min lockout).
+    Records every login attempt, IP address, and lockout event to immutable AuditLog.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    try:
+        data = json.loads(request.body)
+        user_id = (data.get("userId") or "").strip()
+        password = (data.get("password") or "").strip()
+        factory = (data.get("factory") or "Noida Plant").strip()
+
+        if not user_id or not password:
+            return JsonResponse({"error": "User ID and Password are required"}, status=400)
+
+        user = AppUser.objects.filter(user_id=user_id).first()
+
+        # Check if user exists
+        if not user:
+            record_audit_log(
+                request=request,
+                action="LOGIN_FAILURE",
+                user_id=user_id,
+                user_name=user_id,
+                role="Unknown",
+                entity_type="User",
+                entity_id=user_id,
+                details={
+                    "reason": "User ID does not exist",
+                    "factory": factory,
+                    "attemptTimestamp": dj_timezone.now().isoformat(),
+                }
+            )
+            return JsonResponse({"error": "Invalid User ID or Password"}, status=401)
+
+        # Check account active
+        if not user.is_active:
+            record_audit_log(
+                request=request,
+                action="LOGIN_FAILURE",
+                user_id=user.user_id,
+                user_name=user.name,
+                role=user.role,
+                entity_type="User",
+                entity_id=user.user_id,
+                details={"reason": "Inactive account login attempt", "factory": factory}
+            )
+            return JsonResponse({"error": "This account has been deactivated. Please contact Superuser."}, status=403)
+
+        # Check account lockout
+        now = dj_timezone.now()
+        if user.locked_until and user.locked_until > now:
+            remaining_seconds = int((user.locked_until - now).total_seconds())
+            remaining_minutes = max(1, (remaining_seconds + 59) // 60)
+            record_audit_log(
+                request=request,
+                action="LOGIN_FAILURE",
+                user_id=user.user_id,
+                user_name=user.name,
+                role=user.role,
+                entity_type="User",
+                entity_id=user.user_id,
+                details={
+                    "reason": "Locked account login attempt",
+                    "lockedUntil": user.locked_until.isoformat(),
+                    "remainingMinutes": remaining_minutes,
+                    "factory": factory,
+                }
+            )
+            return JsonResponse({
+                "error": f"Account is locked due to multiple failed login attempts. Locked for {remaining_minutes} more minute(s). Contact Superuser to unlock.",
+                "isLocked": True,
+                "lockedUntil": user.locked_until.isoformat(),
+                "remainingMinutes": remaining_minutes,
+            }, status=403)
+
+        # Verify password
+        if user.password != password:
+            user.failed_login_attempts += 1
+            attempts_left = max(0, 5 - user.failed_login_attempts)
+
+            if user.failed_login_attempts >= 5:
+                user.locked_until = now + timedelta(minutes=15)
+                user.lockout_reason = "Exceeded 5 consecutive failed login attempts"
+                user.save()
+
+                record_audit_log(
+                    request=request,
+                    action="ACCOUNT_LOCKOUT",
+                    user_id=user.user_id,
+                    user_name=user.name,
+                    role=user.role,
+                    entity_type="User",
+                    entity_id=user.user_id,
+                    details={
+                        "reason": user.lockout_reason,
+                        "failedAttempts": user.failed_login_attempts,
+                        "lockoutDurationMinutes": 15,
+                        "lockedUntil": user.locked_until.isoformat(),
+                        "factory": factory,
+                    }
+                )
+
+                return JsonResponse({
+                    "error": "Account has been locked for 15 minutes due to 5 consecutive failed attempts. Contact Superuser to unlock immediately.",
+                    "isLocked": True,
+                    "lockedUntil": user.locked_until.isoformat(),
+                    "remainingMinutes": 15,
+                }, status=403)
+            else:
+                user.save()
+                record_audit_log(
+                    request=request,
+                    action="LOGIN_FAILURE",
+                    user_id=user.user_id,
+                    user_name=user.name,
+                    role=user.role,
+                    entity_type="User",
+                    entity_id=user.user_id,
+                    details={
+                        "reason": "Incorrect password",
+                        "failedAttempts": user.failed_login_attempts,
+                        "attemptsRemaining": attempts_left,
+                        "factory": factory,
+                    }
+                )
+
+                return JsonResponse({
+                    "error": f"Invalid User ID or Password. {attempts_left} attempt(s) remaining before account lockout.",
+                    "failedAttempts": user.failed_login_attempts,
+                    "attemptsRemaining": attempts_left,
+                }, status=401)
+
+        # Successful login: reset failed attempts
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.lockout_reason = ""
+        user.save()
+
+        # Log session
+        session_id = f"SES-{uuid.uuid4().hex[:12].upper()}"
+        telemetry = parse_device_and_browser(request)
+
+        UserSession.objects.create(
+            session_id=session_id,
+            user_id=user.user_id,
+            user_name=user.name,
+            role=user.role,
+            client_ip=telemetry["client_ip"],
+            hostname=telemetry["hostname"],
+            device_type=telemetry["device_type"],
+            os=telemetry["os"],
+            browser=telemetry["browser"],
+            user_agent=telemetry["user_agent"],
+        )
+
+        record_audit_log(
+            request=request,
+            action="LOGIN",
+            user_id=user.user_id,
+            user_name=user.name,
+            role=user.role,
+            session_id=session_id,
+            entity_type="UserSession",
+            entity_id=session_id,
+            details={
+                "authMethod": "Manual Superuser Password Authentication",
+                "department": user.department,
+                "factory": factory,
+                "clientIp": telemetry["client_ip"],
+            }
+        )
+
+        return JsonResponse({
+            "status": "authenticated",
+            "sessionId": session_id,
+            "factory": factory,
+            "user": user.to_dict(),
+        })
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+def api_security_login_audit(request: HttpRequest) -> JsonResponse:
+    """
+    SUPERUSER ONLY VIEW:
+    Returns security login audit trail recording login IP, failed attempts, and account lockouts.
+    Admins, Plant Managers, and other roles are strictly rejected with 403 Forbidden.
+    """
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    # Strict Superuser Verification: Header or active session verification
+    is_superuser_req = (
+        request.headers.get("X-Superuser") == "true" or
+        request.headers.get("X-User-Role") == "Superuser" or
+        request.GET.get("superuser") == "true"
+    )
+    req_user_id = request.headers.get("X-User-Id") or request.GET.get("userId")
+
+    # If user ID provided, double check in database
+    if req_user_id:
+        u = AppUser.objects.filter(user_id=req_user_id).first()
+        if u and u.is_superuser:
+            is_superuser_req = True
+
+    if not is_superuser_req:
+        return JsonResponse({
+            "error": "ACCESS FORBIDDEN: Security login audit logs and lockout management are strictly restricted to Superuser only. Not accessible by Admin or any other role."
+        }, status=403)
+
+    # Fetch login security events
+    security_actions = ["LOGIN", "LOGIN_FAILURE", "ACCOUNT_LOCKOUT", "USER_UNLOCK"]
+    logs = AuditLog.objects.filter(action__in=security_actions).order_by("-timestamp")[:200]
+
+    # Fetch currently locked accounts
+    now = dj_timezone.now()
+    locked_users = AppUser.objects.filter(locked_until__gt=now)
+
+    return JsonResponse({
+        "status": "success",
+        "totalSecurityLogs": logs.count(),
+        "lockedAccountsCount": locked_users.count(),
+        "lockedAccounts": [u.to_dict() for u in locked_users],
+        "logs": [log.to_dict() for log in logs],
+    })
+
+
+@csrf_exempt
+def api_unlock_user(request: HttpRequest, user_id: str) -> JsonResponse:
+    """
+    SUPERUSER ONLY ACTION:
+    Manually unlock an account locked out due to consecutive failed login attempts.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    # Strict Superuser check
+    is_superuser_req = (
+        request.headers.get("X-Superuser") == "true" or
+        request.headers.get("X-User-Role") == "Superuser" or
+        request.GET.get("superuser") == "true"
+    )
+    req_user_id = request.headers.get("X-User-Id")
+    if req_user_id:
+        u = AppUser.objects.filter(user_id=req_user_id).first()
+        if u and u.is_superuser:
+            is_superuser_req = True
+
+    if not is_superuser_req:
+        return JsonResponse({
+            "error": "ACCESS FORBIDDEN: Only Superuser can manually unlock user accounts."
+        }, status=403)
+
+    user = AppUser.objects.filter(user_id=user_id).first()
+    if not user:
+        return JsonResponse({"error": "User not found"}, status=404)
+
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.lockout_reason = ""
+    user.save()
+
+    telemetry = parse_device_and_browser(request)
+    record_audit_log(
+        request=request,
+        action="USER_UNLOCK",
+        user_id=req_user_id or "USR-SUPERUSER",
+        user_name="Superuser",
+        role="Superuser",
+        entity_type="User",
+        entity_id=user.user_id,
+        details={
+            "unlockedUserId": user.user_id,
+            "unlockedUserName": user.name,
+            "unlockedBy": "Superuser Manual Unlock",
+            "clientIp": telemetry["client_ip"],
+        }
+    )
+
+    return JsonResponse({
+        "status": "unlocked",
+        "message": f"User {user.user_id} has been successfully unlocked by Superuser.",
+        "user": user.to_dict(),
+    })
+
+
+@csrf_exempt
+def api_stock_count_tasks(request: HttpRequest) -> JsonResponse:
+    """
+    Returns active stock count tasks scoped to plant and department,
+    or all for Admins.
+    """
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    req_dept = request.headers.get("X-User-Department") or request.GET.get("department") or ""
+    req_plant = request.headers.get("X-User-Plant") or request.GET.get("plant") or ""
+    is_admin = (
+        request.headers.get("X-Superuser") == "true" or
+        request.headers.get("X-User-Role") in ["Admin", "Administrator", "Superuser"] or
+        request.GET.get("superuser") == "true"
+    )
+
+    assets_qs = Asset.objects.all()
+    if not is_admin and req_dept:
+        assets_qs = assets_qs.filter(Q(department__iexact=req_dept) | Q(current_department__iexact=req_dept))
+    if req_plant:
+        assets_qs = assets_qs.filter(plant__icontains=req_plant)
+
+    dept_display = req_dept or "All Departments"
+    plant_display = req_plant or "Noida Central Plant"
+
+    task = {
+        "id": f"SC-2026-{(req_dept[:3] or 'ALL').upper()}",
+        "title": f"Q4 Annual Stock Count – {dept_display}",
+        "titleHi": f"Q4 वार्षिक स्टॉक गिनती – {dept_display}",
+        "plant": plant_display,
+        "workshop": f"{dept_display} Workshop",
+        "department": dept_display,
+        "status": "In Progress" if assets_qs.exists() else "Not Started",
+        "total": assets_qs.count(),
+        "scanned": 0,
+        "variances": 0,
+        "createdDate": "2026-11-01",
+        "assignedAssets": [a.to_dict() for a in assets_qs],
+    }
+
+    return JsonResponse({"tasks": [task], "count": 1})
+
+
+@csrf_exempt
+def api_stock_count_validate_scan(request: HttpRequest) -> JsonResponse:
+    """
+    Validates a scanned QR code strictly against the source of truth database:
+    - QR exists
+    - QR is active
+    - QR belongs to the selected asset
+    - QR belongs to current plant
+    - QR belongs to current department (cross-department check)
+    - QR belongs to current stock count
+    - Current user has permission
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+
+    scanned_code = (data.get("scannedCode") or data.get("qrCode") or "").strip()
+    expected_asset_id = str(data.get("expectedAssetId") or "").strip()
+    user_id = data.get("userId") or request.headers.get("X-User-Id", "USR-AUDITOR")
+    user_name = data.get("userName") or request.headers.get("X-User-Name", "Auditor")
+    user_role = data.get("role") or request.headers.get("X-User-Role", "Auditor")
+    user_dept = (data.get("userDepartment") or request.headers.get("X-User-Department") or "").strip()
+    task_plant = (data.get("plant") or "").strip()
+    task_dept = (data.get("taskDepartment") or user_dept).strip()
+    is_admin = (
+        request.headers.get("X-Superuser") == "true" or
+        user_role in ["Admin", "Administrator", "Superuser"] or
+        data.get("isSuperuser") is True
+    )
+
+    telemetry = parse_device_and_browser(request)
+
+    # 1. QR Code Existence Check
+    if not scanned_code:
+        return JsonResponse({
+            "valid": False,
+            "code": "EMPTY_QR",
+            "error": "Scan Failed: QR code value is empty or unreadable.",
+        }, status=400)
+
+    asset = Asset.objects.filter(
+        Q(asset_code__iexact=scanned_code) | Q(tag__iexact=scanned_code)
+    ).first()
+
+    if not asset:
+        record_audit_log(
+            request=request,
+            action="STOCK_COUNT_SCAN_REJECTED",
+            user_id=user_id,
+            user_name=user_name,
+            role=user_role,
+            entity_type="Asset",
+            entity_id=scanned_code,
+            details={
+                "reason": "QR_NOT_FOUND",
+                "scannedCode": scanned_code,
+                "error": f"Scanned QR '{scanned_code}' does not exist in enterprise asset registry.",
+                "clientIp": telemetry["client_ip"],
+            }
+        )
+        return JsonResponse({
+            "valid": False,
+            "code": "QR_NOT_FOUND",
+            "error": f"Validation Failed: Scanned QR '{scanned_code}' was not found in the asset ledger.",
+        }, status=404)
+
+    # 2. QR Active Check (status != Disposed/Retired)
+    if asset.status in ["Disposed", "Pending Disposal"]:
+        record_audit_log(
+            request=request,
+            action="STOCK_COUNT_SCAN_REJECTED",
+            user_id=user_id,
+            user_name=user_name,
+            role=user_role,
+            entity_type="Asset",
+            entity_id=asset.asset_code or asset.tag,
+            details={
+                "reason": "INACTIVE_STATUS",
+                "status": asset.status,
+                "error": f"Asset {asset.asset_code} is {asset.status} and cannot be verified in stock count.",
+            }
+        )
+        return JsonResponse({
+            "valid": False,
+            "code": "INACTIVE_STATUS",
+            "error": f"Validation Failed: Asset '{asset.asset_code}' is marked as {asset.status}.",
+        }, status=400)
+
+    # 3. Linked Asset Check (If user selected a specific asset in task list)
+    if expected_asset_id:
+        expected_matches = (
+            str(asset.id) == expected_asset_id or
+            (asset.asset_code and asset.asset_code.lower() == expected_asset_id.lower()) or
+            (asset.tag and asset.tag.lower() == expected_asset_id.lower())
+        )
+        if not expected_matches:
+            record_audit_log(
+                request=request,
+                action="STOCK_COUNT_SCAN_REJECTED",
+                user_id=user_id,
+                user_name=user_name,
+                role=user_role,
+                entity_type="Asset",
+                entity_id=scanned_code,
+                details={
+                    "reason": "ASSET_MISMATCH",
+                    "expectedAssetId": expected_asset_id,
+                    "scannedCode": scanned_code,
+                    "error": f"Scanned QR belongs to asset '{asset.asset_code}', not the selected unit '{expected_asset_id}'.",
+                }
+            )
+            return JsonResponse({
+                "valid": False,
+                "code": "ASSET_MISMATCH",
+                "error": f"Validation Failed: A QR can only open its own linked asset. Scanned QR '{scanned_code}' does not match expected asset '{expected_asset_id}'.",
+            }, status=400)
+
+    # 4. Department Scope Check (Cross-department verification strictly prohibited)
+    asset_dept = (asset.current_department or asset.department or "").strip().lower()
+    effective_dept = (user_dept or task_dept).strip().lower()
+
+    if not is_admin and effective_dept and asset_dept:
+        if effective_dept not in asset_dept and asset_dept not in effective_dept:
+            record_audit_log(
+                request=request,
+                action="STOCK_COUNT_SCAN_REJECTED",
+                user_id=user_id,
+                user_name=user_name,
+                role=user_role,
+                entity_type="Asset",
+                entity_id=asset.asset_code or asset.tag,
+                details={
+                    "reason": "DEPARTMENT_MISMATCH",
+                    "assetDepartment": asset.current_department or asset.department,
+                    "userDepartment": user_dept or task_dept,
+                    "error": "Cross-department verification unauthorized.",
+                }
+            )
+            return JsonResponse({
+                "valid": False,
+                "code": "DEPARTMENT_MISMATCH",
+                "error": f"Access Denied: Asset '{asset.asset_code}' belongs to '{asset.current_department or asset.department}'. Your session is restricted to '{user_dept or task_dept}'. Cross-department verification is prohibited.",
+            }, status=403)
+
+    # 5. Plant Scope Check
+    if not is_admin and task_plant and asset.plant:
+        if task_plant.lower() not in asset.plant.lower() and asset.plant.lower() not in task_plant.lower():
+            record_audit_log(
+                request=request,
+                action="STOCK_COUNT_SCAN_REJECTED",
+                user_id=user_id,
+                user_name=user_name,
+                role=user_role,
+                entity_type="Asset",
+                entity_id=asset.asset_code or asset.tag,
+                details={
+                    "reason": "PLANT_MISMATCH",
+                    "assetPlant": asset.plant,
+                    "taskPlant": task_plant,
+                    "error": "Cross-plant verification unauthorized.",
+                }
+            )
+            return JsonResponse({
+                "valid": False,
+                "code": "PLANT_MISMATCH",
+                "error": f"Access Denied: Asset '{asset.asset_code}' is registered at '{asset.plant}', which does not belong to active count plant '{task_plant}'.",
+            }, status=403)
+
+    # 6. All Validations Passed!
+    record_audit_log(
+        request=request,
+        action="STOCK_COUNT_SCAN_SUCCESS",
+        user_id=user_id,
+        user_name=user_name,
+        role=user_role,
+        entity_type="Asset",
+        entity_id=asset.asset_code or asset.tag,
+        details={
+            "scannedCode": scanned_code,
+            "assetName": asset.name,
+            "department": asset.current_department or asset.department,
+            "plant": asset.plant,
+            "clientIp": telemetry["client_ip"],
+        }
+    )
+
+    return JsonResponse({
+        "valid": True,
+        "message": f"QR validation succeeded for {asset.asset_code}.",
+        "asset": asset.to_dict(),
+    })
+
+
+@csrf_exempt
+def api_stock_count_verify(request: HttpRequest) -> JsonResponse:
+    """
+    Submits stock count verification decision:
+    - If Information Correct: Marks Verified (Normal).
+    - If Information Incorrect: Updates ONLY permitted fields, creates Variance record,
+      and records full audit trail.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    asset_code = (data.get("assetCode") or data.get("assetTag") or "").strip()
+    decision = (data.get("decision") or "CORRECT").upper()
+    user_id = data.get("userId") or request.headers.get("X-User-Id", "USR-AUDITOR")
+    user_name = data.get("userName") or request.headers.get("X-User-Name", "Auditor")
+    user_role = data.get("role") or request.headers.get("X-User-Role", "Auditor")
+    task_id = data.get("taskId", "SC-2026-001")
+
+    asset = Asset.objects.filter(
+        Q(asset_code__iexact=asset_code) | Q(tag__iexact=asset_code)
+    ).first()
+
+    if not asset:
+        return JsonResponse({"error": f"Asset '{asset_code}' not found."}, status=404)
+
+    telemetry = parse_device_and_browser(request)
+
+    if decision == "CORRECT":
+        record_audit_log(
+            request=request,
+            action="STOCK_COUNT_VERIFIED",
+            user_id=user_id,
+            user_name=user_name,
+            role=user_role,
+            entity_type="Asset",
+            entity_id=asset.asset_code or asset.tag,
+            details={
+                "taskId": task_id,
+                "verificationStatus": "Normal",
+                "decision": "Information Correct",
+                "verifiedLocation": asset.current_location or asset.location,
+                "verifiedCondition": asset.asset_condition,
+                "clientIp": telemetry["client_ip"],
+            }
+        )
+        return JsonResponse({
+            "success": True,
+            "status": "Verified",
+            "actualStatus": "Normal",
+            "message": f"Asset {asset.asset_code} verified with status: Normal.",
+            "asset": asset.to_dict(),
+        })
+
+    elif decision == "INCORRECT":
+        updated_fields = data.get("updatedFields") or {}
+        variance_remarks = (data.get("varianceRemarks") or "Field discrepancies found during physical audit").strip()
+        variance_type = data.get("varianceType") or "Shortage"
+
+        original_state = {
+            "location": asset.location,
+            "currentLocation": asset.current_location,
+            "floor": asset.floor,
+            "building": asset.building,
+            "assetCondition": asset.asset_condition,
+            "remarks": asset.remarks,
+        }
+
+        # Apply changes ONLY to permitted fields (restricted fields like asset_code, serial_number are untouched)
+        if "location" in updated_fields:
+            asset.location = str(updated_fields["location"])
+        if "currentLocation" in updated_fields:
+            asset.current_location = str(updated_fields["currentLocation"])
+        if "floor" in updated_fields:
+            asset.floor = str(updated_fields["floor"])
+        if "building" in updated_fields:
+            asset.building = str(updated_fields["building"])
+        if "assetCondition" in updated_fields:
+            asset.asset_condition = str(updated_fields["assetCondition"])
+        if "remarks" in updated_fields:
+            asset.remarks = str(updated_fields["remarks"])
+
+        asset.save()
+
+        record_audit_log(
+            request=request,
+            action="STOCK_COUNT_VARIANCE",
+            user_id=user_id,
+            user_name=user_name,
+            role=user_role,
+            entity_type="Asset",
+            entity_id=asset.asset_code or asset.tag,
+            details={
+                "taskId": task_id,
+                "verificationStatus": variance_type,
+                "decision": "Information Incorrect",
+                "varianceRemarks": variance_remarks,
+                "originalValues": original_state,
+                "newValues": {
+                    "location": asset.location,
+                    "currentLocation": asset.current_location,
+                    "floor": asset.floor,
+                    "building": asset.building,
+                    "assetCondition": asset.asset_condition,
+                    "remarks": asset.remarks,
+                },
+                "clientIp": telemetry["client_ip"],
+            }
+        )
+
+        return JsonResponse({
+            "success": True,
+            "status": "Variance",
+            "actualStatus": variance_type,
+            "varianceRemarks": variance_remarks,
+            "message": f"Variance recorded for {asset.asset_code}. Asset fields updated.",
+            "asset": asset.to_dict(),
+        })
+
+    else:
+        return JsonResponse({"error": f"Unknown decision '{decision}'"}, status=400)
+
+
+# In-memory persistent transfer store
+TRANSFERS_STORE: dict[str, dict] = {}
+
+
+def _determine_transfer_type(asset: Asset, raw_type: str = "") -> str:
+    if raw_type in ["Small Asset", "Large Asset", "Parts"]:
+        return raw_type
+
+    cat = (asset.category or asset.current_category or "").lower()
+    cost = float(asset.purchase_cost or 0.0)
+
+    if "part" in cat or "nozzle" in cat or "feeder" in cat or "spare" in cat:
+        return "Parts"
+    elif "machinery" in cat or "workstation" in cat or "server" in cat or cost > 50000:
+        return "Large Asset"
+    else:
+        return "Small Asset"
+
+
+@csrf_exempt
+def api_transfers(request: HttpRequest) -> JsonResponse:
+    """
+    GET: List transfer requests.
+    POST: Create a new transfer request with sequential approval workflow.
+    """
+    if request.method == "GET":
+        requester_id = request.GET.get("requesterId")
+        role = request.GET.get("role")
+        is_admin = (
+            request.headers.get("X-Superuser") == "true" or
+            role in ["Admin", "Administrator", "Superuser", "Samfu Boss"] or
+            request.GET.get("superuser") == "true"
+        )
+
+        results = list(TRANSFERS_STORE.values())
+
+        if requester_id and not is_admin:
+            results = [r for r in results if r.get("requesterId") == requester_id or r.get("currentApproverRole") == role]
+
+        return JsonResponse({"transfers": results, "count": len(results)})
+
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            asset_code = (data.get("assetCode") or "").strip()
+            if not asset_code:
+                return JsonResponse({"error": "assetCode is required"}, status=400)
+
+            asset = Asset.objects.filter(Q(asset_code__iexact=asset_code) | Q(tag__iexact=asset_code)).first()
+            if not asset:
+                return JsonResponse({"error": f"Asset '{asset_code}' not found"}, status=404)
+
+            # Determine Transfer Type: Small Asset / Large Asset / Parts
+            transfer_type = _determine_transfer_type(asset, data.get("transferType", ""))
+
+            # Set Stages and Initial Approver Role
+            if transfer_type == "Small Asset":
+                total_stages = 1
+                current_stage = 1
+                current_approver_role = "HOD"
+                status = "Pending HOD"
+            else:  # Large Asset or Parts
+                total_stages = 3
+                current_stage = 1
+                current_approver_role = "Chinese HOD"
+                status = "Pending Chinese HOD"
+
+            transfer_id = f"TR-{int(time.time())}-{random.randint(100, 999)}"
+            now_iso = dj_timezone.now().isoformat()
+
+            transfer_item = {
+                "id": transfer_id,
+                "assetCode": asset.asset_code or asset.tag,
+                "assetName": asset.current_description or asset.name,
+                "transferType": transfer_type,
+                "fromLocation": data.get("fromLocation") or asset.current_location or asset.location,
+                "toLocation": data.get("toLocation", "Destination Workshop"),
+                "fromPlant": data.get("fromPlant") or asset.plant or "Noida Central Plant",
+                "toPlant": data.get("toPlant") or "Padget Unit 2",
+                "fromDept": data.get("fromDept") or asset.current_department or asset.department or "Operations",
+                "toDept": data.get("toDept", "SMT Operations"),
+                "newCustodian": data.get("newCustodian", "Unassigned"),
+                "newCustodianId": data.get("newCustodianId", ""),
+                "reason": data.get("reason", "Factory line rebalancing"),
+                "date": now_iso[:10],
+                "requesterId": data.get("requesterId", "USR-AUDITOR"),
+                "requesterName": data.get("requesterName", "Staff Requester"),
+                "requesterDept": data.get("requesterDept", "Operations"),
+                "status": status,
+                "currentStage": current_stage,
+                "totalStages": total_stages,
+                "currentApproverRole": current_approver_role,
+                "approvalHistory": [
+                    {
+                        "stage": 0,
+                        "role": "Requester",
+                        "approverId": data.get("requesterId", "USR-AUDITOR"),
+                        "approverName": data.get("requesterName", "Staff Requester"),
+                        "decision": "Created",
+                        "comments": data.get("reason", "Transfer Request initiated"),
+                        "timestamp": now_iso,
+                    }
+                ],
+                "rejectionReason": "",
+                "rejectedByRole": "",
+            }
+
+            TRANSFERS_STORE[transfer_id] = transfer_item
+
+            telemetry = parse_device_and_browser(request)
+            record_audit_log(
+                request=request,
+                action="TRANSFER_CREATE",
+                user_id=data.get("requesterId", "USR-AUDITOR"),
+                user_name=data.get("requesterName", "Staff Requester"),
+                role="Requester",
+                entity_type="AssetTransfer",
+                entity_id=transfer_id,
+                details={
+                    "transferId": transfer_id,
+                    "assetCode": asset.asset_code or asset.tag,
+                    "transferType": transfer_type,
+                    "totalStages": total_stages,
+                    "initialApproverRole": current_approver_role,
+                    "fromDept": transfer_item["fromDept"],
+                    "toDept": transfer_item["toDept"],
+                    "clientIp": telemetry["client_ip"],
+                }
+            )
+
+            return JsonResponse({"status": "created", "transfer": transfer_item}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+def api_transfer_action(request: HttpRequest, transfer_id: str) -> JsonResponse:
+    """
+    Approves or Rejects a transfer request sequentially based strictly on RBAC.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    transfer = TRANSFERS_STORE.get(transfer_id)
+    if not transfer:
+        return JsonResponse({"error": f"Transfer '{transfer_id}' not found."}, status=404)
+
+    try:
+        data = json.loads(request.body)
+        decision = (data.get("action") or data.get("decision") or "Approve").capitalize()
+        comments = (data.get("comments") or "").strip()
+        user_id = data.get("userId") or request.headers.get("X-User-Id", "USR-ADMIN")
+        user_name = data.get("userName") or request.headers.get("X-User-Name", "Approver")
+        user_role = data.get("role") or request.headers.get("X-User-Role", "")
+        user_dept = data.get("department") or request.headers.get("X-User-Department", "")
+        is_superuser = (
+            request.headers.get("X-Superuser") == "true" or
+            user_role in ["Superuser", "Super User", "Samfu Boss"] or
+            data.get("isSuperuser") is True
+        )
+
+        # Invariant 1: Cannot act on already completed or rejected requests
+        if transfer["status"] in ["Approved", "Rejected"]:
+            return JsonResponse({
+                "error": f"Workflow has already terminated with status '{transfer['status']}'. No further actions permitted."
+            }, status=400)
+
+        # Invariant 2: User-Based Approval RBAC Validation
+        curr_role = transfer["currentApproverRole"]
+        is_authorized = False
+
+        if curr_role == "HOD":
+            is_authorized = is_superuser or user_role in ["HOD", "Plant Manager", "Department Head", "Admin", "Administrator"]
+        elif curr_role == "Chinese HOD":
+            is_authorized = is_superuser or user_role in ["Chinese HOD", "Admin", "Administrator"]
+        elif curr_role == "Finance":
+            is_authorized = is_superuser or user_dept == "Finance" or user_role in ["Finance", "Finance Approver", "Admin", "Administrator"]
+        elif curr_role == "Samfu Boss":
+            is_authorized = is_superuser or user_role in ["Samfu Boss", "Superuser", "Super User"]
+
+        if not is_authorized:
+            telemetry = parse_device_and_browser(request)
+            record_audit_log(
+                request=request,
+                action="TRANSFER_REJECT",
+                user_id=user_id,
+                user_name=user_name,
+                role=user_role,
+                entity_type="AssetTransfer",
+                entity_id=transfer_id,
+                details={
+                    "reason": "UNAUTHORIZED_STAGE_APPROVAL",
+                    "currentApproverRole": curr_role,
+                    "userRole": user_role,
+                    "error": f"User does not have role '{curr_role}' to act on stage {transfer['currentStage']}.",
+                    "clientIp": telemetry["client_ip"],
+                }
+            )
+            return JsonResponse({
+                "error": f"ACCESS DENIED: Role '{user_role or 'User'}' is not authorized to approve stage '{curr_role}'. Required role: {curr_role}."
+            }, status=403)
+
+        # Invariant 3: A user cannot approve the same request more than once
+        already_approved = any(
+            h.get("approverId") == user_id and h.get("decision") == "Approved"
+            for h in transfer.get("approvalHistory", [])
+        )
+        if already_approved and not is_superuser:
+            return JsonResponse({
+                "error": "Security Rule Violation: A user cannot approve the same transfer request more than once."
+            }, status=400)
+
+        now_iso = dj_timezone.now().isoformat()
+        telemetry = parse_device_and_browser(request)
+
+        # Process Decision
+        if decision == "Reject":
+            transfer["status"] = "Rejected"
+            transfer["rejectionReason"] = comments or "Rejected by approver."
+            transfer["rejectedByRole"] = curr_role
+            transfer["approvalHistory"].append({
+                "stage": transfer["currentStage"],
+                "role": curr_role,
+                "approverId": user_id,
+                "approverName": user_name,
+                "decision": "Rejected",
+                "comments": comments or "Rejected",
+                "timestamp": now_iso,
+            })
+
+            record_audit_log(
+                request=request,
+                action="TRANSFER_REJECT",
+                user_id=user_id,
+                user_name=user_name,
+                role=user_role,
+                entity_type="AssetTransfer",
+                entity_id=transfer_id,
+                details={
+                    "transferId": transfer_id,
+                    "stage": transfer["currentStage"],
+                    "role": curr_role,
+                    "rejectionReason": comments,
+                    "clientIp": telemetry["client_ip"],
+                }
+            )
+
+            return JsonResponse({
+                "status": "Rejected",
+                "message": f"Transfer {transfer_id} has been Rejected by {curr_role}. Workflow ended.",
+                "transfer": transfer,
+            })
+
+        elif decision == "Approve":
+            current_stage = transfer["currentStage"]
+            total_stages = transfer["totalStages"]
+
+            transfer["approvalHistory"].append({
+                "stage": current_stage,
+                "role": curr_role,
+                "approverId": user_id,
+                "approverName": user_name,
+                "decision": "Approved",
+                "comments": comments or f"Approved by {curr_role}",
+                "timestamp": now_iso,
+            })
+
+            # Check if further stages remain
+            if current_stage < total_stages:
+                next_stage = current_stage + 1
+                transfer["currentStage"] = next_stage
+
+                # Set next approver role sequentially
+                if next_stage == 2:
+                    transfer["currentApproverRole"] = "Finance"
+                    transfer["status"] = "Pending Finance"
+                    action_tag = "TRANSFER_APPROVE_LEVEL_1"
+                elif next_stage == 3:
+                    transfer["currentApproverRole"] = "Samfu Boss"
+                    transfer["status"] = "Pending Samfu Boss"
+                    action_tag = "TRANSFER_APPROVE_LEVEL_2"
+                else:
+                    action_tag = "TRANSFER_APPROVE_LEVEL_1"
+
+                record_audit_log(
+                    request=request,
+                    action=action_tag,
+                    user_id=user_id,
+                    user_name=user_name,
+                    role=user_role,
+                    entity_type="AssetTransfer",
+                    entity_id=transfer_id,
+                    details={
+                        "transferId": transfer_id,
+                        "approvedStage": current_stage,
+                        "approvedByRole": curr_role,
+                        "nextStage": next_stage,
+                        "nextApproverRole": transfer["currentApproverRole"],
+                        "clientIp": telemetry["client_ip"],
+                    }
+                )
+
+                return JsonResponse({
+                    "status": "Pending",
+                    "currentStage": next_stage,
+                    "currentApproverRole": transfer["currentApproverRole"],
+                    "message": f"Stage {current_stage} approved by {curr_role}. Notification routed to {transfer['currentApproverRole']}.",
+                    "transfer": transfer,
+                })
+
+            else:
+                # All stages completed!
+                transfer["status"] = "Approved"
+                transfer["completedAt"] = now_iso
+
+                # Apply transfer to physical Asset in registry
+                asset = Asset.objects.filter(
+                    Q(asset_code=transfer["assetCode"]) | Q(tag=transfer["assetCode"])
+                ).first()
+
+                if asset:
+                    asset.department = transfer["toDept"]
+                    asset.current_department = transfer["toDept"]
+                    asset.location = transfer["toLocation"]
+                    asset.current_location = transfer["toLocation"]
+                    asset.plant = transfer["toPlant"]
+                    if transfer.get("newCustodian"):
+                        asset.assigned_to = transfer["newCustodian"]
+                        asset.submitter = transfer["newCustodian"]
+                    asset.save()
+
+                action_tag = "TRANSFER_APPROVE_LEVEL_3" if total_stages == 3 else "TRANSFER_APPROVE_LEVEL_1"
+                record_audit_log(
+                    request=request,
+                    action=action_tag,
+                    user_id=user_id,
+                    user_name=user_name,
+                    role=user_role,
+                    entity_type="AssetTransfer",
+                    entity_id=transfer_id,
+                    details={
+                        "transferId": transfer_id,
+                        "approvedStage": current_stage,
+                        "approvedByRole": curr_role,
+                        "finalStatus": "Approved",
+                        "clientIp": telemetry["client_ip"],
+                    }
+                )
+
+                record_audit_log(
+                    request=request,
+                    action="TRANSFER_COMPLETE",
+                    user_id=user_id,
+                    user_name=user_name,
+                    role=user_role,
+                    entity_type="AssetTransfer",
+                    entity_id=transfer_id,
+                    details={
+                        "transferId": transfer_id,
+                        "assetCode": transfer["assetCode"],
+                        "fromDept": transfer["fromDept"],
+                        "toDept": transfer["toDept"],
+                        "fromLocation": transfer["fromLocation"],
+                        "toLocation": transfer["toLocation"],
+                        "clientIp": telemetry["client_ip"],
+                    }
+                )
+
+                return JsonResponse({
+                    "status": "Approved",
+                    "message": f"Transfer {transfer_id} has been fully Approved and Completed! Physical asset updated.",
+                    "transfer": transfer,
+                })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+

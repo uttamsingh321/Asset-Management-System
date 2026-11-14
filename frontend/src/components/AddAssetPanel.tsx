@@ -1,12 +1,15 @@
 import * as React from 'react'
 import type { Asset, AssetStatus } from '@/types/asset'
+import type { UserProfile } from '@/lib/deviceTracker'
 import { toast } from 'sonner'
 
 interface AddAssetPanelProps {
   open: boolean
   onClose: () => void
   onSave: (asset: Asset) => void
+  initialAsset?: Asset | null
   triggerRef?: React.RefObject<HTMLButtonElement | null>
+  currentUser?: UserProfile
 }
 
 type CameraTarget = 'assetPhoto' | 'assetCodePhoto' | 'idCardPicture'
@@ -15,7 +18,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   open,
   onClose,
   onSave,
+  initialAsset,
   triggerRef,
+  currentUser,
 }) => {
   // Field States
   const [assetCode, setAssetCode] = React.useState('')
@@ -31,14 +36,45 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const [currentDescription, setCurrentDescription] = React.useState('')
   const [previousDescription, setPreviousDescription] = React.useState('')
 
-  const [company, setCompany] = React.useState<'IIPL' | 'Padget'>('IIPL')
+  // Company and Building state with dynamic custom additions
+  const [company, setCompany] = React.useState<string>('IIPL')
+  const [companies, setCompanies] = React.useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('meridian_custom_companies')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return Array.from(new Set(['IIPL', 'Padget', ...parsed]))
+        }
+      }
+    } catch {}
+    return ['IIPL', 'Padget']
+  })
+  const [showNewCompanyInput, setShowNewCompanyInput] = React.useState(false)
+  const [newCompanyName, setNewCompanyName] = React.useState('')
+
+  const [building, setBuilding] = React.useState('C39')
+  const [buildings, setBuildings] = React.useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('meridian_custom_buildings')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return Array.from(new Set(['C39', 'D197', 'D198', 'D199', ...parsed]))
+        }
+      }
+    } catch {}
+    return ['C39', 'D197', 'D198', 'D199']
+  })
+  const [showNewBuildingInput, setShowNewBuildingInput] = React.useState(false)
+  const [newBuildingName, setNewBuildingName] = React.useState('')
+
   const [inChargeId, setInChargeId] = React.useState('')
   const [inChargeName, setInChargeName] = React.useState('')
   const [plant, setPlant] = React.useState('')
   const [plantUnavailable, setPlantUnavailable] = React.useState(false)
   const [plantReason, setPlantReason] = React.useState('')
 
-  const [building, setBuilding] = React.useState('')
   const [floor, setFloor] = React.useState('')
   const [currentLocation, setCurrentLocation] = React.useState('')
 
@@ -75,6 +111,39 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   const assetPhotoFileRef = React.useRef<HTMLInputElement>(null)
   const idPhotoFileRef = React.useRef<HTMLInputElement>(null)
 
+  // Handlers for adding new custom company and building
+  const handleAddCompany = () => {
+    const trimmed = newCompanyName.trim()
+    if (!trimmed) return
+    if (!companies.includes(trimmed)) {
+      const updated = [...companies, trimmed]
+      setCompanies(updated)
+      try {
+        localStorage.setItem('meridian_custom_companies', JSON.stringify(updated))
+      } catch {}
+    }
+    setCompany(trimmed)
+    setNewCompanyName('')
+    setShowNewCompanyInput(false)
+    toast.success(`Company added and selected: ${trimmed}`)
+  }
+
+  const handleAddBuilding = () => {
+    const trimmed = newBuildingName.trim().toUpperCase()
+    if (!trimmed) return
+    if (!buildings.includes(trimmed)) {
+      const updated = [...buildings, trimmed]
+      setBuildings(updated)
+      try {
+        localStorage.setItem('meridian_custom_buildings', JSON.stringify(updated))
+      } catch {}
+    }
+    setBuilding(trimmed)
+    setNewBuildingName('')
+    setShowNewBuildingInput(false)
+    toast.success(`Building added and selected: ${trimmed}`)
+  }
+
   // Keep latest state in refs so keydown listener does not need to rebind or re-trigger focus
   const cameraActiveTargetRef = React.useRef(cameraActiveTarget)
   cameraActiveTargetRef.current = cameraActiveTarget
@@ -82,6 +151,110 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   showPhotoOptionsRef.current = showPhotoOptions
   const showIdOptionsRef = React.useRef(showIdOptions)
   showIdOptionsRef.current = showIdOptions
+
+  React.useEffect(() => {
+    if (!open) return
+    if (initialAsset) {
+      setAssetCode(initialAsset.assetCode)
+      setAssetCodeUnavailable(false)
+      setAssetCodeReason('')
+      setSerialNumber(initialAsset.serialNumber || '')
+      setSerialNumberUnavailable(false)
+      setSerialNumberReason('')
+      setCurrentCategory(initialAsset.currentCategory || initialAsset.category || '')
+      setPreviousCategory(initialAsset.previousCategory || '')
+      setCurrentDescription(initialAsset.currentDescription || initialAsset.name || '')
+      setPreviousDescription(initialAsset.previousDescription || '')
+
+      const comp = initialAsset.company || 'IIPL'
+      setCompany(comp)
+      if (comp && !companies.includes(comp)) {
+        setCompanies((prev) => Array.from(new Set([...prev, comp])))
+      }
+
+      const bldg = initialAsset.building || 'C39'
+      setBuilding(bldg)
+      if (bldg && !buildings.includes(bldg)) {
+        setBuildings((prev) => Array.from(new Set([...prev, bldg])))
+      }
+
+      setPlant(initialAsset.plant || '')
+      setPlantUnavailable(false)
+      setPlantReason('')
+      setFloor(initialAsset.floor || '')
+      setCurrentLocation(initialAsset.currentLocation || '')
+
+      // Auto-fill Ownership from the user who selected this asset code
+      const currentUserName = currentUser?.userName || ''
+      const currentUserId = currentUser?.userId || ''
+      const currentUserDept = currentUser?.department || ''
+
+      const assignedDept = currentUserDept || initialAsset.currentDepartment || initialAsset.department || 'IT'
+      const assignedId = currentUserId || (initialAsset.inChargeId && initialAsset.inChargeId !== 'ID Pending' ? initialAsset.inChargeId : '')
+      const assignedName = currentUserName || (initialAsset.inChargeName && initialAsset.inChargeName !== 'Unassigned Staff' ? initialAsset.inChargeName : '')
+      const assignedSubmitter = currentUserName || (initialAsset.submitter && initialAsset.submitter !== 'Unassigned Staff' ? initialAsset.submitter : '')
+
+      setCurrentDepartment(assignedDept)
+      setInChargeId(assignedId)
+      setInChargeName(assignedName)
+      setSubmitter(assignedSubmitter)
+
+      setAssetCondition(initialAsset.assetCondition || '')
+      setAssetConditionUnavailable(false)
+      setAssetConditionReason('')
+      setMovementReason(initialAsset.movementReason || '')
+      setRemarks(initialAsset.remarks || '')
+      setAssetPhoto(initialAsset.assetPhoto)
+      setAssetCodePhoto(initialAsset.assetCodePhoto)
+      setIdCardPicture(initialAsset.idCardPicture)
+      setShowPhotoOptions(false)
+      setShowIdOptions(false)
+      setShowNewCompanyInput(false)
+      setShowNewBuildingInput(false)
+      setDate(initialAsset.date || initialAsset.purchaseDate || new Date().toISOString().split('T')[0])
+      setErrors({})
+    } else {
+      // Empty form for new asset
+      setAssetCode('')
+      setAssetCodeUnavailable(false)
+      setAssetCodeReason('')
+      setSerialNumber('')
+      setSerialNumberUnavailable(false)
+      setSerialNumberReason('')
+      setCurrentCategory('')
+      setPreviousCategory('')
+      setCurrentDescription('')
+      setPreviousDescription('')
+      setCompany('IIPL')
+      setBuilding('C39')
+      setFloor('')
+      setPlant('')
+      setPlantUnavailable(false)
+      setPlantReason('')
+      setCurrentLocation('')
+
+      // Auto-fill Ownership from current active user
+      setCurrentDepartment(currentUser?.department || 'IT')
+      setInChargeId(currentUser?.userId || '')
+      setInChargeName(currentUser?.userName || '')
+      setSubmitter(currentUser?.userName || '')
+
+      setAssetCondition('')
+      setAssetConditionUnavailable(false)
+      setAssetConditionReason('')
+      setMovementReason('')
+      setRemarks('')
+      setAssetPhoto(undefined)
+      setAssetCodePhoto(undefined)
+      setIdCardPicture(undefined)
+      setShowPhotoOptions(false)
+      setShowIdOptions(false)
+      setShowNewCompanyInput(false)
+      setShowNewBuildingInput(false)
+      setDate(new Date().toISOString().split('T')[0])
+      setErrors({})
+    }
+  }, [open, initialAsset, currentUser])
 
   // Focus management: ONLY focus first input once when drawer is opened
   React.useEffect(() => {
@@ -307,12 +480,15 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       unavailNotes.length > 0 ? `[Unavailable Data Reasons: ${unavailNotes.join('; ')}]` : ''
     ].filter(Boolean).join(' — ')
 
-    const whoInCharge = (inChargeId.trim() && inChargeName.trim())
-      ? `${inChargeId.trim()} · ${inChargeName.trim()}`
-      : (inChargeName.trim() || submitter.trim() || 'Operations Staff')
+    const finalInChargeId = inChargeId.trim() || currentUser?.userId || ''
+    const finalInChargeName = inChargeName.trim() || currentUser?.userName || ''
+    const whoInCharge = (finalInChargeId && finalInChargeName)
+      ? `${finalInChargeId} · ${finalInChargeName}`
+      : (finalInChargeName || submitter.trim() || currentUser?.userName || 'Operations Staff')
 
     const newAsset: Asset = {
-      id: `AST-${Date.now().toString().slice(-6)}`,
+      ...(initialAsset || {}),
+      id: initialAsset?.id || `AST-${Date.now().toString().slice(-6)}`,
       company,
       assetCode: effectiveAssetCode,
       serialNumber: effectiveSerialNumber,
@@ -324,10 +500,10 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       building: building.trim() || 'C39',
       floor: floor.trim() || '1st Floor',
       currentLocation: currentLocation.trim() || `${building.trim() || 'C39'} - ${floor.trim() || '1st Floor'}`,
-      currentDepartment: currentDepartment.trim() || 'Operations',
-      submitter: inChargeName.trim() || submitter.trim() || 'Staff',
-      inChargeId: inChargeId.trim() || undefined,
-      inChargeName: inChargeName.trim() || undefined,
+      currentDepartment: currentDepartment.trim() || currentUser?.department || 'Operations',
+      submitter: submitter.trim() || currentUser?.userName || inChargeName.trim() || 'Staff',
+      inChargeId: finalInChargeId || undefined,
+      inChargeName: finalInChargeName || undefined,
       whoInCharge,
       assetCondition: effectiveAssetCondition,
       movementReason: movementReason.trim(),
@@ -347,7 +523,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       assetTag: effectiveAssetCode,
       category: currentCategory.trim() || 'IT Hardware',
       department: currentDepartment.trim() || 'Operations',
-      status: determinedStatus,
+      status: initialAsset ? 'Completed' : determinedStatus,
       purchaseDate: date,
       purchaseCost: 0,
       currentValue: 0,
@@ -356,7 +532,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     }
 
     onSave(newAsset)
-    toast.success(`Asset "${newAsset.assetCode}" registered successfully!`)
+    toast.success(initialAsset
+      ? `Asset "${newAsset.assetCode}" marked Completed`
+      : `Asset "${newAsset.assetCode}" registered successfully!`)
 
     // Reset Form
     setAssetCode('')
@@ -455,7 +633,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
         <div className="px-6 py-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--surf)] sticky top-0 z-10">
           <div>
             <h2 id="add-asset-title" className="text-lg font-bold tracking-tight">
-              Add asset
+              {initialAsset ? `Complete ${initialAsset.assetCode}` : 'Add asset'}
             </h2>
             <p className="text-xs text-[var(--mute)] mt-0.5">
               Register a physical equipment unit to the enterprise inventory ledger.
@@ -488,6 +666,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   </label>
                   <button
                     type="button"
+                    hidden={Boolean(initialAsset)}
                     onClick={() => {
                       const next = !assetCodeUnavailable
                       setAssetCodeUnavailable(next)
@@ -529,7 +708,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       })
                     }
                   }}
-                  disabled={assetCodeUnavailable}
+                  disabled={assetCodeUnavailable || Boolean(initialAsset)}
                   placeholder={
                     assetCodeUnavailable
                       ? 'Marked unavailable (Pending code assignment)'
@@ -735,11 +914,66 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               Location
             </h3>
             <div className="space-y-4">
-              {/* Company Selector: IIPL or Padget */}
+              {/* Company Selector: IIPL, Padget, or custom added companies */}
               <div>
-                <label style={labelStyle}>Company <span className="text-[var(--bad)]">*</span></label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['IIPL', 'Padget'] as const).map((comp) => (
+                <div className="flex items-center justify-between mb-1.5">
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>
+                    Company <span className="text-[var(--bad)]">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewCompanyInput((v) => !v)
+                      setShowNewBuildingInput(false)
+                    }}
+                    className="text-[11px] font-semibold text-[var(--acc)] hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
+                    title="Add a new company"
+                    aria-label="Add new company"
+                  >
+                    <span className="font-bold text-xs">+</span> New Company
+                  </button>
+                </div>
+
+                {showNewCompanyInput && (
+                  <div className="flex items-center gap-2 mb-2 p-2 bg-[var(--surf2)] rounded-lg border border-[var(--line)] animate-fadeIn">
+                    <input
+                      type="text"
+                      value={newCompanyName}
+                      onChange={(e) => setNewCompanyName(e.target.value)}
+                      placeholder="Enter company name (e.g. Dixon, Foxconn)"
+                      className="flex-1 text-xs px-2.5 py-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddCompany()
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCompany}
+                      disabled={!newCompanyName.trim()}
+                      className="px-2.5 py-1.5 text-xs font-bold rounded bg-[var(--acc)] text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewCompanyInput(false)
+                        setNewCompanyName('')
+                      }}
+                      className="text-xs text-[var(--mute)] hover:text-[var(--ink)] px-1 cursor-pointer"
+                      title="Cancel"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {companies.map((comp) => (
                     <button
                       key={comp}
                       type="button"
@@ -750,29 +984,82 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                           : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
                       }`}
                     >
-                      <span>{comp === 'IIPL' ? '🏢' : '🏭'}</span>
-                      <span>{comp}</span>
+                      <span>{comp === 'IIPL' ? '🏢' : comp === 'Padget' ? '🏭' : '🏛️'}</span>
+                      <span className="truncate">{comp}</span>
                       {company === comp && <span className="text-[10px] ml-1">✓</span>}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Building: C39, D197, D198, D199 */}
+              {/* Building: C39, D197, D198, D199 or custom */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label style={{ ...labelStyle, marginBottom: 0 }}>
                     Building <span className="text-[var(--bad)]">*</span>
                   </label>
-                  <span className="text-[11px] text-[var(--mute)]">Select C39, D197, D198, or D199</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[var(--mute)]">Select C39, D197, D198, or D199</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewBuildingInput((v) => !v)
+                        setShowNewCompanyInput(false)
+                      }}
+                      className="text-[11px] font-semibold text-[var(--acc)] hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
+                      title="Add a new building"
+                      aria-label="Add new building"
+                    >
+                      <span className="font-bold text-xs">+</span> New Building
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2 mb-2">
-                  {(['C39', 'D197', 'D198', 'D199'] as const).map((bldg) => (
+
+                {showNewBuildingInput && (
+                  <div className="flex items-center gap-2 mb-2 p-2 bg-[var(--surf2)] rounded-lg border border-[var(--line)] animate-fadeIn">
+                    <input
+                      type="text"
+                      value={newBuildingName}
+                      onChange={(e) => setNewBuildingName(e.target.value)}
+                      placeholder="Enter building (e.g. D200, B12, C40)"
+                      className="flex-1 text-xs px-2.5 py-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)] uppercase"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddBuilding()
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddBuilding}
+                      disabled={!newBuildingName.trim()}
+                      className="px-2.5 py-1.5 text-xs font-bold rounded bg-[var(--acc)] text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewBuildingInput(false)
+                        setNewBuildingName('')
+                      }}
+                      className="text-xs text-[var(--mute)] hover:text-[var(--ink)] px-1 cursor-pointer"
+                      title="Cancel"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {buildings.map((bldg) => (
                     <button
                       key={bldg}
                       type="button"
                       onClick={() => setBuilding(bldg)}
-                      className={`py-1.5 px-2 rounded-lg border text-xs font-bold transition-all cursor-pointer text-center ${
+                      className={`flex-1 min-w-[65px] py-1.5 px-2 rounded-lg border text-xs font-bold transition-all cursor-pointer text-center ${
                         building === bldg
                           ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
                           : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
@@ -921,12 +1208,23 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
           {/* Ownership & Department */}
           <section className="space-y-4 pt-3 border-t border-[var(--line)]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-              Ownership
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
+                Ownership
+              </h3>
+              {currentUser && (
+                <span className="text-[11px] text-[var(--mute)] flex items-center gap-1.5 bg-[var(--surf2)] px-2 py-0.5 rounded border border-[var(--line)]">
+                  <span>Auto-filled for</span>
+                  <strong className="text-[var(--ink)]">{currentUser.userName}</strong>
+                  <span className="text-[10px] px-1 py-0.2 rounded bg-[var(--acc)]/10 text-[var(--acc)] font-medium">
+                    {currentUser.department || 'IT'}
+                  </span>
+                </span>
+              )}
+            </div>
             <div className="space-y-4">
               <div>
-                <label htmlFor="field-currentDepartment" style={labelStyle}>Belong to which dept <span className="text-[var(--bad)]">*</span></label>
+                <label htmlFor="field-currentDepartment" style={labelStyle}>Belong to which dept</label>
                 <input
                   id="field-currentDepartment"
                   type="text"
@@ -1395,7 +1693,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
             form="add-asset-form"
             className="px-5 py-2 text-sm font-semibold rounded-lg bg-[var(--acc)] text-white hover:opacity-90 shadow-sm transition font-medium"
           >
-            Save asset
+            {initialAsset ? 'Submit and mark Completed' : 'Save asset'}
           </button>
         </div>
       </div>

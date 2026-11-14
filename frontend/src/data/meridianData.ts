@@ -160,19 +160,28 @@ export const meridianPages: Record<string, PageData> = {
     bh: 'Devices tracked',
     b: [],
   },
+  security: {
+    t: 'Superuser Security & IP Audit',
+    s: 'Strict Superuser-only console. Failed login attempt lockout monitoring and client IP address ledger.',
+    btn: 'Refresh Security Trail',
+    k: [
+      ['Security policy', 'Active', '5-Attempt lockout'],
+      ['Lockout duration', '15 mins', 'Consecutive failures'],
+      ['IP tracking', 'Enabled', 'IPv4 & IPv6 logged'],
+      ['Access level', 'Superuser', 'Privileged console'],
+    ],
+    ah: 'Security Login Events',
+    a: [],
+    bh: 'Locked Accounts',
+    b: [],
+  },
 }
 
 export const navItems = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'library', label: 'Asset Library' },
   { key: 'assets', label: 'Asset Gallery' },
+  { key: 'library', label: 'Asset Library' },
   { key: 'audit', label: 'Audit & Tracking' },
-  { key: 'inventory', label: 'Inventory' },
-  { key: 'maintenance', label: 'Maintenance' },
-  { key: 'workorders', label: 'Work orders' },
-  { key: 'employees', label: 'Employees' },
-  { key: 'locations', label: 'Locations' },
-  { key: 'reports', label: 'Reports' },
   { key: 'administration', label: 'Administration' },
 ]
 

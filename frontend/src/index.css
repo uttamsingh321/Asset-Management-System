@@ -7,10 +7,10 @@
   --line: #e3e8ef;
   --ink: #101828;
   --mute: #667085;
-  --acc: #0b6e79;
-  --acc2: #d7f0f1;
+  --acc: #165DFF; /* Primary steady industrial dark blue */
+  --acc2: #e8f0ff;
   --ok: #17855a;
-  --warn: #b86e00;
+  --warn: #FF7D00; /* Alert orange for maintenance, pending items */
   --bad: #c43d1c;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 8px 24px -12px rgba(16, 24, 40, 0.12);
   color-scheme: light;
@@ -61,7 +61,7 @@ html, body {
 }
 
 body {
-  font-family: Figtree, system-ui, -apple-system, sans-serif;
+  font-family: Roboto, "Noto Sans Devanagari", system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--ink);
   font-size: 14px;
@@ -82,6 +82,22 @@ button {
   outline: 2px solid var(--acc);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* Sleek custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mute);
 }
 
 /* App layout container */
@@ -167,6 +183,7 @@ aside {
 }
 
 .nav a {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -176,18 +193,24 @@ aside {
   text-decoration: none;
   font-weight: 500;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav a:hover {
   background: var(--surf2);
   color: var(--ink);
+  transform: translateX(2px);
+}
+
+.app.mini .nav a:hover {
+  transform: none;
 }
 
 .nav a.on {
   background: var(--acc2);
   color: var(--acc);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 0 var(--acc);
 }
 
 .nav svg {
@@ -368,12 +391,16 @@ h1 {
   padding: 8px 14px;
   font-weight: 600;
   font-size: 13px;
-  transition: background 0.15s, border-color 0.15s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
 }
 
 .btn:hover {
   background: var(--surf2);
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn.p {
@@ -807,8 +834,54 @@ h1 {
   padding: 5px 12px;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   3D Structure & Modern Industrial Animations
+   ───────────────────────────────────────────────────────────────────────────── */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.card-3d:hover {
+  transform: translateY(-4px) perspective(1000px) rotateX(1.5deg);
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.12), 0 0 1px 1px rgba(59, 130, 246, 0.25);
+}
+
+:root[data-theme="dark"] .card-3d:hover {
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6), 0 0 25px rgba(59, 130, 246, 0.15);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
+    animation: none !important;
   }
 }

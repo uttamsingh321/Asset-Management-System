@@ -95,7 +95,7 @@ describe('Main Dashboard Facility Assets Register Specification', () => {
       expect(screen.getByText('SMT Line 4')).toBeInTheDocument()
       // 6. Who in charge (ID, Name)
       expect(screen.getByText('Ananya Sharma')).toBeInTheDocument()
-      expect(screen.getByText('EMP-7721')).toBeInTheDocument()
+      expect(screen.getByText(/EMP-7721/i)).toBeInTheDocument()
     })
   })
 

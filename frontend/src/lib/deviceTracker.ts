@@ -8,6 +8,10 @@ export type DeviceType = 'Desktop' | 'Laptop' | 'Tablet' | 'Mobile'
 export type AuditAction =
   | 'LOGIN'
   | 'LOGOUT'
+  | 'LOGIN_FAILURE'
+  | 'ACCOUNT_LOCKOUT'
+  | 'USER_UNLOCK'
+  | 'THEME_TOGGLE'
   | 'ASSET_CREATE'
   | 'ASSET_UPDATE'
   | 'ASSET_IMPORT'
@@ -15,11 +19,25 @@ export type AuditAction =
   | 'ASSET_TRANSFER'
   | 'ASSET_APPROVAL'
   | 'ASSET_DELETE'
+  | 'STOCK_COUNT_START'
+  | 'STOCK_COUNT_SCAN_SUCCESS'
+  | 'STOCK_COUNT_SCAN_REJECTED'
+  | 'STOCK_COUNT_VERIFIED'
+  | 'STOCK_COUNT_VARIANCE'
+  | 'STOCK_COUNT_COMPLETE'
+  | 'TRANSFER_CREATE'
+  | 'TRANSFER_APPROVE_LEVEL_1'
+  | 'TRANSFER_APPROVE_LEVEL_2'
+  | 'TRANSFER_APPROVE_LEVEL_3'
+  | 'TRANSFER_REJECT'
+  | 'TRANSFER_COMPLETE'
 
 export interface UserProfile {
   userId: string
   userName: string
   role: string
+  department?: string
+  isSuperuser?: boolean
 }
 
 export interface ClientDeviceInfo {
@@ -456,7 +474,7 @@ export async function fetchAuditLogs(filters: {
     const seen = new Set<string>()
     const merged: AuditRecord[] = []
 
-    for (const item of [...backendLogs, ...localLogs]) {
+    for (const item of [...localLogs, ...backendLogs]) {
       const key = `${item.timestamp}::${item.action}::${item.entityId}::${item.sessionId}`
       if (!seen.has(key)) {
         seen.add(key)
