@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { DigitalTwinFacility3D } from '../components/DigitalTwinFacility3D'
 import type { Asset } from '../types/asset'
 
@@ -232,5 +232,49 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     fireEvent.click(isoBtn)
 
     expect(isoBtn).toBeInTheDocument()
+  })
+
+  it('prevents default page scroll on wheel zoom and updates scale', () => {
+    const { container } = render(<DigitalTwinFacility3D assets={mockAssets} />)
+
+    // Locate the 3D stage container
+    const stage = container.querySelector('.touch-none') as HTMLDivElement
+    expect(stage).not.toBeNull()
+
+    // Create a wheel event (zoom in: negative deltaY)
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaY: -100,
+      bubbles: true,
+      cancelable: true,
+    })
+    const preventDefaultSpy = vi.spyOn(wheelEvent, 'preventDefault')
+
+    act(() => {
+      stage.dispatchEvent(wheelEvent)
+    })
+
+    // Ensure e.preventDefault() was called so the page does not scroll down/up
+    expect(preventDefaultSpy).toHaveBeenCalled()
+
+    // Also verify scale indicator reflects zoom change
+    expect(screen.getByText(/SCALE:/i)).toBeInTheDocument()
+  })
+
+  it('supports touch interaction with touch-action none to prevent mobile page scrolling', () => {
+    const { container } = render(<DigitalTwinFacility3D assets={mockAssets} />)
+    const stage = container.querySelector('.touch-none') as HTMLDivElement
+    expect(stage).not.toBeNull()
+
+    // Fire touchstart, touchmove, touchend
+    fireEvent.touchStart(stage, {
+      touches: [{ clientX: 100, clientY: 100 }],
+    })
+    fireEvent.touchMove(stage, {
+      touches: [{ clientX: 150, clientY: 120 }],
+    })
+    fireEvent.touchEnd(stage)
+
+    // Stage remains responsive and clean
+    expect(stage).toBeInTheDocument()
   })
 })

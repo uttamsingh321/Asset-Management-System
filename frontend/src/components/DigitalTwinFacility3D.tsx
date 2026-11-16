@@ -268,12 +268,117 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
     setIsDragging(false)
   }
 
-  // Wheel zoom handler
-  const handleWheel = (e: React.WheelEvent) => {
-    e.stopPropagation()
-    const zoomDelta = e.deltaY * -0.001
-    setZoom((prev) => Math.max(0.6, Math.min(1.8, prev + zoomDelta)))
+  // Window-level mouse move and mouse up listeners so dragging doesn't break when cursor exits container
+  useEffect(() => {
+    if (!isDragging) return
+
+    const onWindowMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStartRef.current.x
+      const deltaY = e.clientY - dragStartRef.current.y
+
+      const newRotX = Math.max(0, Math.min(85, dragStartRef.current.rotX - deltaY * 0.4))
+      const newRotY = (dragStartRef.current.rotY + deltaX * 0.4) % 360
+
+      setRotX(newRotX)
+      setRotY(newRotY)
+    }
+
+    const onWindowMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    window.addEventListener('mousemove', onWindowMouseMove)
+    window.addEventListener('mouseup', onWindowMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onWindowMouseMove)
+      window.removeEventListener('mouseup', onWindowMouseUp)
+    }
+  }, [isDragging])
+
+  // Touch gesture handlers for mobile / touchscreen orbit & pinch zoom
+  const touchStartRef = useRef<{ dist: number; zoom: number; x: number; y: number; rotX: number; rotY: number }>({
+    dist: 0,
+    zoom: 1.0,
+    x: 0,
+    y: 0,
+    rotX: 58,
+    rotY: -38,
+  })
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setAutoRotate(false)
+    if (e.touches.length === 1) {
+      setIsDragging(true)
+      touchStartRef.current = {
+        dist: 0,
+        zoom,
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        rotX,
+        rotY,
+      }
+    } else if (e.touches.length === 2) {
+      setIsDragging(false)
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      touchStartRef.current = {
+        dist,
+        zoom,
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        rotX,
+        rotY,
+      }
+    }
   }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isDragging) {
+      const deltaX = e.touches[0].clientX - touchStartRef.current.x
+      const deltaY = e.touches[0].clientY - touchStartRef.current.y
+      const newRotX = Math.max(0, Math.min(85, touchStartRef.current.rotX - deltaY * 0.4))
+      const newRotY = (touchStartRef.current.rotY + deltaX * 0.4) % 360
+      setRotX(newRotX)
+      setRotY(newRotY)
+    } else if (e.touches.length === 2 && touchStartRef.current.dist > 0) {
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      const factor = currentDist / touchStartRef.current.dist
+      const newZoom = Math.max(0.6, Math.min(2.2, touchStartRef.current.zoom * factor))
+      setZoom(Number(newZoom.toFixed(3)))
+    }
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  // Non-passive Native Wheel Zoom Handler
+  // CRITICAL FIX: React onWheel is treated as passive in modern browsers.
+  // Attaching a native listener with { passive: false } allows e.preventDefault()
+  // to completely block outer page scrolling while smoothly zooming the 3D facility.
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      // Prevent browser default window scrolling completely!
+      e.preventDefault()
+      e.stopPropagation()
+
+      const zoomDelta = e.deltaY * -0.0015
+      setZoom((prev) => Math.max(0.6, Math.min(2.2, Number((prev + zoomDelta).toFixed(3)))))
+    }
+
+    stage.addEventListener('wheel', handleNativeWheel, { passive: false })
+    return () => {
+      stage.removeEventListener('wheel', handleNativeWheel)
+    }
+  }, [])
 
   // Auto-rotate tick effect
   useEffect(() => {
@@ -581,11 +686,14 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        className={`relative my-3 flex h-[420px] md:h-[480px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#080B13] border border-slate-800 shadow-2xl select-none ${
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        className={`relative my-3 flex h-[420px] md:h-[480px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#080B13] border border-slate-800 shadow-2xl select-none touch-none ${
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
-        style={{ perspective: '1200px' }}
+        style={{ perspective: '1200px', touchAction: 'none', overscrollBehavior: 'contain' }}
       >
         {/* Holographic 3D Industrial Ground Grid */}
         <div
