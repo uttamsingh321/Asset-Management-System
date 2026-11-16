@@ -88,16 +88,143 @@ def api_health(request: HttpRequest) -> JsonResponse:
 @csrf_exempt
 def api_assets(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
-        assets = Asset.objects.all().order_by("-created_at")
-        return JsonResponse({"assets": [a.to_dict() for a in assets], "count": assets.count()})
+        dept = request.GET.get("department")
+        limit_param = request.GET.get("limit")
+        qs = Asset.objects.all().order_by("-created_at")
+        if dept and dept != "All":
+            qs = qs.filter(Q(current_department__icontains=dept) | Q(department__icontains=dept))
+        if limit_param and limit_param.isdigit():
+            limit = int(limit_param)
+            if limit > 0:
+                qs = qs[:limit]
+        return JsonResponse({"assets": [a.to_dict() for a in qs], "count": Asset.objects.count()})
 
     elif request.method == "POST":
         try:
-            data = json.loads(request.body)
+            raw_body = json.loads(request.body)
+            # Detect bulk format
+            is_bulk = False
+            items = []
+            if isinstance(raw_body, list):
+                is_bulk = True
+                items = raw_body
+            elif isinstance(raw_body, dict) and ("assets" in raw_body or "bulk" in raw_body):
+                is_bulk = True
+                items = raw_body.get("assets") or raw_body.get("bulk") or []
+
+            if is_bulk:
+                user_id = request.META.get('HTTP_X_USER_ID', 'USR-ADMIN')
+                user_name = request.META.get('HTTP_X_USER_NAME', 'Uttam Singh')
+                role = request.META.get('HTTP_X_USER_ROLE', 'Administrator')
+                session_id = request.META.get('HTTP_X_SESSION_ID', '')
+
+                existing_tags = set(Asset.objects.values_list('tag', flat=True))
+                new_objects = []
+                for idx, item in enumerate(items):
+                    if not isinstance(item, dict):
+                        continue
+                    tag = str(item.get("assetCode") or item.get("assetTag") or item.get("tag") or "").strip()
+                    if not tag:
+                        tag = f"AST-IMP-{idx+1}-{int(time.time())}"
+                    if tag in existing_tags:
+                        continue
+                    existing_tags.add(tag)
+
+                    name = str(item.get("currentDescription") or item.get("name") or tag)[:255]
+                    category = str(item.get("currentCategory") or item.get("category") or "Equipment")[:64]
+                    dept = str(item.get("currentDepartment") or item.get("department") or "Production")[:128]
+                    company = str(item.get("company") or "ismartu")[:64]
+                    plant = str(item.get("plant") or "Noida Central Plant")[:128]
+                    building = str(item.get("building") or "C39")[:128]
+                    floor = str(item.get("floor") or "1st Floor")[:64]
+                    loc = str(item.get("currentLocation") or item.get("location") or "C-39 Factory Noida")[:255]
+                    status = str(item.get("status") or "Pending Verification")[:32]
+                    try:
+                        cost = float(item.get("purchaseCost") or 0.0)
+                    except:
+                        cost = 0.0
+                    try:
+                        val = float(item.get("currentValue") or cost)
+                    except:
+                        val = 0.0
+                    serial = str(item.get("serialNumber") or "")[:128]
+
+                    new_objects.append(
+                        Asset(
+                            tag=tag,
+                            asset_code=tag,
+                            name=name,
+                            category=category,
+                            current_category=category,
+                            current_description=name,
+                            department=dept,
+                            current_department=dept,
+                            status=status,
+                            company=company,
+                            plant=plant,
+                            building=building,
+                            floor=floor,
+                            location=loc,
+                            current_location=loc,
+                            serial_number=serial,
+                            purchase_cost=cost,
+                            current_value=val,
+                            assigned_to=str(item.get("assignedTo", ""))[:128],
+                            submitter=str(item.get("submitter", ""))[:128],
+                            in_charge_id=str(item.get("inChargeId", ""))[:64],
+                            in_charge_name=str(item.get("inChargeName", ""))[:128],
+                            asset_condition=str(item.get("assetCondition", ""))[:128],
+                        )
+                    )
+
+                if new_objects:
+                    Asset.objects.bulk_create(new_objects, batch_size=2000, ignore_conflicts=True)
+
+                record_audit_log(
+                    request=request,
+                    action="ASSET_IMPORT",
+                    user_id=user_id,
+                    user_name=user_name,
+                    role=role,
+                    session_id=session_id,
+                    entity_type="Asset",
+                    entity_id="BULK-IMPORT",
+                    details={
+                        "importedCount": len(new_objects),
+                        "totalSubmitted": len(items),
+                        "firstCode": new_objects[0].asset_code if new_objects else "",
+                        "lastCode": new_objects[-1].asset_code if new_objects else "",
+                    }
+                )
+                return JsonResponse({"success": True, "created": len(new_objects), "total": Asset.objects.count()}, status=201)
+
+            # Single item creation
+            data = raw_body
             tag = data.get("assetCode") or data.get("assetTag") or f"AST-{int(time.time())}"
             name = data.get("currentDescription") or data.get("name") or tag
             category = data.get("currentCategory") or data.get("category") or "IT Hardware"
             department = data.get("currentDepartment") or data.get("department") or "Operations"
+
+            existing_asset = Asset.objects.filter(Q(tag=tag) | Q(asset_code=tag)).first()
+            if existing_asset:
+                existing_asset.name = name
+                existing_asset.category = category
+                existing_asset.current_category = category
+                existing_asset.current_description = data.get("currentDescription", name)
+                existing_asset.department = department
+                existing_asset.current_department = department
+                existing_asset.status = data.get("status", existing_asset.status)
+                existing_asset.location = data.get("currentLocation") or data.get("location", existing_asset.location)
+                existing_asset.current_location = existing_asset.location
+                existing_asset.building = data.get("building", existing_asset.building)
+                existing_asset.floor = data.get("floor", existing_asset.floor)
+                existing_asset.company = data.get("company", existing_asset.company)
+                existing_asset.in_charge_id = data.get("inChargeId", existing_asset.in_charge_id)
+                existing_asset.in_charge_name = data.get("inChargeName", existing_asset.in_charge_name)
+                existing_asset.serial_number = data.get("serialNumber", existing_asset.serial_number)
+                existing_asset.asset_condition = data.get("assetCondition", existing_asset.asset_condition)
+                existing_asset.save()
+                return JsonResponse(existing_asset.to_dict(), status=200)
 
             asset = Asset.objects.create(
                 tag=tag,
@@ -162,7 +289,25 @@ def api_assets(request: HttpRequest) -> JsonResponse:
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
 
-    return HttpResponseNotAllowed(["GET", "POST"])
+    elif request.method == "DELETE":
+        count = Asset.objects.count()
+        Asset.objects.all().delete()
+        user_id = request.META.get('HTTP_X_USER_ID', 'USR-ADMIN')
+        user_name = request.META.get('HTTP_X_USER_NAME', 'Uttam Singh')
+        role = request.META.get('HTTP_X_USER_ROLE', 'Administrator')
+        record_audit_log(
+            request=request,
+            action="ASSET_DELETE",
+            user_id=user_id,
+            user_name=user_name,
+            role=role,
+            entity_type="Asset",
+            entity_id="ALL-ASSETS",
+            details={"deletedCount": count, "reason": "Full registry purge"}
+        )
+        return JsonResponse({"success": True, "deletedCount": count})
+
+    return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
 
 
 @csrf_exempt

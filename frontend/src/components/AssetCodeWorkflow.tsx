@@ -290,12 +290,25 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   onSelectAsset,
   onClearAllTasks,
 }) => {
-  const isAdmin = user.role === 'Administrator' || user.role === 'Admin' || user.userId === 'USR-ADMIN'
+  const isAdmin =
+    user.role === 'Administrator' ||
+    user.role === 'Admin' ||
+    user.role === 'Super User' ||
+    user.userId?.toUpperCase() === 'USR-ADMIN'
+  const isFinance = user.role === 'Finance' || user.department === 'Finance'
+  const canUpload = isAdmin || isFinance
   const userDepartment = user.department || 'IT'
 
   const [activeTab, setActiveTab] = React.useState<'tasks' | 'import'>('tasks')
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'pending' | 'completed'>('all')
-  const [departmentFilter, setDepartmentFilter] = React.useState<string>(isAdmin ? 'All' : userDepartment)
+  const [departmentFilter, setDepartmentFilter] = React.useState<string>(
+    isAdmin || isFinance ? 'All' : (userDepartment || 'All')
+  )
+
+  // Update department filter when user prop changes
+  React.useEffect(() => {
+    setDepartmentFilter(isAdmin || isFinance ? 'All' : (userDepartment || 'All'))
+  }, [user.userId, user.department, user.role, isAdmin, isFinance, userDepartment])
   const [pastedCodes, setPastedCodes] = React.useState('')
   const [query, setQuery] = React.useState('')
   const [isImporting, setIsImporting] = React.useState(false)
@@ -329,11 +342,10 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         if (!isAssetTaskCompleted(asset)) return false
       }
 
-      // Department scoping: If asset is already tagged to another department, scope by filter; unassigned codes are open to all
-      const effectiveDept = !isAdmin && userDepartment ? userDepartment : departmentFilter
-      if (effectiveDept !== 'All') {
+      // Department scoping: unassigned codes are open to all; if department filter is active, filter by it
+      if (departmentFilter !== 'All') {
         const d = (asset.currentDepartment || asset.department || '').toLowerCase().trim()
-        const ed = effectiveDept.toLowerCase().trim()
+        const ed = departmentFilter.toLowerCase().trim()
         if (d && !d.includes(ed) && !ed.includes(d)) return false
       }
 
@@ -505,7 +517,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
       </div>
 
       {/* Code Provisioning Section (Optionally visible or toggled) */}
-      {(activeTab === 'import' || isAdmin) && (
+      {(activeTab === 'import' || canUpload) && (
         <div className="space-y-4">
           <section className="card p-5 space-y-4" aria-label="Import asset codes">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--line)] pb-3">

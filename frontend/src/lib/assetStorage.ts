@@ -112,3 +112,79 @@ export async function loadAssetsFromStorage(): Promise<Asset[]> {
 
   return []
 }
+
+function getApiUrl(path: string): string {
+  if (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('null')) {
+    return `${window.location.origin}${path}`
+  }
+  return `http://localhost:8000${path}`
+}
+
+/**
+ * Fetch master asset registry from central Django backend
+ */
+export async function fetchBackendAssets(): Promise<Asset[]> {
+  try {
+    const res = await fetch(getApiUrl('/api/assets/'), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    if (data && Array.isArray(data.assets)) {
+      return data.assets
+    }
+  } catch (err) {
+    console.warn('Backend assets fetch unavailable:', err)
+  }
+  return []
+}
+
+/**
+ * Push bulk imported assets to central Django backend so all factory terminals see them
+ */
+export async function pushAssetsToBackend(
+  assets: Asset[],
+  user?: { userId?: string; userName?: string; role?: string }
+): Promise<boolean> {
+  if (!assets || assets.length === 0) return true
+  try {
+    const res = await fetch(getApiUrl('/api/assets/'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': user?.userId || 'USR-ADMIN',
+        'X-User-Name': user?.userName || 'Super User',
+        'X-User-Role': user?.role || 'Administrator',
+      },
+      body: JSON.stringify({ assets }),
+    })
+    return res.ok
+  } catch (err) {
+    console.warn('Failed to push assets to backend:', err)
+    return false
+  }
+}
+
+/**
+ * Purge all assets from central backend SQLite
+ */
+export async function purgeBackendAssets(
+  user?: { userId?: string; userName?: string; role?: string }
+): Promise<boolean> {
+  try {
+    const res = await fetch(getApiUrl('/api/assets/'), {
+      method: 'DELETE',
+      headers: {
+        'X-User-Id': user?.userId || 'USR-ADMIN',
+        'X-User-Name': user?.userName || 'Super User',
+        'X-User-Role': user?.role || 'Administrator',
+      },
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}

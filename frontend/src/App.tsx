@@ -17,7 +17,13 @@ import type { Language } from '@/lib/indiaLocale'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 import { exportAssetsToExcel } from '@/lib/excelExport'
-import { saveAssetsToStorage, loadAssetsFromStorage } from '@/lib/assetStorage'
+import {
+  saveAssetsToStorage,
+  loadAssetsFromStorage,
+  fetchBackendAssets,
+  pushAssetsToBackend,
+  purgeBackendAssets,
+} from '@/lib/assetStorage'
 import { DigitalTwinFacility3D } from '@/components/DigitalTwinFacility3D'
 import { ExecutiveBentoGrid3D } from '@/components/ExecutiveBentoGrid3D'
 import { initialAssets } from '@/data/mockAssets'
@@ -354,21 +360,74 @@ export function App() {
     void saveAssetsToStorage(assets)
   }, [assets])
 
-  // Hydrate full dataset from IndexedDB on initial mount
+  // Hydrate full dataset from IndexedDB and sync with central Django backend
   React.useEffect(() => {
     let isMounted = true
-    loadAssetsFromStorage().then((stored) => {
-      if (isMounted && stored && stored.length > 0) {
+
+    const syncWithBackendAndLocal = async () => {
+      try {
+        // 1. First load local IndexedDB cache for instant display
+        const localStored = await loadAssetsFromStorage()
+        if (isMounted && localStored && localStored.length > 0) {
+          setAssets((prev) => {
+            if (localStored.length > prev.length) {
+              return sanitizeAssetList(localStored)
+            }
+            return prev
+          })
+        }
+
+        // 2. Fetch master assets from central backend SQLite database
+        const backendAssets = await fetchBackendAssets()
+        if (!isMounted) return
+
+        if (backendAssets && backendAssets.length > 0) {
+          setAssets((prev) => {
+            // Deduplicate and merge backend assets
+            const existingMap = new Map(prev.map((a) => [a.assetCode.toLowerCase(), a]))
+            for (const ba of backendAssets) {
+              existingMap.set(ba.assetCode.toLowerCase(), ba)
+            }
+            const merged = Array.from(existingMap.values())
+            if (merged.length !== prev.length || backendAssets.length > prev.length) {
+              void saveAssetsToStorage(merged)
+              return sanitizeAssetList(merged)
+            }
+            return prev
+          })
+        } else if (localStored && localStored.length > 0) {
+          // Backend is empty, push local assets to backend so every terminal sees them
+          void pushAssetsToBackend(localStored, currentUser)
+        }
+      } catch (err) {
+        console.warn('Initial asset synchronization error:', err)
+      }
+    }
+
+    void syncWithBackendAndLocal()
+
+    // 3. Periodic background sync every 30 seconds so all terminals receive live updates
+    const syncInterval = setInterval(() => {
+      fetchBackendAssets().then((backendAssets) => {
+        if (!isMounted || !backendAssets || backendAssets.length === 0) return
         setAssets((prev) => {
-          if (stored.length > prev.length) {
-            return sanitizeAssetList(stored)
+          if (backendAssets.length > prev.length) {
+            const existingMap = new Map(prev.map((a) => [a.assetCode.toLowerCase(), a]))
+            for (const ba of backendAssets) {
+              existingMap.set(ba.assetCode.toLowerCase(), ba)
+            }
+            const merged = Array.from(existingMap.values())
+            void saveAssetsToStorage(merged)
+            return sanitizeAssetList(merged)
           }
           return prev
         })
-      }
-    }).catch(() => {})
+      }).catch(() => {})
+    }, 30000)
+
     return () => {
       isMounted = false
+      clearInterval(syncInterval)
     }
   }, [])
 
@@ -485,6 +544,7 @@ export function App() {
     if (assets.length === 0) return
     const count = assets.length
     setAssets([])
+    void purgeBackendAssets(currentUser)
     logAuditEvent(
       'ASSET_DELETE',
       {
@@ -602,11 +662,13 @@ export function App() {
         },
         newAsset.assetCode
       )
+      void pushAssetsToBackend([newAsset], currentUser)
       setWorkflowAsset(null)
       return
     }
 
     setAssets((prev) => [newAsset, ...prev])
+    void pushAssetsToBackend([newAsset], currentUser)
     logAuditEvent(
       'ASSET_CREATE',
       {
@@ -744,6 +806,9 @@ export function App() {
     setAssets((prev) => {
       const existingCodes = new Set(prev.map((a) => a.assetCode.toLowerCase()))
       const deduped = importedCodes.filter((a) => !existingCodes.has(a.assetCode.toLowerCase()))
+      if (deduped.length > 0) {
+        void pushAssetsToBackend(deduped, currentUser)
+      }
       return [...deduped, ...prev]
     })
 

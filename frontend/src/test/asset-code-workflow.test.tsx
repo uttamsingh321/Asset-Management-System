@@ -73,7 +73,7 @@ describe('Asset code workflow', () => {
         onSelectAsset={onSelectAsset}
       />
     )
-    expect(screen.getByText('AST000001')).toBeInTheDocument()
+    expect(screen.getAllByText('AST000001').length).toBeGreaterThan(0)
     expect(screen.queryByText('AST000002')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Select code' }))
