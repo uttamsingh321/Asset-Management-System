@@ -575,6 +575,25 @@ export function App() {
     }
   }
 
+  const [collapsedNavSections, setCollapsedNavSections] = React.useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('meridian_sidebar_collapsed_sections')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const toggleNavSection = (sectionKey: string) => {
+    setCollapsedNavSections((prev) => {
+      const next = { ...prev, [sectionKey]: !prev[sectionKey] }
+      try {
+        localStorage.setItem('meridian_sidebar_collapsed_sections', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }
+
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
@@ -951,13 +970,36 @@ export function App() {
       >
         {/* Collapsible Left Sidebar */}
         <aside>
-          <div className="brand">
-            <div className="mark">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
-                <path d="M2 12 8 3l6 9H2Z" />
-              </svg>
+          {/* Brand Header */}
+          <div className="flex items-center justify-between gap-2 pb-3 mb-2 border-b border-[var(--line)]">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="mark flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
+                  <path d="M2 12 8 3l6 9H2Z" />
+                </svg>
+              </div>
+              {!isMini && (
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-sm tracking-tight text-[var(--ink)] leading-tight">Meridian</span>
+                  <span className="text-[10px] text-[var(--mute)] font-medium leading-none mt-0.5 truncate">
+                    Enterprise Plant System
+                  </span>
+                </div>
+              )}
             </div>
-            <span>Meridian</span>
+            {!isMini && (
+              <button
+                type="button"
+                onClick={handleToggleSidebar}
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+                className="w-7 h-7 rounded-lg text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
           </div>
 
           <nav className="nav" aria-label="Main">
@@ -1003,8 +1045,8 @@ export function App() {
               </svg>
               <span>Task Queue</span>
               {pendingTaskCount > 0 && (
-                <span className="ml-auto px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-500">
-                  {pendingTaskCount}
+                <span className="sidebar-hide-mini ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-500">
+                  {pendingTaskCount.toLocaleString()}
                 </span>
               )}
             </a>
@@ -1039,159 +1081,239 @@ export function App() {
             </a>
 
             {/* ── India Factory Operations ── */}
-            <div
-              style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                color: 'var(--mute)',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                padding: '12px 14px 4px',
-                borderTop: '1px solid var(--line)',
-                marginTop: '8px',
-              }}
-            >
-              🏭 Factory Operations
+            <div className="nav-section-title">
+              <span>🏭 Factory Operations</span>
+              {!isMini && (
+                <button
+                  type="button"
+                  onClick={() => toggleNavSection('operations')}
+                  className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer"
+                  title={collapsedNavSections.operations ? 'Expand' : 'Collapse'}
+                >
+                  {collapsedNavSections.operations ? '▾' : '▴'}
+                </button>
+              )}
             </div>
 
-            {/* Stock Count (Audit) */}
-            <a
-              className={currentHash === 'stockcount' ? 'on' : ''}
-              href="#stockcount"
-              onClick={(e) => handleNavClick('stockcount', e)}
-              title={isMini ? 'Stock Count (Audit)' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-                <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
-              </svg>
-              <span>Stock Count (Audit)</span>
-            </a>
+            {!collapsedNavSections.operations && (
+              <>
+                {/* Stock Count (Audit) */}
+                <a
+                  className={currentHash === 'stockcount' ? 'on' : ''}
+                  href="#stockcount"
+                  onClick={(e) => handleNavClick('stockcount', e)}
+                  title={isMini ? 'Stock Count (Audit)' : undefined}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+                  </svg>
+                  <span>Stock Count (Audit)</span>
+                </a>
 
-            {/* Asset Transfer */}
-            <a
-              className={currentHash === 'transfer' ? 'on' : ''}
-              href="#transfer"
-              onClick={(e) => handleNavClick('transfer', e)}
-              title={isMini ? 'Asset Transfer' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="m17 2 4 4-4 4" />
-                <path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" />
-                <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-              </svg>
-              <span>Asset Transfer</span>
-            </a>
+                {/* Asset Transfer */}
+                <a
+                  className={currentHash === 'transfer' ? 'on' : ''}
+                  href="#transfer"
+                  onClick={(e) => handleNavClick('transfer', e)}
+                  title={isMini ? 'Asset Transfer' : undefined}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="m17 2 4 4-4 4" />
+                    <path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" />
+                    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+                  </svg>
+                  <span>Asset Transfer</span>
+                </a>
 
-            {/* Scrapping & Disposal */}
-            <a
-              className={currentHash === 'disposal' ? 'on' : ''}
-              href="#disposal"
-              onClick={(e) => handleNavClick('disposal', e)}
-              title={isMini ? 'Scrapping & Disposal' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-              <span>Scrapping & Disposal</span>
-            </a>
+                {/* Scrapping & Disposal */}
+                <a
+                  className={currentHash === 'disposal' ? 'on' : ''}
+                  href="#disposal"
+                  onClick={(e) => handleNavClick('disposal', e)}
+                  title={isMini ? 'Scrapping & Disposal' : undefined}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  <span>Scrapping & Disposal</span>
+                </a>
+              </>
+            )}
 
             {/* ── SUPERUSER EXCLUSIVE: Governance & Administration ── */}
             {isSuperuserOrAdmin && (
               <>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    color: 'var(--mute)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    padding: '12px 14px 4px',
-                    borderTop: '1px solid var(--line)',
-                    marginTop: '8px',
-                  }}
-                >
-                  ⚙️ System & Governance
+                <div className="nav-section-title">
+                  <span>⚙️ System & Governance</span>
+                  {!isMini && (
+                    <button
+                      type="button"
+                      onClick={() => toggleNavSection('system')}
+                      className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer"
+                      title={collapsedNavSections.system ? 'Expand' : 'Collapse'}
+                    >
+                      {collapsedNavSections.system ? '▾' : '▴'}
+                    </button>
+                  )}
                 </div>
 
-                {/* 11. Audit & Tracking */}
-                <a
-                  className={currentHash === 'audit' ? 'on' : ''}
-                  href="#audit"
-                  onClick={(e) => handleNavClick('audit', e)}
-                  title={isMini ? 'Audit & Tracking' : undefined}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-                    <path d="m9 12 2 2 4-4" />
-                  </svg>
-                  <span>Audit & Tracking</span>
-                </a>
+                {!collapsedNavSections.system && (
+                  <>
+                    {/* Audit & Tracking */}
+                    <a
+                      className={currentHash === 'audit' ? 'on' : ''}
+                      href="#audit"
+                      onClick={(e) => handleNavClick('audit', e)}
+                      title={isMini ? 'Audit & Tracking' : undefined}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                        <path d="m9 12 2 2 4-4" />
+                      </svg>
+                      <span>Audit & Tracking</span>
+                      <span className="sidebar-hide-mini ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                        SOC-2
+                      </span>
+                    </a>
 
-                {/* 12. Administration */}
-                <a
-                  className={currentHash === 'administration' ? 'on' : ''}
-                  href="#administration"
-                  onClick={(e) => handleNavClick('administration', e)}
-                  title={isMini ? 'Administration' : undefined}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
-                  </svg>
-                  <span>Administration</span>
-                </a>
+                    {/* Administration */}
+                    <a
+                      className={currentHash === 'administration' ? 'on' : ''}
+                      href="#administration"
+                      onClick={(e) => handleNavClick('administration', e)}
+                      title={isMini ? 'Administration' : undefined}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+                      </svg>
+                      <span>Administration</span>
+                    </a>
+                  </>
+                )}
 
-                {/* 13. Master Governance (Master Mapping & User RBAC) */}
-                <div className="pt-3 pb-1 px-3 text-[10px] font-bold tracking-wider text-purple-600/90 uppercase select-none">
-                  {!isMini ? '👑 Master Governance' : '👑'}
+                {/* Master Governance */}
+                <div className="nav-section-title text-purple-600/90 border-purple-500/20">
+                  <span>👑 Master Governance</span>
+                  {!isMini && (
+                    <button
+                      type="button"
+                      onClick={() => toggleNavSection('governance')}
+                      className="text-[10px] text-purple-600 hover:text-purple-700 cursor-pointer"
+                      title={collapsedNavSections.governance ? 'Expand' : 'Collapse'}
+                    >
+                      {collapsedNavSections.governance ? '▾' : '▴'}
+                    </button>
+                  )}
                 </div>
 
-                <a
-                  className={currentHash === 'master-mapping' ? 'on' : ''}
-                  href="#master-mapping"
-                  onClick={(e) => handleNavClick('master-mapping', e)}
-                  title={isMini ? 'Master Mapping (Hierarchy)' : undefined}
-                  style={{ color: currentHash === 'master-mapping' ? undefined : '#9333ea' }}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <line x1="8" y1="21" x2="16" y2="21" />
-                    <line x1="12" y1="17" x2="12" y2="21" />
-                  </svg>
-                  <span>Master Mapping</span>
-                </a>
+                {!collapsedNavSections.governance && (
+                  <>
+                    <a
+                      className={currentHash === 'master-mapping' ? 'on' : ''}
+                      href="#master-mapping"
+                      onClick={(e) => handleNavClick('master-mapping', e)}
+                      title={isMini ? 'Master Mapping (Hierarchy)' : undefined}
+                      style={{ color: currentHash === 'master-mapping' ? undefined : '#9333ea' }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
+                      <span>Master Mapping</span>
+                    </a>
 
-                <a
-                  className={currentHash === 'rbac' ? 'on' : ''}
-                  href="#rbac"
-                  onClick={(e) => handleNavClick('rbac', e)}
-                  title={isMini ? 'User & RBAC Administration' : undefined}
-                  style={{ color: currentHash === 'rbac' ? undefined : '#9333ea' }}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    <path d="m9 12 2 2 4-4" />
-                  </svg>
-                  <span>User & RBAC</span>
-                </a>
+                    <a
+                      className={currentHash === 'rbac' ? 'on' : ''}
+                      href="#rbac"
+                      onClick={(e) => handleNavClick('rbac', e)}
+                      title={isMini ? 'User & RBAC Administration' : undefined}
+                      style={{ color: currentHash === 'rbac' ? undefined : '#9333ea' }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <path d="m9 12 2 2 4-4" />
+                      </svg>
+                      <span>User & RBAC</span>
+                    </a>
 
-                <a
-                  className={currentHash === 'security' ? 'on' : ''}
-                  href="#security"
-                  onClick={(e) => handleNavClick('security', e)}
-                  title={isMini ? 'Security & Lockouts' : undefined}
-                  style={{ color: currentHash === 'security' ? undefined : '#a855f7' }}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                  <span>Security & Lockouts</span>
-                </a>
+                    <a
+                      className={currentHash === 'security' ? 'on' : ''}
+                      href="#security"
+                      onClick={(e) => handleNavClick('security', e)}
+                      title={isMini ? 'Security & Lockouts' : undefined}
+                      style={{ color: currentHash === 'security' ? undefined : '#a855f7' }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      <span>Security & Lockouts</span>
+                    </a>
+                  </>
+                )}
               </>
             )}
           </nav>
+
+          {/* User Profile Footer inside Sidebar */}
+          {!isMini ? (
+            <div className="mt-auto pt-3 border-t border-[var(--line)]">
+              <div className="flex items-center justify-between p-2 rounded-xl bg-[var(--surf2)] border border-[var(--line)]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs">
+                    {currentUser.userName.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-[var(--ink)] truncate max-w-[110px]">
+                        {currentUser.userName}
+                      </span>
+                      {isSuperuserOrAdmin && (
+                        <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                          SU
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-[var(--mute)] truncate max-w-[130px]">
+                      {currentUser.department || 'Noida Plant'} · {currentUser.role}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Sign out of factory terminal"
+                  className="w-7 h-7 rounded-lg text-[var(--mute)] hover:text-rose-500 hover:bg-rose-500/10 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-auto pt-3 border-t border-[var(--line)] flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleSidebar}
+                title="Expand sidebar"
+                className="w-8 h-8 rounded-lg text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                </svg>
+              </button>
+              <div
+                title={`${currentUser.userName} (${currentUser.role})`}
+                className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center cursor-pointer shadow-xs"
+              >
+                {currentUser.userName.slice(0, 2).toUpperCase()}
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Main View Area */}
