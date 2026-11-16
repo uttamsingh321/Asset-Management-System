@@ -71,7 +71,7 @@ class Asset(models.Model):
     def __str__(self):
         return f"{self.tag or self.asset_code} - {self.name}"
 
-    def to_dict(self):
+    def to_dict(self, include_photos: bool = True):
         return {
             "id": str(self.id),
             "assetTag": self.tag or self.asset_code,
@@ -98,9 +98,9 @@ class Asset(models.Model):
             "assetCondition": self.asset_condition,
             "movementReason": self.movement_reason,
             "remarks": self.remarks,
-            "assetPhoto": self.asset_photo,
-            "assetCodePhoto": self.asset_code_photo,
-            "idCardPicture": self.id_card_picture,
+            "assetPhoto": self.asset_photo if include_photos else "",
+            "assetCodePhoto": self.asset_code_photo if include_photos else "",
+            "idCardPicture": self.id_card_picture if include_photos else "",
             "date": str(self.metadata_date or self.purchase_date),
             "purchaseDate": str(self.purchase_date),
             "purchaseCost": float(self.purchase_cost),

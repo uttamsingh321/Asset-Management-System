@@ -90,14 +90,17 @@ def api_assets(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
         dept = request.GET.get("department")
         limit_param = request.GET.get("limit")
+        include_photos = request.GET.get("include_photos") == "1"
         qs = Asset.objects.all().order_by("-created_at")
+        if not include_photos:
+            qs = qs.defer("asset_photo", "asset_code_photo", "id_card_picture")
         if dept and dept != "All":
             qs = qs.filter(Q(current_department__icontains=dept) | Q(department__icontains=dept))
         if limit_param and limit_param.isdigit():
             limit = int(limit_param)
             if limit > 0:
                 qs = qs[:limit]
-        return JsonResponse({"assets": [a.to_dict() for a in qs], "count": Asset.objects.count()})
+        return JsonResponse({"assets": [a.to_dict(include_photos=include_photos) for a in qs], "count": Asset.objects.count()})
 
     elif request.method == "POST":
         try:

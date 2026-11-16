@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import type { UserProfile } from '@/lib/deviceTracker'
 import { isAssetTaskCompleted, type Asset } from '@/types/asset'
 import { toast } from 'sonner'
+import { pushAssetsToBackend, fetchBackendAssets } from '@/lib/assetStorage'
 
 const DEPARTMENTS = [
   'IT',
@@ -25,6 +26,7 @@ interface AssetCodeWorkflowProps {
   onAssign: (assetId: string, department: string) => void
   onSelectAsset: (asset: Asset) => void
   onClearAllTasks?: () => void
+  onRefreshFromBackend?: () => Promise<void>
 }
 
 const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -289,6 +291,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   onAssign,
   onSelectAsset,
   onClearAllTasks,
+  onRefreshFromBackend,
 }) => {
   const isAdmin =
     user.role === 'Administrator' ||
@@ -305,10 +308,60 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
     isAdmin || isFinance ? 'All' : (userDepartment || 'All')
   )
 
-  // Update department filter when user prop changes
+  // Scoped to user's department for employees, or 'All' for admin/finance
   React.useEffect(() => {
     setDepartmentFilter(isAdmin || isFinance ? 'All' : (userDepartment || 'All'))
   }, [user.userId, user.department, user.role, isAdmin, isFinance, userDepartment])
+
+  const [isSyncingCloud, setIsSyncingCloud] = React.useState(false)
+  const [syncProgress, setSyncProgress] = React.useState('')
+  const [isRefreshingServer, setIsRefreshingServer] = React.useState(false)
+
+  const handleManualCloudSync = async () => {
+    if (assets.length === 0) {
+      toast.info('No asset codes available to sync.')
+      return
+    }
+    setIsSyncingCloud(true)
+    setSyncProgress(`Starting sync (${assets.length.toLocaleString()} codes)...`)
+    try {
+      const ok = await pushAssetsToBackend(assets, user, (sent, total) => {
+        setSyncProgress(`${sent.toLocaleString()} / ${total.toLocaleString()}`)
+      })
+      if (ok) {
+        toast.success(`Successfully synced ${assets.length.toLocaleString()} codes to factory server! All terminals can now view them.`)
+      } else {
+        toast.error('Failed to sync codes to server. Please check backend status.')
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error syncing to factory server')
+    } finally {
+      setIsSyncingCloud(false)
+      setSyncProgress('')
+    }
+  }
+
+  const handleManualRefreshServer = async () => {
+    setIsRefreshingServer(true)
+    try {
+      if (onRefreshFromBackend) {
+        await onRefreshFromBackend()
+      } else {
+        const backendAssets = await fetchBackendAssets()
+        if (backendAssets && backendAssets.length > 0) {
+          onImportCodes(backendAssets)
+          toast.success(`Fetched ${backendAssets.length.toLocaleString()} codes from factory server!`)
+        } else {
+          toast.info('Factory server currently has no codes.')
+        }
+      }
+    } catch {
+      toast.error('Could not connect to factory server.')
+    } finally {
+      setIsRefreshingServer(false)
+    }
+  }
+
   const [pastedCodes, setPastedCodes] = React.useState('')
   const [query, setQuery] = React.useState('')
   const [isImporting, setIsImporting] = React.useState(false)
@@ -457,10 +510,32 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="pill w text-xs">
             {userDepartment ? `${userDepartment} Dept` : 'All Depts'}
           </span>
+          <button
+            type="button"
+            disabled={isRefreshingServer}
+            onClick={handleManualRefreshServer}
+            className="btn text-xs flex items-center gap-1.5 text-[var(--mute)] hover:text-[var(--ink)] border border-[var(--line)] cursor-pointer"
+            title="Fetch latest asset codes from central factory server"
+          >
+            <span className={isRefreshingServer ? 'animate-spin inline-block' : ''}>🔄</span>
+            <span>{isRefreshingServer ? 'Fetching...' : 'Refresh Server'}</span>
+          </button>
+          {assets.length > 0 && (
+            <button
+              type="button"
+              disabled={isSyncingCloud}
+              onClick={handleManualCloudSync}
+              className="btn text-xs flex items-center gap-1.5 bg-blue-500/10 text-blue-600 border border-blue-500/30 hover:bg-blue-500/20 cursor-pointer"
+              title="Push all local codes to the central factory server so all terminals see them"
+            >
+              <span>{isSyncingCloud ? '⏳' : '☁️'}</span>
+              <span>{isSyncingCloud ? (syncProgress || 'Syncing...') : `Sync to Server (${assets.length})`}</span>
+            </button>
+          )}
           {totalCodes > 0 && onClearAllTasks && (
             <button
               type="button"
@@ -664,20 +739,27 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
             >
               All Depts
             </button>
-            {DEPARTMENTS.slice(0, 7).map((dept) => (
-              <button
-                key={dept}
-                type="button"
-                onClick={() => setDepartmentFilter(dept)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
-                  departmentFilter.toLowerCase() === dept.toLowerCase()
-                    ? 'bg-[var(--acc)] text-white'
-                    : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
-                }`}
-              >
-                {dept}
-              </button>
-            ))}
+            {DEPARTMENTS.slice(0, 7).map((dept) => {
+              const isSelected =
+                departmentFilter.toLowerCase() === dept.toLowerCase() ||
+                (departmentFilter !== 'All' &&
+                  (departmentFilter.toLowerCase().includes(dept.toLowerCase()) ||
+                    dept.toLowerCase().includes(departmentFilter.toLowerCase())))
+              return (
+                <button
+                  key={dept}
+                  type="button"
+                  onClick={() => setDepartmentFilter(dept)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-[var(--acc)] text-white'
+                      : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {dept}
+                </button>
+              )
+            })}
           </div>
 
           {/* Search Input */}

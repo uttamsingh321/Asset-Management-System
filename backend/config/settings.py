@@ -119,6 +119,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Support large-scale bulk asset imports (15,000+ assets)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 100000
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

@@ -143,29 +143,48 @@ export async function fetchBackendAssets(): Promise<Asset[]> {
 }
 
 /**
- * Push bulk imported assets to central Django backend so all factory terminals see them
+ * Push bulk imported assets to central Django backend so all factory terminals see them.
+ * Automatically slices into 500-record chunks to prevent network timeouts and payload limits.
  */
 export async function pushAssetsToBackend(
   assets: Asset[],
-  user?: { userId?: string; userName?: string; role?: string }
+  user?: { userId?: string; userName?: string; role?: string },
+  onProgress?: (sent: number, total: number) => void
 ): Promise<boolean> {
   if (!assets || assets.length === 0) return true
-  try {
-    const res = await fetch(getApiUrl('/api/assets/'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-Id': user?.userId || 'USR-ADMIN',
-        'X-User-Name': user?.userName || 'Super User',
-        'X-User-Role': user?.role || 'Administrator',
-      },
-      body: JSON.stringify({ assets }),
-    })
-    return res.ok
-  } catch (err) {
-    console.warn('Failed to push assets to backend:', err)
-    return false
+
+  const CHUNK_SIZE = 500
+  let totalUploaded = 0
+  let anySuccess = false
+
+  for (let i = 0; i < assets.length; i += CHUNK_SIZE) {
+    const chunk = assets.slice(i, i + CHUNK_SIZE)
+    try {
+      const res = await fetch(getApiUrl('/api/assets/'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user?.userId || 'USR-ADMIN',
+          'X-User-Name': user?.userName || 'Super User',
+          'X-User-Role': user?.role || 'Administrator',
+        },
+        body: JSON.stringify({ assets: chunk }),
+      })
+      if (res.ok) {
+        anySuccess = true
+        totalUploaded += chunk.length
+        if (onProgress) {
+          onProgress(totalUploaded, assets.length)
+        }
+      } else {
+        console.warn(`Chunk ${i} to ${i + chunk.length} failed with status: ${res.status}`)
+      }
+    } catch (err) {
+      console.warn(`Failed to push chunk ${i} to ${i + chunk.length} to backend:`, err)
+    }
   }
+
+  return anySuccess
 }
 
 /**

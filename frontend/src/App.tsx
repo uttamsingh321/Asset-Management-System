@@ -399,6 +399,11 @@ export function App() {
             }
             return prev
           })
+
+          // If local client has more assets than backend (e.g. freshly imported locally), sync difference to cloud
+          if (localStored && localStored.length > backendAssets.length) {
+            void pushAssetsToBackend(localStored, currentUser)
+          }
         } else if (localStored && localStored.length > 0) {
           // Backend is empty, push local assets to backend so every terminal sees them
           void pushAssetsToBackend(localStored, currentUser)
@@ -410,7 +415,7 @@ export function App() {
 
     void syncWithBackendAndLocal()
 
-    // 3. Periodic background sync every 30 seconds so all terminals receive live updates
+    // 3. Periodic background sync every 10 seconds so all terminals receive live updates
     const syncInterval = setInterval(() => {
       fetchBackendAssets().then((backendAssets) => {
         if (!isMounted || !backendAssets || backendAssets.length === 0) return
@@ -427,7 +432,7 @@ export function App() {
           return prev
         })
       }).catch(() => {})
-    }, 30000)
+    }, 10000)
 
     return () => {
       isMounted = false
@@ -841,6 +846,28 @@ export function App() {
     toast.success(`${asset.assetCode} assigned to ${department}`)
   }
 
+  const handleRefreshFromBackend = async () => {
+    try {
+      const backendAssets = await fetchBackendAssets()
+      if (backendAssets && backendAssets.length > 0) {
+        setAssets((prev) => {
+          const existingMap = new Map(prev.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
+          for (const ba of backendAssets) {
+            existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
+          }
+          const merged = Array.from(existingMap.values())
+          void saveAssetsToStorage(merged)
+          return sanitizeAssetList(merged)
+        })
+        toast.success(`Successfully loaded ${backendAssets.length.toLocaleString()} codes from factory server!`)
+      } else {
+        toast.info('Factory server currently has 0 codes.')
+      }
+    } catch {
+      toast.error('Could not connect to factory server.')
+    }
+  }
+
   const isDashboard = currentHash === 'dashboard'
   const activePage = meridianPages[currentHash]
 
@@ -850,8 +877,8 @@ export function App() {
   }, [scopedAssets])
 
   const pendingTaskCount = React.useMemo(() => {
-    return scopedAssets.filter((a) => !isAssetTaskCompleted(a)).length
-  }, [scopedAssets])
+    return assets.filter((a) => !isAssetTaskCompleted(a)).length
+  }, [assets])
 
   const totalAssets = completedAssetsList.length
   const healthyCount = completedAssetsList.filter((a) => a.status === 'Active' || a.status === 'Completed').length
@@ -1837,6 +1864,7 @@ export function App() {
                   setIsAddModalOpen(true)
                 }}
                 onClearAllTasks={handleClearAllAssets}
+                onRefreshFromBackend={handleRefreshFromBackend}
               />
             ) : currentHash === 'assets' || currentHash === 'library' ? (
               <AssetLibraryView
