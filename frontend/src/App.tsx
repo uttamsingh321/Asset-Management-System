@@ -17,6 +17,7 @@ import {
   MAJOR_ASSET_CATEGORIES,
   MAJOR_ASSET_CATEGORIES_CONFIG,
   resolveMajorAssetCategory,
+  type MajorAssetCategory,
 } from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
 import { Toaster } from '@/components/ui/sonner'
@@ -183,6 +184,7 @@ export function App() {
   const [workflowAsset, setWorkflowAsset] = React.useState<Asset | null>(null)
   const [dashCompanyFilter, setDashCompanyFilter] = React.useState<'All' | 'IIPL' | 'Padget'>('All')
   const [dashBuildingFilter, setDashBuildingFilter] = React.useState<string>('All')
+  const [dashCategoryFilter, setDashCategoryFilter] = React.useState<string>('All')
   const [dashSearchQuery, setDashSearchQuery] = React.useState<string>('')
   const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string; code: string } | null>(null)
   const [qrScannedAsset, setQrScannedAsset] = React.useState<Asset | null>(null)
@@ -312,6 +314,11 @@ export function App() {
       if (!isAssetTaskCompleted(a)) {
         return false
       }
+      // Category filter: Fixed Assets, Accessories, Tools, Fixtures
+      if (dashCategoryFilter !== 'All') {
+        const cat = resolveMajorAssetCategory(a.currentCategory || a.category)
+        if (cat !== dashCategoryFilter) return false
+      }
       // Company filter: IIPL or Padget
       if (dashCompanyFilter !== 'All') {
         const isPadget = isPadgetCompany(a)
@@ -345,7 +352,7 @@ export function App() {
       }
       return true
     })
-  }, [scopedAssets, dashCompanyFilter, dashBuildingFilter, dashSearchQuery])
+  }, [scopedAssets, dashCompanyFilter, dashBuildingFilter, dashCategoryFilter, dashSearchQuery])
 
   const userInitials = React.useMemo(() => {
     return (
@@ -1756,6 +1763,133 @@ export function App() {
                   </div>
                 </section>
 
+                {/* Four Major Asset Categories (四大核心资产类别) Overview Strip */}
+                <section
+                  className="mt-3 card p-3 sm:p-4 space-y-3 bg-[var(--surf)] border border-[var(--line)] shadow-2xs"
+                  aria-label="Four Major Asset Categories"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[var(--line)]/60">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--acc)]/10 text-[var(--acc)] flex items-center justify-center text-lg font-bold">
+                        🏷️
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs sm:text-sm font-bold text-[var(--ink)] tracking-tight">
+                            Four Major Asset Categories (四大核心资产类别)
+                          </h3>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                            Enterprise Master Scope
+                          </span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-[var(--mute)]">
+                          Fixed Assets · Accessories · Tools · Fixtures — Click any category card to filter the facility register below
+                        </p>
+                      </div>
+                    </div>
+                    {dashCategoryFilter !== 'All' && (
+                      <button
+                        type="button"
+                        onClick={() => setDashCategoryFilter('All')}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[var(--surf2)] hover:bg-[var(--line)] text-[var(--ink)] flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+                      >
+                        <span>Filtered by: <b>{dashCategoryFilter}</b></span>
+                        <span className="text-[var(--mute)] hover:text-[var(--bad)] font-bold">✕ Show All</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+                      const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+                      const isSelected = dashCategoryFilter === catKey
+                      
+                      // Count in completed fleet and total scoped
+                      const catAssets = scopedAssets.filter(
+                        (a) => resolveMajorAssetCategory(a.currentCategory || a.category) === catKey
+                      )
+                      const deployedCount = catAssets.filter((a) => isAssetTaskCompleted(a)).length
+                      const totalCount = catAssets.length
+                      const pctOfFleet = totalAssets > 0 ? Math.round((deployedCount / totalAssets) * 100) : 0
+                      const healthyCatCount = catAssets.filter((a) => a.status === 'Active' || a.status === 'Completed').length
+
+                      return (
+                        <div
+                          key={catKey}
+                          onClick={() => setDashCategoryFilter(prev => prev === catKey ? 'All' : catKey)}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Category ${cfg.label}: ${deployedCount} deployed`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setDashCategoryFilter(prev => prev === catKey ? 'All' : catKey)
+                            }
+                          }}
+                          className={`relative overflow-hidden rounded-xl p-3 border transition-all duration-200 cursor-pointer text-left select-none ${
+                            isSelected
+                              ? 'ring-2 ring-[var(--acc)] bg-[var(--acc)]/10 border-[var(--acc)] shadow-sm'
+                              : 'bg-gradient-to-br from-[var(--surf)] to-[var(--surf2)]/50 border-[var(--line)] hover:border-[var(--acc)]/50 hover:shadow-xs'
+                          }`}
+                        >
+                          {/* Header with Icon, Labels and Active Pill */}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl p-1.5 rounded-lg bg-[var(--surf)] border border-[var(--line)] shadow-2xs">
+                                {cfg.icon}
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-bold text-[var(--ink)] leading-tight">
+                                  {cfg.label}
+                                </h4>
+                                <div className="text-[10px] text-[var(--mute)] font-medium">
+                                  {cfg.chineseLabel}
+                                </div>
+                              </div>
+                            </div>
+                            {isSelected ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--acc)] text-white shadow-2xs">
+                                Filtered ✓
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-[var(--mute)]">
+                                {pctOfFleet}%
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Metric figures */}
+                          <div className="mt-2 flex items-baseline justify-between">
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-xl font-black text-[var(--ink)] tracking-tight">
+                                {deployedCount}
+                              </span>
+                              <span className="text-[10px] text-[var(--mute)]">
+                                / {totalCount} total
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              {healthyCatCount} Active
+                            </span>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="w-full bg-[var(--line)]/60 h-1.5 rounded-full overflow-hidden mt-2">
+                            <div
+                              style={{ width: `${pctOfFleet}%`, backgroundColor: cfg.color }}
+                              className="h-full rounded-full transition-all duration-500"
+                            />
+                          </div>
+
+                          <div className="mt-2 text-[10px] text-[var(--mute)] truncate" title={cfg.description}>
+                            {cfg.description}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+
                 {/* 3D Bento-Box Command Grid */}
                 <div className="mt-3">
                   <ExecutiveBentoGrid3D
@@ -1917,6 +2051,28 @@ export function App() {
                         ))}
                       </div>
 
+                      {/* Category Quick Filter */}
+                      <div className="flex items-center rounded-lg border border-[var(--line)] overflow-hidden text-xs">
+                        {['All', ...MAJOR_ASSET_CATEGORIES].map((cat) => {
+                          const isSelected = dashCategoryFilter === cat
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => setDashCategoryFilter(cat)}
+                              className={`px-2 py-1 transition-colors cursor-pointer flex items-center gap-1 ${
+                                isSelected
+                                  ? 'bg-[var(--acc)] text-white font-bold'
+                                  : 'bg-[var(--surf)] text-[var(--mute)] hover:text-[var(--ink)]'
+                              }`}
+                            >
+                              {cat !== 'All' && <span>{MAJOR_ASSET_CATEGORIES_CONFIG[cat as MajorAssetCategory]?.icon}</span>}
+                              <span>{cat === 'All' ? 'All Categories' : cat}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
                       {/* Export to Excel Button */}
                       <button
                         type="button"
@@ -1951,6 +2107,7 @@ export function App() {
                           <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
                             <th className="py-2.5 px-3">Picture</th>
                             <th className="py-2.5 px-3">Asset Code</th>
+                            <th className="py-2.5 px-3">Category (四大核心)</th>
                             <th className="py-2.5 px-3">Company</th>
                             <th className="py-2.5 px-3">Building</th>
                             <th className="py-2.5 px-3">Floor</th>
@@ -2014,6 +2171,23 @@ export function App() {
                                     <div className="group-hover:text-[var(--acc)] group-hover:underline transition-colors">{asset.assetCode}</div>
                                     <div className="text-[10px] text-[var(--mute)] font-sans">{asset.serialNumber || 'SN: N/A'}</div>
                                   </button>
+                                </td>
+
+                                {/* Category */}
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  {(() => {
+                                    const cat = resolveMajorAssetCategory(asset.currentCategory || asset.category)
+                                    const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[cat]
+                                    return (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${cfg.badgeClass}`}
+                                        title={`${cfg.label} (${cfg.chineseLabel})`}
+                                      >
+                                        <span>{cfg.icon}</span>
+                                        <span>{cfg.label}</span>
+                                      </span>
+                                    )
+                                  })()}
                                 </td>
 
                                 {/* Company */}

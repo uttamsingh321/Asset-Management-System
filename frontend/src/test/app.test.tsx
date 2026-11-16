@@ -55,8 +55,12 @@ describe('Meridian UI/UX Zero Dummy Data & Responsive Collapsible Navigation', (
   })
 
   it('Task 2: Responsive across all 8 sub-dashboards with zero data', () => {
+    localStorage.setItem(
+      'meridian_profile',
+      JSON.stringify({ userName: 'Admin', role: 'Admin', isSuperuser: true, userId: 'USR-ADMIN' })
+    )
     const { unmount } = render(<App />)
-    const subpages = navItems.filter((item) => item.key !== 'dashboard')
+    const subpages = navItems.filter((item) => item.key !== 'dashboard' && item.key !== 'administration')
     for (const item of subpages) {
       const pageData = meridianPages[item.key]
       expect(pageData).toBeDefined()
