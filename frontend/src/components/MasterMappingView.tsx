@@ -1234,7 +1234,7 @@ export const MasterMappingView: React.FC<MasterMappingViewProps> = ({ currentUse
       {activeTab === 'dashboard' && dashboard && (
         <div className="space-y-6 animate-fadeIn">
           {/* Top 7 Level KPI Bento Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
             {[
               { label: 'Companies', count: dashboard.summary.companies.total, active: dashboard.summary.companies.active, icon: '🏢' },
               { label: 'Plants', count: dashboard.summary.plants.total, active: dashboard.summary.plants.active, icon: '🏭' },
@@ -1244,12 +1244,12 @@ export const MasterMappingView: React.FC<MasterMappingViewProps> = ({ currentUse
               { label: 'Areas', count: dashboard.summary.areas.total, active: dashboard.summary.areas.active, icon: '📐' },
               { label: 'Locations', count: dashboard.summary.locations.total, active: dashboard.summary.locations.active, icon: '🏷️' },
             ].map((kpi) => (
-              <div key={kpi.label} className="card p-4 space-y-1 bg-[var(--surf)] border border-[var(--line)] shadow-xs">
-                <div className="flex items-center justify-between text-xs text-[var(--mute)]">
+              <div key={kpi.label} className="card p-2 sm:p-2.5 space-y-0.5 bg-[var(--surf)] border border-[var(--line)] shadow-2xs">
+                <div className="flex items-center justify-between text-[11px] text-[var(--mute)]">
                   <span>{kpi.icon} {kpi.label}</span>
                 </div>
-                <div className="text-2xl font-black text-[var(--ink)]">{kpi.count}</div>
-                <div className="text-[10px] text-emerald-600 font-bold">{kpi.active} Active</div>
+                <div className="text-lg font-black text-[var(--ink)]">{kpi.count}</div>
+                <div className="text-[9px] text-emerald-600 font-bold">{kpi.active} Active</div>
               </div>
             ))}
           </div>

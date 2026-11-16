@@ -548,12 +548,12 @@ h1 {
   border-radius: 3px;
 }
 
-/* Responsive KPIs */
+/* Responsive Compact KPIs */
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 @media (max-width: 1050px) {
@@ -568,25 +568,31 @@ h1 {
   }
 }
 
+.card.k {
+  padding: 10px 14px;
+}
+
 .k .l {
   color: var(--mute);
-  font-weight: 500;
-  font-size: 13px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .k .v {
-  font-size: clamp(22px, 3vw, 26px);
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   letter-spacing: -0.02em;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 
 .k .d {
-  font-size: 12.5px;
+  font-size: 11px;
   color: var(--mute);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 

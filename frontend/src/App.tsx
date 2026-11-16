@@ -1533,58 +1533,54 @@ export function App() {
                 </div>
 
                 {/* Fleet Health Bar & Executive Command Center */}
-                <section className="card p-5 space-y-4 bg-gradient-to-r from-[var(--surf)] via-[var(--surf)] to-[var(--surf2)] border border-[var(--line)] shadow-xs">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#165DFF] to-[#0f44bd] text-white flex items-center justify-center text-xl font-black shadow-md shadow-[#165DFF]/20">
+                <section className="card p-3 sm:p-3.5 space-y-2.5 bg-gradient-to-r from-[var(--surf)] via-[var(--surf)] to-[var(--surf2)] border border-[var(--line)] shadow-2xs">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#165DFF] to-[#0f44bd] text-white flex items-center justify-center text-base font-black shadow-sm shadow-[#165DFF]/20">
                         {totalAssets}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-[var(--ink)]">
+                          <h3 className="text-xs font-bold text-[var(--ink)]">
                             Active Deployed Fleet
                           </h3>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Live Telemetry
                           </span>
                         </div>
-                        <div className="text-[11px] text-[var(--mute)] mt-0.5">
+                        <div className="text-[10px] text-[var(--mute)]">
                           Enterprise equipment tracking across IIPL & Padget manufacturing sites
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5 text-xs">
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--ok)]/40 transition">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--ok)]/40 transition">
                         <span className="sw" style={{ background: 'var(--ok)' }} />
-                        <span className="text-[var(--mute)]">Operational:</span>
-                        <b className="font-bold text-[var(--ink)]">{healthyCount}</b>
-                        <span className="text-[10px] text-[var(--mute)]">operational</span>
+                        <span className="text-[var(--mute)] text-[11px]">Operational:</span>
+                        <b className="font-bold text-[var(--ink)] text-[11px]">{healthyCount}</b>
                       </div>
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--warn)]/40 transition">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--warn)]/40 transition">
                         <span className="sw" style={{ background: 'var(--warn)' }} />
-                        <span className="text-[var(--mute)]">Service Due:</span>
-                        <b className="font-bold text-[var(--ink)]">{maintenanceCount}</b>
-                        <span className="text-[10px] text-[var(--mute)]">service due</span>
+                        <span className="text-[var(--mute)] text-[11px]">Service Due:</span>
+                        <b className="font-bold text-[var(--ink)] text-[11px]">{maintenanceCount}</b>
                       </div>
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--acc)]/40 transition">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--acc)]/40 transition">
                         <span className="sw" style={{ background: 'var(--acc)' }} />
-                        <span className="text-[var(--mute)]">Reserved:</span>
-                        <b className="font-bold text-[var(--ink)]">{reservedCount}</b>
-                        <span className="text-[10px] text-[var(--mute)]">reserved</span>
+                        <span className="text-[var(--mute)] text-[11px]">Reserved:</span>
+                        <b className="font-bold text-[var(--ink)] text-[11px]">{reservedCount}</b>
                       </div>
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--bad)]/40 transition">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surf)] border border-[var(--line)] shadow-2xs hover:border-[var(--bad)]/40 transition">
                         <span className="sw" style={{ background: 'var(--bad)' }} />
-                        <span className="text-[var(--mute)]">Retired:</span>
-                        <b className="font-bold text-[var(--ink)]">{retiredCount}</b>
-                        <span className="text-[10px] text-[var(--mute)]">retired</span>
+                        <span className="text-[var(--mute)] text-[11px]">Retired:</span>
+                        <b className="font-bold text-[var(--ink)] text-[11px]">{retiredCount}</b>
                       </div>
                     </div>
                   </div>
 
                   {/* Visual Status Allocation Meter */}
-                  <div className="w-full bg-[var(--surf2)] h-2 rounded-full overflow-hidden flex border border-[var(--line)]/50">
+                  <div className="w-full bg-[var(--surf2)] h-1.5 rounded-full overflow-hidden flex border border-[var(--line)]/50">
                     <div
                       style={{ width: `${totalAssets > 0 ? (healthyCount / totalAssets) * 100 : 0}%` }}
                       className="bg-[var(--ok)] transition-all duration-500"
@@ -1609,7 +1605,7 @@ export function App() {
                 </section>
 
                 {/* 3D Bento-Box Command Grid */}
-                <div className="mt-5">
+                <div className="mt-3">
                   <ExecutiveBentoGrid3D
                     assets={completedAssetsList}
                     pendingTaskCount={pendingTaskCount}
@@ -1625,7 +1621,7 @@ export function App() {
                 </div>
 
                 {/* 3D Spatial Digital Twin Facility Visualizer */}
-                <div className="mt-5">
+                <div className="mt-3">
                   <DigitalTwinFacility3D
                     assets={completedAssetsList}
                     activeBuildingFilter={dashBuildingFilter}

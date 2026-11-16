@@ -1356,38 +1356,38 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           {/* KPI Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-5 bg-[var(--surf)] border border-[var(--line)] rounded-2xl space-y-1 shadow-xs">
-              <div className="text-xs text-[var(--mute)] font-medium">Total Registered Users</div>
-              <div className="text-3xl font-black text-[var(--ink)]">{users.length}</div>
-              <div className="text-[11px] text-emerald-600 font-bold">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            <div className="p-2.5 sm:p-3 bg-[var(--surf)] border border-[var(--line)] rounded-xl space-y-0.5 shadow-2xs">
+              <div className="text-[11px] text-[var(--mute)] font-medium">Total Registered Users</div>
+              <div className="text-lg sm:text-xl font-black text-[var(--ink)]">{users.length}</div>
+              <div className="text-[10px] text-emerald-600 font-bold">
                 {users.filter((u) => u.status === 'Active').length} Active Accounts
               </div>
             </div>
 
-            <div className="p-5 bg-[var(--surf)] border border-[var(--line)] rounded-2xl space-y-1 shadow-xs">
-              <div className="text-xs text-[var(--mute)] font-medium">Roles & Profiles</div>
-              <div className="text-3xl font-black text-purple-600">{roles.length}</div>
-              <div className="text-[11px] text-purple-700 font-medium">
+            <div className="p-2.5 sm:p-3 bg-[var(--surf)] border border-[var(--line)] rounded-xl space-y-0.5 shadow-2xs">
+              <div className="text-[11px] text-[var(--mute)] font-medium">Roles & Profiles</div>
+              <div className="text-lg sm:text-xl font-black text-purple-600">{roles.length}</div>
+              <div className="text-[10px] text-purple-700 font-medium">
                 {roles.filter((r) => r.isSystem).length} System · {roles.filter((r) => !r.isSystem).length} Custom
               </div>
             </div>
 
-            <div className="p-5 bg-[var(--surf)] border border-[var(--line)] rounded-2xl space-y-1 shadow-xs">
-              <div className="text-xs text-[var(--mute)] font-medium">Granular Permissions</div>
-              <div className="text-3xl font-black text-blue-600">{permissions.length || 182}</div>
-              <div className="text-[11px] text-blue-700 font-medium">13 Modules × 14 Action Verbs</div>
+            <div className="p-2.5 sm:p-3 bg-[var(--surf)] border border-[var(--line)] rounded-xl space-y-0.5 shadow-2xs">
+              <div className="text-[11px] text-[var(--mute)] font-medium">Granular Permissions</div>
+              <div className="text-lg sm:text-xl font-black text-blue-600">{permissions.length || 182}</div>
+              <div className="text-[10px] text-blue-700 font-medium">13 Modules × 14 Action Verbs</div>
             </div>
 
-            <div className="p-5 bg-[var(--surf)] border border-[var(--line)] rounded-2xl space-y-1 shadow-xs">
-              <div className="text-xs text-[var(--mute)] font-medium">2FA Compliance Rate</div>
-              <div className="text-3xl font-black text-emerald-600">
+            <div className="p-2.5 sm:p-3 bg-[var(--surf)] border border-[var(--line)] rounded-xl space-y-0.5 shadow-2xs">
+              <div className="text-[11px] text-[var(--mute)] font-medium">2FA Compliance Rate</div>
+              <div className="text-lg sm:text-xl font-black text-emerald-600">
                 {users.length > 0
                   ? Math.round((users.filter((u) => u.twoFactorEnabled).length / users.length) * 100)
                   : 0}
                 %
               </div>
-              <div className="text-[11px] text-[var(--mute)]">
+              <div className="text-[10px] text-[var(--mute)]">
                 {users.filter((u) => u.twoFactorEnabled).length} of {users.length} users active
               </div>
             </div>

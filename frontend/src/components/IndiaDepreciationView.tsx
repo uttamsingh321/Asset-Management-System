@@ -86,16 +86,16 @@ function buildDepreciationRow(asset: Asset): DepreciationRow {
 function SummaryCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div style={{
-      background: '#fff',
-      border: '1px solid #e2e8f0',
+      background: 'var(--surf)',
+      border: '1px solid var(--line)',
       borderRadius: 10,
-      padding: '16px 20px',
-      minWidth: 180,
-      flex: '1 1 180px',
+      padding: '10px 14px',
+      minWidth: 140,
+      flex: '1 1 140px',
     }}>
-      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 11, color: 'var(--mute)', marginBottom: 2, fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 2 }}>{sub}</div>}
     </div>
   )
 }

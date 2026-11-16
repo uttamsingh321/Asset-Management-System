@@ -217,29 +217,29 @@ export const AuditLogView: React.FC = () => {
       </div>
 
       {/* Active Device & Telemetry Banner */}
-      <div className="card p-4 bg-gradient-to-r from-[var(--acc2)]/50 to-[var(--surf)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--acc)] text-white flex items-center justify-center text-lg shadow-sm">
+      <div className="card p-2.5 sm:p-3 bg-gradient-to-r from-[var(--acc2)]/50 to-[var(--surf)] border border-[var(--line)] flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[var(--acc)] text-white flex items-center justify-center text-sm shadow-2xs">
             {getDeviceIcon(currentDevice.deviceType)}
           </div>
           <div>
-            <div className="text-xs font-bold text-[var(--ink)] flex items-center gap-2">
+            <div className="text-xs font-bold text-[var(--ink)] flex items-center gap-1.5">
               <span>Current Session: {currentDevice.deviceType}</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-normal text-[var(--mute)]">Active Tracking</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-normal text-[var(--mute)]">Active Tracking</span>
             </div>
-            <div className="text-xs text-[var(--mute)]">
+            <div className="text-[11px] text-[var(--mute)]">
               {currentUser.userName} ({currentUser.userId} · {currentUser.role}) — {currentDevice.os} · {currentDevice.browser} · Host: {currentDevice.hostname}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <div className="px-2.5 py-1 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+        <div className="flex items-center gap-2 text-[11px]">
+          <div className="px-2 py-0.5 rounded-md bg-[var(--surf)] border border-[var(--line)]">
             <span className="text-[var(--mute)] mr-1">Resolution:</span>
             <strong>{currentDevice.screenResolution}</strong>
           </div>
-          <div className="px-2.5 py-1 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+          <div className="px-2 py-0.5 rounded-md bg-[var(--surf)] border border-[var(--line)]">
             <span className="text-[var(--mute)] mr-1">Compliance:</span>
             <strong className="text-emerald-600">SOC 2 / ISO 27001</strong>
           </div>
@@ -247,34 +247,34 @@ export const AuditLogView: React.FC = () => {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Devices tracked</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="card p-4 space-y-1">
-            <div className="text-xs text-[var(--mute)]">Total Audit Events</div>
-            <div className="text-2xl font-bold text-[var(--ink)]">{logs.length.toLocaleString()}</div>
-            <div className="text-[11px] text-emerald-600 font-medium">100% Immutable</div>
+      <div className="space-y-1.5">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)]">Devices tracked</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          <div className="card p-2.5 sm:p-3 space-y-0.5">
+            <div className="text-[11px] text-[var(--mute)] font-medium">Total Audit Events</div>
+            <div className="text-lg sm:text-xl font-black text-[var(--ink)]">{logs.length.toLocaleString()}</div>
+            <div className="text-[10px] text-emerald-600 font-medium">100% Immutable</div>
           </div>
 
-          <div className="card p-4 space-y-1">
-            <div className="text-xs text-[var(--mute)]">Tracked Devices</div>
-            <div className="text-2xl font-bold text-[var(--ink)] flex items-center gap-1.5">
+          <div className="card p-2.5 sm:p-3 space-y-0.5">
+            <div className="text-[11px] text-[var(--mute)] font-medium">Tracked Devices</div>
+            <div className="text-lg sm:text-xl font-black text-[var(--ink)] flex items-center gap-1.5">
               <span>{trackedDevices.length} Connected</span>
             </div>
-            <div className="flex items-center gap-2 text-xs pt-0.5 font-medium text-[var(--ink)]">
+            <div className="flex items-center gap-2 text-[10px] pt-0.5 font-medium text-[var(--ink)]">
               <span>🖥️ {deviceCounts.Desktop}</span>
               <span>💻 {deviceCounts.Laptop}</span>
               <span>📱 {deviceCounts.Tablet + deviceCounts.Mobile}</span>
             </div>
-            <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+            <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>{currentDevice.deviceType}: {currentDevice.os} (Active)</span>
             </div>
           </div>
 
-          <div className="card p-4 space-y-1">
-            <div className="text-xs text-[var(--mute)]">Asset Operations</div>
-            <div className="text-2xl font-bold text-[var(--ink)]">
+          <div className="card p-2.5 sm:p-3 space-y-0.5">
+            <div className="text-[11px] text-[var(--mute)] font-medium">Asset Operations</div>
+            <div className="text-lg sm:text-xl font-black text-[var(--ink)]">
               {(
                 (actionCounts.ASSET_CREATE || 0) +
                 (actionCounts.ASSET_UPDATE || 0) +
@@ -283,80 +283,80 @@ export const AuditLogView: React.FC = () => {
                 (actionCounts.ASSET_DELETE || 0)
               ).toLocaleString()}
             </div>
-            <div className="text-[11px] text-[var(--acc)] font-medium">Lifecycle Tracked</div>
+            <div className="text-[10px] text-[var(--acc)] font-medium">Lifecycle Tracked</div>
           </div>
 
-          <div className="card p-4 space-y-1">
-            <div className="text-xs text-[var(--mute)]">Security Logins/Logouts</div>
-            <div className="text-2xl font-bold text-[var(--ink)]">
+          <div className="card p-2.5 sm:p-3 space-y-0.5">
+            <div className="text-[11px] text-[var(--mute)] font-medium">Security Logins/Logouts</div>
+            <div className="text-lg sm:text-xl font-black text-[var(--ink)]">
               {((actionCounts.LOGIN || 0) + (actionCounts.LOGOUT || 0)).toLocaleString()}
             </div>
-            <div className="text-[11px] text-[var(--mute)]">Session Audited</div>
+            <div className="text-[10px] text-[var(--mute)]">Session Audited</div>
           </div>
         </div>
       </div>
 
       {/* Tracked Devices Telemetry Directory */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold flex items-center gap-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)] flex items-center gap-2">
             <span>Hardware Devices Detected</span>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
+            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
               {trackedDevices.length} Active Hardware Profiles
             </span>
           </h2>
-          <span className="text-[11px] text-[var(--mute)]">Auto-identified device telemetry & browser profiles</span>
+          <span className="text-[10px] text-[var(--mute)]">Auto-identified device telemetry & browser profiles</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {trackedDevices.map((dev) => (
             <div
               key={dev.id}
-              className={`p-3.5 rounded-xl border transition space-y-2.5 ${
+              className={`p-2.5 rounded-xl border transition space-y-1.5 ${
                 dev.isCurrentDevice
-                  ? 'bg-gradient-to-br from-emerald-500/10 via-[var(--surf)] to-[var(--surf)] border-emerald-500/40 shadow-xs'
+                  ? 'bg-gradient-to-br from-emerald-500/10 via-[var(--surf)] to-[var(--surf)] border-emerald-500/40 shadow-2xs'
                   : 'bg-[var(--surf)] border-[var(--line)]'
               }`}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{getDeviceIcon(dev.deviceType)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{getDeviceIcon(dev.deviceType)}</span>
                   <div>
-                    <div className="font-bold text-xs text-[var(--ink)] flex items-center gap-1.5">
+                    <div className="font-bold text-[11px] text-[var(--ink)] flex items-center gap-1">
                       <span>{dev.deviceType}</span>
                       {dev.isCurrentDevice ? (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                          Active Device
+                        <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                          Active
                         </span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-[var(--surf2)] text-[var(--mute)]">
+                        <span className="px-1 py-0.2 rounded text-[8px] font-medium bg-[var(--surf2)] text-[var(--mute)]">
                           Recorded
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-[var(--mute)] font-medium">
+                    <div className="text-[10px] text-[var(--mute)]">
                       {dev.os} · {dev.browser}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-mono text-[var(--mute)] block">{dev.clientIp}</span>
-                  <span className="text-[9px] text-emerald-600 font-medium">Verified</span>
+                  <span className="text-[9px] font-mono text-[var(--mute)] block">{dev.clientIp}</span>
+                  <span className="text-[8px] text-emerald-600 font-medium">Verified</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-[var(--line)]">
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1.5 border-t border-[var(--line)]">
                 <div>
-                  <span className="block text-[10px] text-[var(--mute)]">Operator / Role</span>
+                  <span className="block text-[9px] text-[var(--mute)]">Operator / Role</span>
                   <span className="font-semibold text-[var(--ink)] line-clamp-1">{dev.lastUser}</span>
-                  <span className="text-[10px] text-[var(--mute)] block">{dev.lastUserId}</span>
+                  <span className="text-[9px] text-[var(--mute)] block">{dev.lastUserId}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] text-[var(--mute)]">Screen & Host</span>
-                  <span className="font-mono text-[10px] text-[var(--ink)] block">
+                  <span className="block text-[9px] text-[var(--mute)]">Screen & Host</span>
+                  <span className="font-mono text-[9px] text-[var(--ink)] block">
                     {dev.screenResolution !== 'N/A' ? dev.screenResolution : currentDevice.screenResolution}
                   </span>
-                  <span className="text-[10px] font-mono text-[var(--mute)] block truncate">{dev.hostname}</span>
+                  <span className="text-[9px] font-mono text-[var(--mute)] block truncate">{dev.hostname}</span>
                 </div>
               </div>
             </div>

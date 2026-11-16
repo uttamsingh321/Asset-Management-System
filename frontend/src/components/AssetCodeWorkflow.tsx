@@ -563,25 +563,25 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-4 flex flex-col justify-between">
-          <div className="text-xs text-[var(--mute)] font-medium">Total Asset Codes</div>
-          <div className="text-2xl font-bold text-[var(--ink)] my-1">{totalCodes}</div>
-          <div className="text-[11px] text-[var(--mute)]">Provided in system</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Total Asset Codes</div>
+          <div className="text-lg sm:text-xl font-black text-[var(--ink)] mt-0.5 mb-1">{totalCodes}</div>
+          <div className="text-[10px] text-[var(--mute)]">Provided in system</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between border-l-4 border-amber-500">
-          <div className="text-xs text-[var(--mute)] font-medium">⏳ Pending Data Entry</div>
-          <div className="text-2xl font-bold text-amber-500 my-1">{pendingAssets.length}</div>
-          <div className="text-[11px] text-[var(--mute)]">Awaiting department input</div>
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between border-l-4 border-amber-500">
+          <div className="text-[11px] text-[var(--mute)] font-medium">⏳ Pending Data Entry</div>
+          <div className="text-lg sm:text-xl font-black text-amber-500 mt-0.5 mb-1">{pendingAssets.length}</div>
+          <div className="text-[10px] text-[var(--mute)]">Awaiting department input</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between border-l-4 border-[var(--ok)]">
-          <div className="text-xs text-[var(--mute)] font-medium">✅ Completed / Filled</div>
-          <div className="text-2xl font-bold text-[var(--ok)] my-1">{completedAssets.length}</div>
-          <div className="text-[11px] text-[var(--mute)]">Details verified & active</div>
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between border-l-4 border-[var(--ok)]">
+          <div className="text-[11px] text-[var(--mute)] font-medium">✅ Completed / Filled</div>
+          <div className="text-lg sm:text-xl font-black text-[var(--ok)] mt-0.5 mb-1">{completedAssets.length}</div>
+          <div className="text-[10px] text-[var(--mute)]">Details verified & active</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between">
-          <div className="text-xs text-[var(--mute)] font-medium">Completion Rate</div>
-          <div className="text-2xl font-bold text-[var(--acc)] my-1">{completionPct}%</div>
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Completion Rate</div>
+          <div className="text-lg sm:text-xl font-black text-[var(--acc)] mt-0.5 mb-1">{completionPct}%</div>
           <div className="w-full bg-[var(--surf2)] h-1.5 rounded-full overflow-hidden mt-1">
             <div
               className="bg-[var(--acc)] h-full transition-all duration-300"

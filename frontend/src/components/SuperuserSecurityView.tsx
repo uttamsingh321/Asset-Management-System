@@ -185,32 +185,32 @@ export const SuperuserSecurityView: React.FC<SuperuserSecurityViewProps> = ({ cu
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-4 flex flex-col justify-between border-l-4 border-l-red-500">
-          <div className="text-xs text-[var(--mute)] font-medium">Currently Locked Accounts</div>
-          <div className="text-2xl font-bold text-red-600 my-1">{lockedAccounts.length}</div>
-          <div className="text-[11px] text-[var(--mute)]">5 consecutive failures</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between border-l-4 border-l-red-500">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Currently Locked Accounts</div>
+          <div className="text-lg sm:text-xl font-black text-red-600 mt-0.5 mb-1">{lockedAccounts.length}</div>
+          <div className="text-[10px] text-[var(--mute)]">5 consecutive failures</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between border-l-4 border-l-amber-500">
-          <div className="text-xs text-[var(--mute)] font-medium">Failed Login Attempts</div>
-          <div className="text-2xl font-bold text-amber-500 my-1">
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between border-l-4 border-l-amber-500">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Failed Login Attempts</div>
+          <div className="text-lg sm:text-xl font-black text-amber-500 mt-0.5 mb-1">
             {logs.filter((l) => l.action === 'LOGIN_FAILURE').length}
           </div>
-          <div className="text-[11px] text-[var(--mute)]">Recorded with client IP</div>
+          <div className="text-[10px] text-[var(--mute)]">Recorded with client IP</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between border-l-4 border-l-emerald-500">
-          <div className="text-xs text-[var(--mute)] font-medium">Authorized Logins</div>
-          <div className="text-2xl font-bold text-emerald-600 my-1">
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between border-l-4 border-l-emerald-500">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Authorized Logins</div>
+          <div className="text-lg sm:text-xl font-black text-emerald-600 mt-0.5 mb-1">
             {logs.filter((l) => l.action === 'LOGIN').length}
           </div>
-          <div className="text-[11px] text-[var(--mute)]">100% verified sessions</div>
+          <div className="text-[10px] text-[var(--mute)]">100% verified sessions</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between border-l-4 border-l-blue-500">
-          <div className="text-xs text-[var(--mute)] font-medium">Unique IP Addresses</div>
-          <div className="text-2xl font-bold text-blue-600 my-1">
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between border-l-4 border-l-blue-500">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Unique IP Addresses</div>
+          <div className="text-lg sm:text-xl font-black text-blue-600 mt-0.5 mb-1">
             {new Set(logs.map((l) => l.clientIp).filter(Boolean)).size}
           </div>
-          <div className="text-[11px] text-[var(--mute)]">Plant terminals tracked</div>
+          <div className="text-[10px] text-[var(--mute)]">Plant terminals tracked</div>
         </div>
       </div>
 

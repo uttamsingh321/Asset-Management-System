@@ -395,26 +395,26 @@ export const UserManagementView: React.FC<Props> = ({ currentUser, onSwitchUser,
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-4 flex flex-col justify-between">
-          <div className="text-xs text-[var(--mute)] font-medium">Total Users</div>
-          <div className="text-2xl font-bold text-[var(--ink)] my-1">{totalUsers}</div>
-          <div className="text-[11px] text-[var(--ok)]">Across all facilities</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Total Users</div>
+          <div className="text-lg sm:text-xl font-black text-[var(--ink)] mt-0.5 mb-1">{totalUsers}</div>
+          <div className="text-[10px] text-[var(--ok)]">Across all facilities</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between">
-          <div className="text-xs text-[var(--mute)] font-medium">Active Accounts</div>
-          <div className="text-2xl font-bold text-[var(--ok)] my-1">{activeUsers}</div>
-          <div className="text-[11px] text-[var(--mute)]">100% credentials active</div>
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Active Accounts</div>
+          <div className="text-lg sm:text-xl font-black text-[var(--ok)] mt-0.5 mb-1">{activeUsers}</div>
+          <div className="text-[10px] text-[var(--mute)]">100% credentials active</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between">
-          <div className="text-xs text-[var(--mute)] font-medium">Departments</div>
-          <div className="text-2xl font-bold text-[var(--acc)] my-1">{departmentCount}</div>
-          <div className="text-[11px] text-[var(--mute)]">Role-scoped access</div>
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Departments</div>
+          <div className="text-lg sm:text-xl font-black text-[var(--acc)] mt-0.5 mb-1">{departmentCount}</div>
+          <div className="text-[10px] text-[var(--mute)]">Role-scoped access</div>
         </div>
-        <div className="card p-4 flex flex-col justify-between">
-          <div className="text-xs text-[var(--mute)] font-medium">Superusers / Admins</div>
-          <div className="text-2xl font-bold text-amber-500 my-1">{adminCount}</div>
-          <div className="text-[11px] text-[var(--mute)]">Privileged access</div>
+        <div className="card p-2.5 sm:p-3 flex flex-col justify-between">
+          <div className="text-[11px] text-[var(--mute)] font-medium">Superusers / Admins</div>
+          <div className="text-lg sm:text-xl font-black text-amber-500 mt-0.5 mb-1">{adminCount}</div>
+          <div className="text-[10px] text-[var(--mute)]">Privileged access</div>
         </div>
       </div>
 

@@ -1179,33 +1179,33 @@ export function IndiaStockCountView({
         </div>
       ) : (
         /* VIEW B: Tasks List View (When no task session is active) */
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="card p-4 space-y-1">
-              <div className="text-xs text-[var(--mute)]">Total Audit Tasks</div>
-              <div className="text-2xl font-bold text-[var(--ink)]">{tasks.length}</div>
-              <div className="text-[11px] text-[var(--mute)]">Scoped to Indian Plants</div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+            <div className="card p-2.5 sm:p-3 space-y-0.5">
+              <div className="text-[11px] text-[var(--mute)]">Total Audit Tasks</div>
+              <div className="text-lg sm:text-xl font-black text-[var(--ink)]">{tasks.length}</div>
+              <div className="text-[10px] text-[var(--mute)]">Scoped to Indian Plants</div>
             </div>
-            <div className="card p-4 space-y-1">
-              <div className="text-xs text-[var(--mute)]">Active Sessions</div>
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="card p-2.5 sm:p-3 space-y-0.5">
+              <div className="text-[11px] text-[var(--mute)]">Active Sessions</div>
+              <div className="text-lg sm:text-xl font-black text-blue-600">
                 {tasks.filter(t => t.status === 'In Progress').length}
               </div>
-              <div className="text-[11px] text-blue-600 font-medium">In Progress</div>
+              <div className="text-[10px] text-blue-600 font-medium">In Progress</div>
             </div>
-            <div className="card p-4 space-y-1">
-              <div className="text-xs text-[var(--mute)]">Completed Tasks</div>
-              <div className="text-2xl font-bold text-emerald-600">
+            <div className="card p-2.5 sm:p-3 space-y-0.5">
+              <div className="text-[11px] text-[var(--mute)]">Completed Tasks</div>
+              <div className="text-lg sm:text-xl font-black text-emerald-600">
                 {tasks.filter(t => t.status === 'Completed').length}
               </div>
-              <div className="text-[11px] text-emerald-600 font-medium">100% Reconciled</div>
+              <div className="text-[10px] text-emerald-600 font-medium">100% Reconciled</div>
             </div>
-            <div className="card p-4 space-y-1">
-              <div className="text-xs text-[var(--mute)]">Total Variances</div>
-              <div className="text-2xl font-bold text-amber-600">
+            <div className="card p-2.5 sm:p-3 space-y-0.5">
+              <div className="text-[11px] text-[var(--mute)]">Total Variances</div>
+              <div className="text-lg sm:text-xl font-black text-amber-600">
                 {tasks.reduce((sum, t) => sum + t.variances, 0)}
               </div>
-              <div className="text-[11px] text-amber-600 font-medium">Requires Supervisor Review</div>
+              <div className="text-[10px] text-amber-600 font-medium">Requires Supervisor Review</div>
             </div>
           </div>
 

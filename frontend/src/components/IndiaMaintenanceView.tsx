@@ -156,20 +156,20 @@ function SummaryCard({
 }) {
   return (
     <div
-      className="rounded-xl p-4 flex flex-col gap-1 flex-1 min-w-[140px]"
+      className="rounded-xl p-2.5 sm:p-3 flex flex-col gap-0.5 flex-1 min-w-[120px]"
       style={{ background: 'var(--surf)', border: '1px solid var(--line)' }}
     >
-      <span className="text-xs font-medium" style={{ color: 'var(--mute)' }}>
+      <span className="text-[11px] font-medium" style={{ color: 'var(--mute)' }}>
         {label}
       </span>
       <span
-        className="text-2xl font-bold"
+        className="text-lg font-bold"
         style={{ color: 'var(--acc)' }}
       >
         {value}
       </span>
       {sub && (
-        <span className="text-xs" style={{ color: 'var(--mute)' }}>
+        <span className="text-[10px]" style={{ color: 'var(--mute)' }}>
           {sub}
         </span>
       )}
