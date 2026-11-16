@@ -206,6 +206,8 @@ export interface Asset {
   // Ownership & Custodian
   currentDepartment?: string
   submitter?: string
+  submitterId?: string
+  submitterDepartment?: string
   inChargeId?: string
   inChargeName?: string
   whoInCharge?: string

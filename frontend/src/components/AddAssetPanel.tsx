@@ -88,6 +88,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
   const [currentDepartment, setCurrentDepartment] = React.useState('')
   const [submitter, setSubmitter] = React.useState('')
+  const [submitterId, setSubmitterId] = React.useState('')
+  const [submitterDepartment, setSubmitterDepartment] = React.useState('')
 
   const [assetCondition, setAssetCondition] = React.useState('')
   const [assetConditionUnavailable, setAssetConditionUnavailable] = React.useState(false)
@@ -210,12 +212,16 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       const assignedDept = currentUserDept || initialAsset.currentDepartment || initialAsset.department || 'IT'
       const assignedId = currentUserId || (initialAsset.inChargeId && initialAsset.inChargeId !== 'ID Pending' ? initialAsset.inChargeId : '')
       const assignedName = currentUserName || (initialAsset.inChargeName && initialAsset.inChargeName !== 'Unassigned Staff' ? initialAsset.inChargeName : '')
-      const assignedSubmitter = currentUserName || (initialAsset.submitter && initialAsset.submitter !== 'Unassigned Staff' ? initialAsset.submitter : '')
+      const assignedSubmitter = initialAsset.submitter || currentUserName || ''
+      const assignedSubmitterId = initialAsset.submitterId || currentUserId || ''
+      const assignedSubmitterDept = initialAsset.submitterDepartment || currentUserDept || ''
 
       setCurrentDepartment(assignedDept)
       setInChargeId(assignedId)
       setInChargeName(assignedName)
       setSubmitter(assignedSubmitter)
+      setSubmitterId(assignedSubmitterId)
+      setSubmitterDepartment(assignedSubmitterDept)
 
       setAssetCondition(initialAsset.assetCondition || '')
       setAssetConditionUnavailable(false)
@@ -257,6 +263,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setInChargeId(currentUser?.userId || '')
       setInChargeName(currentUser?.userName || '')
       setSubmitter(currentUser?.userName || '')
+      setSubmitterId(currentUser?.userId || '')
+      setSubmitterDepartment(currentUser?.department || '')
 
       setAssetCondition('')
       setAssetConditionUnavailable(false)
@@ -529,6 +537,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       currentLocation: currentLocation.trim() || `${building.trim() || 'C39'} - ${floor.trim() || '1st Floor'}`,
       currentDepartment: currentDepartment.trim() || currentUser?.department || 'Operations',
       submitter: submitter.trim() || currentUser?.userName || inChargeName.trim() || 'Staff',
+      submitterId: submitterId.trim() || currentUser?.userId || undefined,
+      submitterDepartment: submitterDepartment.trim() || currentUser?.department || undefined,
       inChargeId: finalInChargeId || undefined,
       inChargeName: finalInChargeName || undefined,
       whoInCharge,
@@ -1470,7 +1480,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       setInChargeId(currentUser.userId)
                       setInChargeName(currentUser.userName)
                       if (currentUser.department) setCurrentDepartment(currentUser.department)
-                      if (!submitter) setSubmitter(currentUser.userName)
+                      setSubmitter(currentUser.userName)
+                      setSubmitterId(currentUser.userId)
+                      if (currentUser.department) setSubmitterDepartment(currentUser.department)
                     }}
                     className="text-[11px] font-semibold text-[var(--acc)] hover:underline flex items-center gap-1 cursor-pointer bg-[var(--acc)]/10 px-2 py-0.5 rounded border border-[var(--acc)]/20"
                     title="Assign this asset to current logged-in user"
@@ -1536,15 +1548,59 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label style={labelStyle}>Submitter / Logged by</label>
-                <input
-                  type="text"
-                  value={submitter}
-                  onChange={(e) => setSubmitter(e.target.value)}
-                  placeholder="e.g. Submitter name or registry staff"
-                  style={inputStyle}
-                />
+              <div className="pt-2 border-t border-[var(--line)] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label style={{ ...labelStyle, marginBottom: 0 }} className="font-bold text-[var(--ink)]">
+                    Current User / Logged-in Personnel (Manual Data Entry)
+                  </label>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
+                    Logged-in User
+                  </span>
+                </div>
+                <div style={grid2Style}>
+                  <div>
+                    <label style={labelStyle} htmlFor="field-submitterId">
+                      Current User Employee ID
+                    </label>
+                    <input
+                      id="field-submitterId"
+                      aria-label="Current User Employee ID"
+                      type="text"
+                      value={submitterId}
+                      onChange={(e) => setSubmitterId(e.target.value)}
+                      placeholder="Emp ID: e.g. 19102709 or USR-ADMIN"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle} htmlFor="field-submitterDepartment">
+                      Current User Department
+                    </label>
+                    <input
+                      id="field-submitterDepartment"
+                      aria-label="Current User Department"
+                      type="text"
+                      value={submitterDepartment}
+                      onChange={(e) => setSubmitterDepartment(e.target.value)}
+                      placeholder="e.g. Production & SMT, IT, Maintenance"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle} htmlFor="field-submitter">
+                    Submitter / Logged by (Full Name)
+                  </label>
+                  <input
+                    id="field-submitter"
+                    aria-label="Submitter or logged by"
+                    type="text"
+                    value={submitter}
+                    onChange={(e) => setSubmitter(e.target.value)}
+                    placeholder="e.g. Arbind Kumar Singh or Submitter name"
+                    style={inputStyle}
+                  />
+                </div>
               </div>
             </div>
 

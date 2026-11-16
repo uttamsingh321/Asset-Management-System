@@ -49,6 +49,8 @@ class Asset(models.Model):
     # Ownership & Personnel in Charge
     current_department = models.CharField(max_length=128, blank=True)
     submitter = models.CharField(max_length=128, blank=True)
+    submitter_id = models.CharField(max_length=64, blank=True)
+    submitter_department = models.CharField(max_length=128, blank=True)
     in_charge_id = models.CharField(max_length=64, blank=True)
     in_charge_name = models.CharField(max_length=128, blank=True)
 
@@ -91,6 +93,8 @@ class Asset(models.Model):
             "department": self.department or self.current_department,
             "currentDepartment": self.current_department or self.department,
             "submitter": self.submitter,
+            "submitterId": self.submitter_id,
+            "submitterDepartment": self.submitter_department,
             "inChargeId": self.in_charge_id,
             "inChargeName": self.in_charge_name,
             "whoInCharge": f"{self.in_charge_id} · {self.in_charge_name}" if (self.in_charge_id and self.in_charge_name) else (self.in_charge_name or self.assigned_to or self.submitter),
