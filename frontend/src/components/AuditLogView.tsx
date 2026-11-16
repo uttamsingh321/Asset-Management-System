@@ -178,7 +178,7 @@ export const AuditLogView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="top flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -364,9 +364,17 @@ export const AuditLogView: React.FC = () => {
         </div>
       </div>
 
-      {/* Search and Filters Bar */}
+      {/* Search and Filters Bar & Scrollable Table */}
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Live audit events</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <span>Live audit events</span>
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[var(--acc2)] text-[var(--acc)]">
+              {logs.length} Total Events
+            </span>
+          </h2>
+          <span className="text-[11px] text-[var(--mute)]">Scrollable immutable ledger</span>
+        </div>
         <div className="card p-3 flex flex-wrap items-center justify-between gap-3 bg-[var(--surf)] border border-[var(--line)]">
         <div className="flex items-center gap-2 flex-1 min-w-[240px]">
           <div className="relative flex-1">
@@ -422,21 +430,20 @@ export const AuditLogView: React.FC = () => {
           </select>
         </div>
       </div>
-    </div>
 
-      {/* Audit Log Table */}
-      <div className="card overflow-hidden border border-[var(--line)] p-0">
-        <div className="overflow-x-auto">
+      {/* Audit Log Table - Scrollable Container */}
+      <div className="card overflow-hidden border border-[var(--line)] p-0 shadow-xs">
+        <div className="overflow-x-auto overflow-y-auto max-h-[460px] md:max-h-[calc(100vh-450px)] min-h-[300px] scrollbar-thin">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-[var(--surf2)]/70 text-[var(--mute)] border-b border-[var(--line)] font-semibold">
-                <th className="py-2.5 px-3">Date & Time</th>
-                <th className="py-2.5 px-3">Action</th>
-                <th className="py-2.5 px-3">User & Role</th>
-                <th className="py-2.5 px-3">Device & Telemetry</th>
-                <th className="py-2.5 px-3">IP & Hostname</th>
-                <th className="py-2.5 px-3">Entity Target</th>
-                <th className="py-2.5 px-3 text-right">Details</th>
+            <thead className="sticky top-0 z-10 bg-[var(--surf2)] shadow-xs">
+              <tr className="bg-[var(--surf2)] text-[var(--mute)] border-b border-[var(--line)] font-semibold">
+                <th className="py-2.5 px-3 bg-[var(--surf2)]">Date & Time</th>
+                <th className="py-2.5 px-3 bg-[var(--surf2)]">Action</th>
+                <th className="py-2.5 px-3 bg-[var(--surf2)]">User & Role</th>
+                <th className="py-2.5 px-3 bg-[var(--surf2)]">Device & Telemetry</th>
+                <th className="py-2.5 px-3 bg-[var(--surf2)]">IP & Hostname</th>
+                <th className="py-2.5 px-3 bg-[var(--surf2)]">Entity Target</th>
+                <th className="py-2.5 px-3 text-right bg-[var(--surf2)]">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
@@ -556,7 +563,16 @@ export const AuditLogView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Footer status bar */}
+        <div className="px-4 py-2 border-t border-[var(--line)] bg-[var(--surf2)]/40 flex items-center justify-between text-[11px] text-[var(--mute)]">
+          <span>Showing {logs.length} immutable events</span>
+          <span className="flex items-center gap-1 text-[10px]">
+            <span>↕</span> Scroll table to view earlier events
+          </span>
+        </div>
       </div>
+    </div>
 
       {/* Detail Modal Dialog */}
       {selectedLog && (

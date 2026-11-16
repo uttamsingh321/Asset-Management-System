@@ -1,4 +1,4 @@
-﻿import * as React from 'react'
+import * as React from 'react'
 import { meridianPages } from '@/data/meridianData'
 import { AddAssetPanel } from '@/components/AddAssetPanel'
 import { AssetLibraryView } from '@/components/AssetLibraryView'
