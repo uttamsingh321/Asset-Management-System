@@ -523,8 +523,18 @@ export const IndiaTransferView: React.FC<IndiaTransferViewProps> = ({
         }
 
         // Apply physical changes to asset in registry
-        const targetAssetObj = assets.find(a => a.assetCode === reviewTransfer.assetCode)
-        if (targetAssetObj && onUpdateAsset) {
+        let targetAssetObj = assets.find(a => a.assetCode === reviewTransfer.assetCode || a.id === reviewTransfer.assetCode)
+        if (!targetAssetObj) {
+          try {
+            const raw = localStorage.getItem('meridian_assets')
+            if (raw) {
+              const allParsed: Asset[] = JSON.parse(raw)
+              targetAssetObj = allParsed.find((a: any) => a.assetCode === reviewTransfer.assetCode || a.id === reviewTransfer.assetCode)
+            }
+          } catch {}
+        }
+
+        if (targetAssetObj) {
           const updatedAsset: Asset = {
             ...targetAssetObj,
             department: reviewTransfer.toDept,
@@ -535,7 +545,21 @@ export const IndiaTransferView: React.FC<IndiaTransferViewProps> = ({
             assignedTo: reviewTransfer.newCustodian || targetAssetObj.assignedTo,
             submitter: reviewTransfer.newCustodian || targetAssetObj.submitter,
           }
-          onUpdateAsset(updatedAsset)
+
+          try {
+            const raw = localStorage.getItem('meridian_assets')
+            if (raw) {
+              const allParsed: Asset[] = JSON.parse(raw)
+              const updatedList = allParsed.map((a: any) =>
+                a.assetCode === updatedAsset.assetCode || a.id === updatedAsset.id ? updatedAsset : a
+              )
+              localStorage.setItem('meridian_assets', JSON.stringify(updatedList))
+            }
+          } catch {}
+
+          if (onUpdateAsset) {
+            onUpdateAsset(updatedAsset)
+          }
         }
 
         // Sequential Notification: Notify requester of completion!

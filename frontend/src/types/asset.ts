@@ -265,22 +265,14 @@ export interface AssetTypeTemplate {
 export function isAssetTaskCompleted(asset: Asset): boolean {
   if (!asset) return false
 
-  // If explicitly completed through Add Asset form
-  if (asset.status === 'Completed') return true
-
   // If marked as imported code or pending verification, it is pending
   if (asset.status === 'Imported' || asset.status === 'Pending Verification') {
     return false
   }
 
-  // If it was created from an asset code batch import and not yet marked Completed
-  if (asset.id && typeof asset.id === 'string' && asset.id.startsWith('imported-')) {
-    return false
-  }
-
   // A completed asset must have physical registration fields filled
   const hasBasicDetails = Boolean(
-    (asset.serialNumber && asset.serialNumber.trim()) ||
+    (asset.serialNumber && asset.serialNumber.trim() && asset.serialNumber !== 'SN-UNAVAILABLE') ||
     (asset.assetCondition && asset.assetCondition.trim())
   )
   const hasInCharge = Boolean(
@@ -288,6 +280,16 @@ export function isAssetTaskCompleted(asset: Asset): boolean {
     (asset.inChargeId && asset.inChargeId.trim() && asset.inChargeId !== 'ID Pending') ||
     (asset.assignedTo && asset.assignedTo.trim() && asset.assignedTo !== 'Unassigned Staff')
   )
+
+  // If explicitly completed through Add Asset form
+  if (asset.status === 'Completed') {
+    return hasBasicDetails || hasInCharge
+  }
+
+  // If it was created from an asset code batch import and not yet marked Completed with details
+  if (asset.id && typeof asset.id === 'string' && asset.id.startsWith('imported-')) {
+    return false
+  }
 
   // If neither basic equipment details nor in-charge person exists, it is an unfilled task code
   if (!hasBasicDetails && !hasInCharge) {

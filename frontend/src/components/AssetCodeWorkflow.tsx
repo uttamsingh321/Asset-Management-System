@@ -1,7 +1,7 @@
 import * as React from 'react'
 import * as XLSX from 'xlsx'
 import type { UserProfile } from '@/lib/deviceTracker'
-import type { Asset } from '@/types/asset'
+import { isAssetTaskCompleted, type Asset } from '@/types/asset'
 import { toast } from 'sonner'
 
 const DEPARTMENTS = [
@@ -24,6 +24,7 @@ interface AssetCodeWorkflowProps {
   onImportCodes: (codes: (string | Partial<Asset>)[]) => void
   onAssign: (assetId: string, department: string) => void
   onSelectAsset: (asset: Asset) => void
+  onClearAllTasks?: () => void
 }
 
 const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -101,59 +102,106 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '' })
   if (rows.length === 0) return []
 
-  // Check header row in first 5 rows
+  // Check header row in first 10 rows using multi-column score matching to avoid false positives on title rows
   let headerRowIdx = -1
   let colMap: Record<string, number> = {}
+  let bestScore = 0
 
-  for (let r = 0; r < Math.min(5, rows.length); r++) {
+  for (let r = 0; r < Math.min(10, rows.length); r++) {
     const row = (rows[r] || []).map((v) => String(v ?? '').trim().toLowerCase())
-    
-    // Look for key columns from Excel master register
-    const hasAsset = row.some((v) => {
-      const n = v.replace(/[^a-z0-9]/g, '')
-      return n === 'asset' || n === 'assetcode' || n === 'assetno' || n === 'code' || n === '资产编号' || n.includes('asset')
+    const tempMap: Record<string, number> = {}
+    let score = 0
+
+    row.forEach((colName, idx) => {
+      const norm = colName.replace(/[^a-z0-9]/g, '')
+      if (norm.includes('companycode') || norm === 'company' || norm === 'cocode' || norm === 'compcode') {
+        tempMap.companyCode = idx
+        score += 2
+      } else if (norm.includes('assetclass') || norm === 'class') {
+        tempMap.assetClass = idx
+        score += 2
+      } else if (
+        norm === 'asset' ||
+        norm === 'assetcode' ||
+        norm === 'assetno' ||
+        norm === 'assetnumber' ||
+        norm === 'assettag' ||
+        norm === 'tag' ||
+        norm === 'barcode' ||
+        norm === '资产编号' ||
+        norm === 'equipmentcode' ||
+        (norm.includes('code') && !norm.includes('company') && !norm.includes('cost') && !norm.includes('class'))
+      ) {
+        tempMap.assetCode = idx
+        score += 3
+      } else if (
+        norm.includes('assetdescription') ||
+        norm.includes('maintext') ||
+        (norm.includes('description') && !norm.includes('user')) ||
+        norm === 'name'
+      ) {
+        tempMap.description = idx
+        score += 2
+      } else if (norm.includes('user') && norm.includes('description')) {
+        tempMap.userDescription = idx
+      } else if (
+        norm.includes('capitalizationdate') ||
+        norm.includes('capitalisationdate') ||
+        norm.includes('purchasedate') ||
+        norm === 'capdate'
+      ) {
+        tempMap.capDate = idx
+        score += 2
+      } else if (norm.includes('costcenter') || norm === 'costctr' || norm === 'cc') {
+        tempMap.costCenter = idx
+        score += 2
+      } else if (norm === 'location' || norm.includes('plantlocation') || norm.includes('factory')) {
+        tempMap.location = idx
+        score += 1
+      } else if (norm === 'quantity' || norm === 'qty') {
+        tempMap.quantity = idx
+      } else if (norm.includes('userlife') || norm.includes('usefullife')) {
+        tempMap.usefulLife = idx
+      }
     })
 
-    if (hasAsset) {
+    if (score > bestScore && score >= 2) {
+      bestScore = score
       headerRowIdx = r
-      row.forEach((colName, idx) => {
-        const norm = colName.replace(/[^a-z0-9]/g, '')
-        if (norm.includes('companycode') || norm === 'company' || norm === 'cocode' || norm === 'compcode') {
-          colMap.companyCode = idx
-        } else if (norm.includes('assetclass') || norm === 'class' || norm === 'category') {
-          colMap.assetClass = idx
-        } else if (norm === 'asset' || norm.includes('assetcode') || norm.includes('assetno') || norm.includes('assetnum') || norm.includes('assettag') || norm === 'code' || norm === '资产编号') {
-          colMap.assetCode = idx
-        } else if (norm.includes('assetdescription') || norm.includes('description') || norm.includes('maintext') || norm.includes('assetname')) {
-          if (!norm.includes('user')) {
-            colMap.description = idx
-          } else {
-            colMap.userDescription = idx
-          }
-        } else if (norm.includes('capitalizationdate') || norm.includes('capitalisationdate') || norm.includes('purchasedate') || norm === 'capdate') {
-          colMap.capDate = idx
-        } else if (norm.includes('costcenter') || norm === 'costctr' || norm === 'cc') {
-          colMap.costCenter = idx
-        } else if (norm === 'location' || norm.includes('plantlocation') || norm.includes('factory')) {
-          colMap.location = idx
-        } else if (norm === 'quantity' || norm === 'qty') {
-          colMap.quantity = idx
-        } else if (norm.includes('userlife') || norm.includes('usefullife')) {
-          colMap.usefulLife = idx
-        }
-      })
-      break
+      colMap = tempMap
     }
   }
 
-  // If no structured header found, fall back to first column as asset code
-  const codeCol = colMap.assetCode ?? 0
+  // Ensure assetCode is not accidentally pointing to Company Code
+  let codeCol = colMap.assetCode
+  if (codeCol === undefined) {
+    if (colMap.companyCode === 0) {
+      // Typically in SAP master tables: Col 0 = Company Code, Col 1 = Asset Class, Col 2 = Asset Code
+      codeCol = 2
+    } else {
+      codeCol = 0
+    }
+  }
+
   const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0
   const results: (string | Partial<Asset>)[] = []
 
   for (let r = startRow; r < rows.length; r++) {
     const row = rows[r] || []
-    const rawCode = String(row[codeCol] ?? '').trim().replace(/^["']|["']$/g, '')
+    let rawCode = String(row[codeCol] ?? '').trim().replace(/^["']|["']$/g, '')
+
+    // Guard against Company Code (5020 / 5030) being mistakenly taken as assetCode
+    if ((rawCode === '5020' || rawCode === '5030') && row.length > 2) {
+      const realCode = row.find((val, idx) => {
+        if (idx === colMap.companyCode) return false
+        const s = String(val ?? '').trim()
+        return s.length >= 6 && /^\d+$/.test(s)
+      })
+      if (realCode) {
+        rawCode = String(realCode).trim()
+      }
+    }
+
     if (!rawCode || CODE_HEADER_ALIASES.has(normalized(rawCode))) continue
 
     // If multi-column Excel (has description, companyCode, costCenter, or location)
@@ -200,8 +248,11 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         }
       } catch {}
 
+      // Guarantee each imported row has a 100% globally unique ID
+      const rowUniqueId = `imported-${rawCode}-${r + 1}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+
       results.push({
-        id: `imported-${rawCode}`,
+        id: rowUniqueId,
         assetCode: rawCode,
         assetTag: rawCode,
         name: desc || rawCode,
@@ -237,6 +288,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   onImportCodes,
   onAssign,
   onSelectAsset,
+  onClearAllTasks,
 }) => {
   const isAdmin = user.role === 'Administrator' || user.role === 'Admin' || user.userId === 'USR-ADMIN'
   const userDepartment = user.department || 'IT'
@@ -260,15 +312,11 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
 
   // Categorize Assets
   const unassignedAssets = assets.filter((asset) => asset.status === 'Imported')
-  const pendingAssets = assets.filter(
-    (asset) => asset.status === 'Pending Verification' || asset.status === 'Imported'
-  )
-  const completedAssets = assets.filter(
-    (asset) => asset.status === 'Completed' || asset.status === 'Active'
-  )
+  const pendingAssets = assets.filter((asset) => !isAssetTaskCompleted(asset))
+  const completedAssets = assets.filter((asset) => isAssetTaskCompleted(asset))
 
   const departmentAssets = assets.filter(
-    (asset) => asset.currentDepartment === userDepartment && asset.status === 'Pending Verification'
+    (asset) => asset.currentDepartment === userDepartment && !isAssetTaskCompleted(asset)
   )
 
   // Filtered task assets
@@ -276,9 +324,9 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
     return assets.filter((asset) => {
       // Status filter
       if (statusFilter === 'pending') {
-        if (asset.status !== 'Pending Verification' && asset.status !== 'Imported') return false
+        if (isAssetTaskCompleted(asset)) return false
       } else if (statusFilter === 'completed') {
-        if (asset.status !== 'Completed' && asset.status !== 'Active') return false
+        if (!isAssetTaskCompleted(asset)) return false
       }
 
       // Department scoping: If asset is already tagged to another department, scope by filter; unassigned codes are open to all
@@ -400,6 +448,22 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
           <span className="pill w text-xs">
             {userDepartment ? `${userDepartment} Dept` : 'All Depts'}
           </span>
+          {totalCodes > 0 && onClearAllTasks && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to delete all ${totalCodes} task codes and reset the queue?`)) {
+                  onClearAllTasks()
+                  toast.success('All task queue codes cleared successfully.')
+                }
+              }}
+              className="btn text-xs flex items-center gap-1.5 text-rose-500 hover:text-rose-600 border border-rose-500/30 hover:border-rose-500/50 hover:bg-rose-500/10 cursor-pointer"
+              title="Delete all task codes and clear queue"
+            >
+              <span>🗑️</span>
+              <span>Purge All Codes ({totalCodes})</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab(activeTab === 'import' ? 'tasks' : 'import')}
@@ -641,7 +705,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
             <tbody className="divide-y divide-[var(--line)]">
               {paginatedTasks.length > 0 ? (
                 paginatedTasks.map((asset) => {
-                  const isCompleted = asset.status === 'Completed' || asset.status === 'Active'
+                  const isCompleted = isAssetTaskCompleted(asset)
                   const dept = asset.currentDepartment || asset.department || 'Unassigned'
                   const inCharge = asset.inChargeName || asset.submitter || asset.assignedTo || '-'
                   const loc = [asset.company || 'IIPL', asset.building || 'C39', asset.floor].filter(Boolean).join(' · ')

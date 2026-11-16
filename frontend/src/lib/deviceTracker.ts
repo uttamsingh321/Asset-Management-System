@@ -33,6 +33,10 @@ export type AuditAction =
   | 'TRANSFER_APPROVE_LEVEL_3'
   | 'TRANSFER_REJECT'
   | 'TRANSFER_COMPLETE'
+  | 'LABEL_PRINT'
+  | 'LABEL_REPRINT_REQUEST'
+  | 'LABEL_REPRINT_APPROVE'
+  | 'LABEL_REPRINT_REJECT'
 
 export interface UserProfile {
   userId: string

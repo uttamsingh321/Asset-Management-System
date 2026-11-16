@@ -35,8 +35,67 @@ const IndiaLabelPrintView = React.lazy(() =>
 )
 const UserManagementView = React.lazy(() => import('@/components/UserManagementView'))
 const SuperuserSecurityView = React.lazy(() => import('@/components/SuperuserSecurityView'))
+const MasterMappingView = React.lazy(() => import('@/components/MasterMappingView'))
+const RBACManagementView = React.lazy(() => import('@/components/RBACManagementView'))
 
 const STORAGE_KEY = 'meridian_assets'
+
+function purgeAllDummyDataStorage() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem('meridian_custom_companies')
+    localStorage.removeItem('meridian_custom_buildings')
+    localStorage.removeItem('meridian_recent_searches')
+    localStorage.removeItem('meridian_master_rbac_users_store')
+    localStorage.removeItem('meridian_users_cache')
+    localStorage.setItem(
+      'meridian_rbac_users_v1',
+      JSON.stringify([
+        {
+          userId: 'USR-ADMIN',
+          name: 'Uttam Singh',
+          email: 'uttam.singh@meridian.com',
+          department: 'IT',
+          role: 'Admin',
+          password: 'AdminPassword2026!',
+          isSuperuser: true,
+          isActive: true,
+          createdBy: 'System Initializer',
+          createdAt: new Date().toISOString(),
+        },
+      ])
+    )
+    if (window.indexedDB) {
+      window.indexedDB.deleteDatabase('meridian_assets_db')
+    }
+  } catch {}
+}
+
+function sanitizeAssetList(assets: Asset[]): Asset[] {
+  if (!assets || assets.length === 0) return []
+
+  // Check if storage contains old dummy/corrupted batch (like 500 assets with Sector 63 / 5020 or ast-c39 mock assets)
+  const isDummyOrCorruptedBatch = assets.some(
+    (a) =>
+      a.id.startsWith('ast-c39-') ||
+      a.id.startsWith('ast-d198-') ||
+      a.assetCode.includes('Sector 63') ||
+      a.assetCode === '5020' ||
+      a.assetCode === '5030'
+  )
+
+  if (isDummyOrCorruptedBatch) {
+    purgeAllDummyDataStorage()
+    return []
+  }
+
+  // Ensure unique IDs across all real assets
+  return assets.map((a, idx) => {
+    const uniqueId = a.id || `AST-${a.assetCode || 'REG'}-${idx + 1}`
+    return { ...a, id: uniqueId }
+  })
+}
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState<boolean>(() => {
@@ -69,6 +128,7 @@ export function App() {
           'labels',
           'users',
           'rbac',
+          'master-mapping',
           'security',
         ].includes(h))
       ? h
@@ -109,7 +169,7 @@ export function App() {
   const [assets, setAssets] = React.useState<Asset[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      return saved ? JSON.parse(saved) : initialAssets
+      return sanitizeAssetList(saved ? JSON.parse(saved) : initialAssets)
     } catch {
       return initialAssets
     }
@@ -299,7 +359,7 @@ export function App() {
       if (isMounted && stored && stored.length > 0) {
         setAssets((prev) => {
           if (stored.length > prev.length) {
-            return stored
+            return sanitizeAssetList(stored)
           }
           return prev
         })
@@ -308,6 +368,32 @@ export function App() {
     return () => {
       isMounted = false
     }
+  }, [])
+
+  // Unique ID guarantee hook
+  React.useEffect(() => {
+    setAssets((prev) => {
+      if (!prev || prev.length === 0) return prev
+      const sanitized = sanitizeAssetList(prev)
+      const seenIds = new Set<string>()
+      let hasDuplicateIds = false
+      for (const a of sanitized) {
+        if (seenIds.has(a.id)) {
+          hasDuplicateIds = true
+          break
+        }
+        seenIds.add(a.id)
+      }
+
+      if (hasDuplicateIds) {
+        return sanitized.map((a, idx) => ({
+          ...a,
+          id: `${a.id}-${idx + 1}`,
+        }))
+      }
+
+      return sanitized
+    })
   }, [])
 
   // Instant QR Deep-Link Scanner: Opens asset details or enforces Department RBAC restriction
@@ -443,6 +529,7 @@ export function App() {
             'labels',
             'users',
             'rbac',
+            'master-mapping',
             'security',
           ].includes(h))
       ) {
@@ -465,7 +552,18 @@ export function App() {
 
   const handleSaveAsset = (newAsset: Asset) => {
     if (workflowAsset) {
-      setAssets((prev) => prev.map((asset) => (asset.id === workflowAsset.id ? newAsset : asset)))
+      let updatedCount = 0
+      setAssets((prev) =>
+        prev.map((asset) => {
+          // Strictly match and update ONLY the single target asset opened in workflow
+          // Invariant: Assets must be filled strictly ONE AT A TIME
+          if (updatedCount === 0 && asset.id === workflowAsset.id) {
+            updatedCount++
+            return newAsset
+          }
+          return asset
+        })
+      )
       logAuditEvent(
         'ASSET_UPDATE',
         {
@@ -549,11 +647,12 @@ export function App() {
 
   const handleImportAssetCodes = (codesOrAssets: (string | Partial<Asset>)[]) => {
     const importedAt = new Date().toISOString().slice(0, 10)
-    const importedCodes: Asset[] = codesOrAssets.map((item) => {
+    const importedCodes: Asset[] = codesOrAssets.map((item, idx) => {
       if (typeof item === 'string') {
         const code = item
+        const uniqueId = `imported-${code}-${idx + 1}-${Date.now().toString(36)}`
         return {
-          id: `imported-${code}`,
+          id: uniqueId,
           assetCode: code,
           serialNumber: '',
           currentCategory: 'Equipment',
@@ -579,8 +678,9 @@ export function App() {
 
       // If Partial<Asset> from Excel Master Import
       const code = item.assetCode || `AST-${Date.now()}`
+      const uniqueId = item.id || `imported-${code}-${idx + 1}-${Date.now().toString(36)}`
       return {
-        id: item.id || `imported-${code}`,
+        id: uniqueId,
         assetCode: code,
         serialNumber: item.serialNumber || '',
         currentCategory: item.currentCategory || item.category || 'Equipment',
@@ -916,21 +1016,56 @@ export function App() {
               <span>Administration</span>
             </a>
 
-            {/* 13. SUPERUSER ONLY: Security Lockout & IP Audit */}
-            {currentUser.isSuperuser && (
-              <a
-                className={currentHash === 'security' ? 'on' : ''}
-                href="#security"
-                onClick={(e) => handleNavClick('security', e)}
-                title={isMini ? 'Security & Lockouts' : undefined}
-                style={{ color: currentHash === 'security' ? undefined : '#a855f7' }}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <span>Security & Lockouts</span>
-              </a>
+            {/* 13. SUPERUSER EXCLUSIVE: Master Governance (Master Mapping & User RBAC) */}
+            {isSuperuserOrAdmin && (
+              <>
+                <div className="pt-3 pb-1 px-3 text-[10px] font-bold tracking-wider text-purple-600/90 uppercase select-none">
+                  {!isMini ? '👑 Master Governance' : '👑'}
+                </div>
+
+                <a
+                  className={currentHash === 'master-mapping' ? 'on' : ''}
+                  href="#master-mapping"
+                  onClick={(e) => handleNavClick('master-mapping', e)}
+                  title={isMini ? 'Master Mapping (Hierarchy)' : undefined}
+                  style={{ color: currentHash === 'master-mapping' ? undefined : '#9333ea' }}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  <span>Master Mapping</span>
+                </a>
+
+                <a
+                  className={currentHash === 'rbac' ? 'on' : ''}
+                  href="#rbac"
+                  onClick={(e) => handleNavClick('rbac', e)}
+                  title={isMini ? 'User & RBAC Administration' : undefined}
+                  style={{ color: currentHash === 'rbac' ? undefined : '#9333ea' }}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                  <span>User & RBAC</span>
+                </a>
+
+                <a
+                  className={currentHash === 'security' ? 'on' : ''}
+                  href="#security"
+                  onClick={(e) => handleNavClick('security', e)}
+                  title={isMini ? 'Security & Lockouts' : undefined}
+                  style={{ color: currentHash === 'security' ? undefined : '#a855f7' }}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <span>Security & Lockouts</span>
+                </a>
+              </>
             )}
           </nav>
         </aside>
@@ -1604,6 +1739,7 @@ export function App() {
                   setWorkflowAsset(asset)
                   setIsAddModalOpen(true)
                 }}
+                onClearAllTasks={handleClearAllAssets}
               />
             ) : currentHash === 'assets' || currentHash === 'library' ? (
               <AssetLibraryView
@@ -1628,6 +1764,25 @@ export function App() {
             ) : currentHash === 'security' ? (
               <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Superuser Security Console...</div>}>
                 <SuperuserSecurityView currentUser={currentUser} lang={lang} />
+              </React.Suspense>
+            ) : currentHash === 'master-mapping' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Master Organization Mapping...</div>}>
+                <MasterMappingView currentUser={currentUser} lang={lang} />
+              </React.Suspense>
+            ) : currentHash === 'rbac' ? (
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading User & RBAC Administration...</div>}>
+                <RBACManagementView
+                  currentUser={currentUser}
+                  lang={lang}
+                  onSwitchUser={(user) => {
+                    setCurrentUser(user)
+                    setCurrentUserProfile(user)
+                    setTempUserName(user.userName)
+                    setTempUserId(user.userId)
+                    setTempUserRole(user.role)
+                    setTempUserDepartment(user.department || 'IT')
+                  }}
+                />
               </React.Suspense>
             ) : currentHash === 'maintenance-india' ? (
               <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Maintenance Module...</div>}>
@@ -1672,6 +1827,7 @@ export function App() {
                 <IndiaLabelPrintView
                   assets={scopedAssets}
                   lang={lang}
+                  currentUser={currentUser}
                   onFillAssetData={(asset) => {
                     setWorkflowAsset(asset)
                     setIsAddModalOpen(true)
@@ -1919,19 +2075,47 @@ export function App() {
                   <span>Manage Department Users & Passwords (RBAC)</span>
                 </button>
 
-                {currentUser.isSuperuser && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileModalOpen(false)
-                      setCurrentHash('security')
-                      window.location.hash = '#security'
-                    }}
-                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <span>🔒</span>
-                    <span>Superuser Security & IP Audit</span>
-                  </button>
+                {isSuperuserOrAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileModalOpen(false)
+                        setCurrentHash('master-mapping')
+                        window.location.hash = '#master-mapping'
+                      }}
+                      className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>🏢</span>
+                      <span>Master Mapping (Hierarchy Foundation)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileModalOpen(false)
+                        setCurrentHash('rbac')
+                        window.location.hash = '#rbac'
+                      }}
+                      className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>🛡️</span>
+                      <span>User & RBAC Administration</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileModalOpen(false)
+                        setCurrentHash('security')
+                        window.location.hash = '#security'
+                      }}
+                      className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>🔒</span>
+                      <span>Superuser Security & IP Audit</span>
+                    </button>
+                  </>
                 )}
               </div>
             </form>

@@ -43,6 +43,35 @@ describe('Department RBAC & User Management Specification', () => {
   })
 
   it('filters users by department tab', async () => {
+    localStorage.setItem(
+      'meridian_rbac_users_v1',
+      JSON.stringify([
+        {
+          userId: 'USR-ADMIN',
+          name: 'Uttam Singh',
+          email: 'uttam.singh@meridian.com',
+          department: 'IT',
+          role: 'Admin',
+          password: 'AdminPassword2026!',
+          isSuperuser: true,
+          isActive: true,
+          createdBy: 'System Initializer',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          userId: 'MNT-101',
+          name: 'Rajesh Kumar',
+          email: 'rajesh.kumar@meridian.com',
+          department: 'Maintenance',
+          role: 'Maintenance',
+          password: 'MaintTech2026!',
+          isSuperuser: false,
+          isActive: true,
+          createdBy: 'USR-ADMIN',
+          createdAt: new Date().toISOString(),
+        },
+      ])
+    )
     render(
       <UserManagementView
         currentUser={mockAdminUser}

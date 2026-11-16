@@ -59,7 +59,7 @@ describe('ismartu Equipment Fixed Asset QR Label Specification', () => {
     expect(screen.getByText('SN-998822')).toBeInTheDocument()
 
     expect(screen.getByText('使用部门/Department')).toBeInTheDocument()
-    expect(screen.getByText('C39-SMT Operations')).toBeInTheDocument()
+    expect(screen.getByText('SMT Operations')).toBeInTheDocument()
 
     // Custodian includes Employee ID: EMP-102 · Rajesh Kumar
     expect(screen.getByText('责任人/Custodian')).toBeInTheDocument()

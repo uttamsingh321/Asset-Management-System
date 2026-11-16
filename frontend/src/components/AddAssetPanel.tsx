@@ -34,6 +34,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
   // Asset Name State (Explicitly requested for Label & QR printing)
   const [assetName, setAssetName] = React.useState('')
+  const [model, setModel] = React.useState('')
   const [currentCategory, setCurrentCategory] = React.useState('')
   const [previousCategory, setPreviousCategory] = React.useState('')
   const [currentDescription, setCurrentDescription] = React.useState('')
@@ -165,6 +166,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setAssetCode(initialAsset.assetCode)
       setAssetCodeUnavailable(false)
       setAssetCodeReason('')
+      setModel(initialAsset.model || '')
       setSerialNumber(initialAsset.serialNumber || '')
       setSerialNumberUnavailable(false)
       setSerialNumberReason('')
@@ -515,6 +517,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       capitalizationDate: capitalizationDate || initialAsset?.capitalizationDate || date,
       assetClass: currentCategory.trim() || initialAsset?.assetClass,
       assetCode: effectiveAssetCode,
+      model: model.trim() || undefined,
       serialNumber: effectiveSerialNumber,
       currentCategory: currentCategory.trim() || 'General Equipment',
       previousCategory: previousCategory.trim(),
@@ -564,6 +567,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     setAssetCode('')
     setAssetCodeUnavailable(false)
     setAssetCodeReason('')
+    setModel('')
     setSerialNumber('')
     setSerialNumberUnavailable(false)
     setSerialNumberReason('')
@@ -801,13 +805,18 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               {/* Asset Code */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="field-assetCode" style={{ ...labelStyle, marginBottom: 0 }}>
-                    Asset code <span className="text-[var(--bad)]">*</span>
+                  <label htmlFor="field-assetCode" style={{ ...labelStyle, marginBottom: 0 }} className="flex items-center gap-1.5 font-bold">
+                    <span>资产编号 / Asset code</span>
+                    <span className="text-[var(--bad)]">*</span>
                   </label>
-                  <button
-                    type="button"
-                    hidden={Boolean(initialAsset)}
-                    onClick={() => {
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                      Row 1 of QR Label & Barcode
+                    </span>
+                    <button
+                      type="button"
+                      hidden={Boolean(initialAsset)}
+                      onClick={() => {
                       const next = !assetCodeUnavailable
                       setAssetCodeUnavailable(next)
                       if (next) {
@@ -833,6 +842,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     {assetCodeUnavailable ? '⚠️ Marked unavailable' : 'Data unavailable?'}
                   </button>
                 </div>
+                </div>
                 <input
                   ref={firstInputRef}
                   id="field-assetCode"
@@ -848,7 +858,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       })
                     }
                   }}
-                  disabled={assetCodeUnavailable || Boolean(initialAsset)}
+                  disabled={assetCodeUnavailable}
                   placeholder={
                     assetCodeUnavailable
                       ? 'Marked unavailable (Pending code assignment)'
@@ -940,6 +950,30 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 {errors.assetName && (
                   <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetName}</p>
                 )}
+              </div>
+
+              {/* Dedicated Equipment Model (Printed on QR Label Row 3) */}
+              <div className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="field-model" style={{ ...labelStyle, marginBottom: 0 }} className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold">
+                    <span>设备型号 / Equipment Model & Spec</span>
+                  </label>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                    Row 3 of QR Label
+                  </span>
+                </div>
+                <input
+                  id="field-model"
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="e.g. MPM Momentum BTB 125, ESD Tray 450*350, JT-1000D"
+                  style={{
+                    ...inputStyle,
+                    borderColor: 'rgba(99, 102, 241, 0.4)',
+                    fontWeight: 600,
+                  }}
+                />
               </div>
 
               {/* Categories & Descriptions */}
@@ -1200,9 +1234,14 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
             {/* B. Specific Placement Area & Floor */}
             <div className="space-y-3 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-                Physical Placement & Location
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
+                  放置区域 / Physical Placement & Location
+                </h4>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200">
+                  Row 6 of QR Label
+                </span>
+              </div>
 
               {/* Building selector */}
               <div>
@@ -1442,23 +1481,33 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
 
               <div>
-                <label htmlFor="field-currentDepartment" style={labelStyle}>Belong to which dept</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="field-currentDepartment" style={{ ...labelStyle, marginBottom: 0 }} className="font-bold">
+                    使用部门 / Belong to Department
+                  </label>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                    Row 4 of QR Label
+                  </span>
+                </div>
                 <input
                   id="field-currentDepartment"
+                  aria-label="Belong to which dept"
                   type="text"
                   value={currentDepartment}
                   onChange={(e) => setCurrentDepartment(e.target.value)}
-                  placeholder="e.g. IT, SMT Operations, Quality Control, Maintenance, Engineering"
+                  placeholder="e.g. SMT Operations, Quality Control, Production & SMT, IT, Maintenance"
                   style={inputStyle}
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label style={{ ...labelStyle, marginBottom: 0 }}>
+                  <label style={{ ...labelStyle, marginBottom: 0 }} className="font-bold">
                     责任人 / Custodian (Employee ID & Full Name)
                   </label>
-                  <span className="text-[10px] text-[var(--mute)]">Printed on QR Label</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200">
+                    Row 5 of QR Label
+                  </span>
                 </div>
                 <div style={grid2Style}>
                   <div>
