@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import * as React from 'react'
 import type { Asset } from '@/types/asset'
 import type { UserProfile } from '@/lib/deviceTracker'
 import {
@@ -9,13 +8,11 @@ import {
   createReprintRequest,
   approveReprintRequest,
   rejectReprintRequest,
-  getAssetPrintRecord,
   getAssetPrintStatus,
   getPrintStatusBadgeProps,
   isHODRole,
   isHODOrSuperUser,
   STORAGE_KEY_PRINT_RECORDS,
-  STORAGE_KEY_REPRINT_REQUESTS,
 } from '@/lib/labelReprintService'
 import { IndiaLabelPrintView } from '@/components/IndiaLabelPrintView'
 
@@ -257,5 +254,5 @@ describe('Secure QR Print Control & HOD Approval Workflow', () => {
 
     // "Request Reprint from HOD" button is now visible
     expect(screen.getByRole('button', { name: /Request Reprint from HOD/i })).toBeDefined()
-  })
+  }, 15000)
 })

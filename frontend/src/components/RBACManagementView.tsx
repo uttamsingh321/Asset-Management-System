@@ -53,6 +53,18 @@ const ACTION_LIST = [
   'API Access',
 ]
 
+const DEPARTMENTS = [
+  { key: 'All', label: 'All Departments', icon: '🌐' },
+  { key: 'IT', label: 'IT & Systems', icon: '💻' },
+  { key: 'Production', label: 'Production & SMT', icon: '🏭' },
+  { key: 'Maintenance', label: 'Maintenance & Calibration', icon: '🔧' },
+  { key: 'Store', label: 'Warehouse & Store', icon: '📦' },
+  { key: 'Finance', label: 'Finance & Accounts', icon: '💰' },
+  { key: 'Quality', label: 'Quality & Audit', icon: '🔍' },
+  { key: 'Operations', label: 'Operations & Facilities', icon: '⚡' },
+  { key: 'Administration', label: 'Administration & HR', icon: '🏢' },
+]
+
 export default function RBACManagementView({ currentUser, lang = 'en', onSwitchUser }: Props) {
   // ── Access Control Guard: Super User ONLY ──
   const isSuperuser =
@@ -83,6 +95,16 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
   const [userSearch, setUserSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [selectedDept, setSelectedDept] = useState<string>('All')
+
+  // ── Newly created credential card for handover ──
+  const [createdCredentialHandover, setCreatedCredentialHandover] = useState<{
+    userId: string
+    name: string
+    department: string
+    role: string
+    password: string
+  } | null>(null)
 
   // ── User Modal State ──
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
@@ -425,6 +447,13 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
       const newUsers = [newUser, ...users]
       setUsers(newUsers)
       masterMappingService.saveRBACUsers(newUsers)
+      setCreatedCredentialHandover({
+        userId: newUser.employeeId,
+        name: newUser.employeeName,
+        department: newUser.department,
+        role: newUser.role,
+        password: newUser.password || 'Temporary@123',
+      })
       toast.success(`User ${newUser.employeeName} created with Master Mapping scope`)
     }
     setIsUserModalOpen(false)
@@ -483,20 +512,68 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
     setResetPwdModal({ isOpen: false, user: null, newPwd: '' })
   }
 
-  // Filtered Users List
+  // Copy credentials helper for handover
+  const copyCredentials = (handover: { userId: string; name: string; department: string; role: string; password: string }) => {
+    const text = `Meridian Enterprise RBAC Credentials\nUser ID: ${handover.userId}\nName: ${handover.name}\nDepartment: ${handover.department}\nRole: ${handover.role}\nPassword: ${handover.password}\nPortal URL: ${window.location.origin}/`
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => toast.success('Credentials copied to clipboard'))
+        .catch(() => toast.info('Clipboard access unavailable'))
+    } else {
+      toast.info('Credentials ready')
+    }
+  }
+
+  // Department counts for Quick Filter Pills
+  const deptCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: users.length }
+    DEPARTMENTS.slice(1).forEach((d) => {
+      counts[d.key] = users.filter((u) => {
+        const dept = (u.department || u.departmentName || '').toLowerCase()
+        if (d.key === 'Production') return dept.includes('production') || dept.includes('smt')
+        if (d.key === 'IT') return dept.includes('it') || dept.includes('system')
+        if (d.key === 'Maintenance') return dept.includes('maintenance') || dept.includes('calibration')
+        if (d.key === 'Store') return dept.includes('store') || dept.includes('warehouse')
+        if (d.key === 'Finance') return dept.includes('finance') || dept.includes('account')
+        if (d.key === 'Quality') return dept.includes('quality') || dept.includes('audit')
+        if (d.key === 'Operations') return dept.includes('operation') || dept.includes('facility')
+        if (d.key === 'Administration') return dept.includes('admin') || dept.includes('hr')
+        return dept.includes(d.key.toLowerCase())
+      }).length
+    })
+    return counts
+  }, [users])
+
+  // Filtered Users List with Department and Role Scoping
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       const matchSearch =
         u.employeeName.toLowerCase().includes(userSearch.toLowerCase()) ||
         u.employeeId.toLowerCase().includes(userSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-        (u.department || '').toLowerCase().includes(userSearch.toLowerCase())
+        (u.department || '').toLowerCase().includes(userSearch.toLowerCase()) ||
+        (u.departmentName || '').toLowerCase().includes(userSearch.toLowerCase())
 
       const matchRole = roleFilter === 'ALL' || u.role === roleFilter
       const matchStatus = statusFilter === 'ALL' || u.status === statusFilter
-      return matchSearch && matchRole && matchStatus
+
+      let matchDept = true
+      if (selectedDept !== 'All') {
+        const dept = (u.department || u.departmentName || '').toLowerCase()
+        if (selectedDept === 'Production') matchDept = dept.includes('production') || dept.includes('smt')
+        else if (selectedDept === 'IT') matchDept = dept.includes('it') || dept.includes('system')
+        else if (selectedDept === 'Maintenance') matchDept = dept.includes('maintenance') || dept.includes('calibration')
+        else if (selectedDept === 'Store') matchDept = dept.includes('store') || dept.includes('warehouse')
+        else if (selectedDept === 'Finance') matchDept = dept.includes('finance') || dept.includes('account')
+        else if (selectedDept === 'Quality') matchDept = dept.includes('quality') || dept.includes('audit')
+        else if (selectedDept === 'Operations') matchDept = dept.includes('operation') || dept.includes('facility')
+        else if (selectedDept === 'Administration') matchDept = dept.includes('admin') || dept.includes('hr')
+        else matchDept = dept.includes(selectedDept.toLowerCase())
+      }
+
+      return matchSearch && matchRole && matchStatus && matchDept
     })
-  }, [users, userSearch, roleFilter, statusFilter])
+  }, [users, userSearch, roleFilter, statusFilter, selectedDept])
 
   // Selected Scope User for Scope Tab
   const scopeUser = useMemo(() => {
@@ -673,6 +750,97 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
       ───────────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'users' && (
         <div className="space-y-4">
+          {/* Credential Handover Card (displayed when a new user is created) */}
+          {createdCredentialHandover && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 shadow-sm space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎉</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                      User Credentials Generated for Handover
+                    </h4>
+                    <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400">
+                      Share these credentials securely with the department staff member. The password was explicitly set during provisioning.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCreatedCredentialHandover(null)}
+                  className="text-xs text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer px-2 py-1"
+                >
+                  ✕ Dismiss
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 bg-white/60 dark:bg-black/20 p-3 rounded-xl border border-emerald-500/20 text-xs">
+                <div>
+                  <span className="text-[10px] text-[var(--mute)] block uppercase font-bold">User ID</span>
+                  <span className="font-bold text-[var(--ink)] font-mono">{createdCredentialHandover.userId}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--mute)] block uppercase font-bold">Employee Name</span>
+                  <span className="font-semibold text-[var(--ink)]">{createdCredentialHandover.name}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--mute)] block uppercase font-bold">Department</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{createdCredentialHandover.department}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--mute)] block uppercase font-bold">RBAC Role</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-semibold">{createdCredentialHandover.role}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--mute)] block uppercase font-bold">Assigned Password</span>
+                  <span className="font-bold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30 font-mono inline-block">
+                    {createdCredentialHandover.password}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => copyCredentials(createdCredentialHandover)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>📋</span> Copy All Credentials
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Department Quick Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            {DEPARTMENTS.map((dept) => {
+              const count = deptCounts[dept.key] ?? 0
+              const isActive = selectedDept === dept.key
+              return (
+                <button
+                  key={dept.key}
+                  type="button"
+                  onClick={() => setSelectedDept(dept.key)}
+                  className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                    isActive
+                      ? 'bg-[var(--acc)] text-white shadow-xs font-bold'
+                      : 'bg-[var(--surf)] border border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)]'
+                  }`}
+                >
+                  <span>{dept.icon}</span>
+                  <span>{dept.label}</span>
+                  <span
+                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-[var(--surf2)] text-[var(--ink)]'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
           {/* Filters Bar */}
           <div className="p-4 bg-[var(--surf)] border border-[var(--line)] rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
             <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">

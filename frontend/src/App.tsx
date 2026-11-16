@@ -52,7 +52,6 @@ const IndiaTransferView = React.lazy(() =>
 const IndiaLabelPrintView = React.lazy(() =>
   import('@/components/IndiaLabelPrintView').then((m) => ({ default: m.IndiaLabelPrintView }))
 )
-const UserManagementView = React.lazy(() => import('@/components/UserManagementView'))
 const SuperuserSecurityView = React.lazy(() => import('@/components/SuperuserSecurityView'))
 const MasterMappingView = React.lazy(() => import('@/components/MasterMappingView'))
 const RBACManagementView = React.lazy(() => import('@/components/RBACManagementView'))
@@ -1355,20 +1354,6 @@ export function App() {
                         SOC-2
                       </span>
                     </a>
-
-                    {/* Administration */}
-                    <a
-                      className={currentHash === 'administration' ? 'on' : ''}
-                      href="#administration"
-                      onClick={(e) => handleNavClick('administration', e)}
-                      title={isMini ? 'Administration' : undefined}
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
-                      </svg>
-                      <span>Administration</span>
-                    </a>
                   </>
                 )}
 
@@ -1405,17 +1390,17 @@ export function App() {
                     </a>
 
                     <a
-                      className={currentHash === 'rbac' ? 'on' : ''}
+                      className={currentHash === 'rbac' || currentHash === 'administration' ? 'on' : ''}
                       href="#rbac"
                       onClick={(e) => handleNavClick('rbac', e)}
                       title={isMini ? 'User & RBAC Administration' : undefined}
-                      style={{ color: currentHash === 'rbac' ? undefined : '#9333ea' }}
+                      style={{ color: currentHash === 'rbac' || currentHash === 'administration' ? undefined : '#9333ea' }}
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         <path d="m9 12 2 2 4-4" />
                       </svg>
-                      <span>User & RBAC</span>
+                      <span>User & RBAC Administration</span>
                     </a>
 
                     <a
@@ -2262,7 +2247,7 @@ export function App() {
               <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Master Organization Mapping...</div>}>
                 <MasterMappingView currentUser={currentUser} lang={lang} />
               </React.Suspense>
-            ) : currentHash === 'rbac' ? (
+            ) : currentHash === 'rbac' || currentHash === 'administration' || currentHash === 'users' ? (
               <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading User & RBAC Administration...</div>}>
                 <RBACManagementView
                   currentUser={currentUser}
@@ -2325,21 +2310,6 @@ export function App() {
                     setWorkflowAsset(asset)
                     setIsAddModalOpen(true)
                   }}
-                />
-              </React.Suspense>
-            ) : currentHash === 'users' || currentHash === 'rbac' ? (
-              <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Department RBAC & User Management...</div>}>
-                <UserManagementView
-                  currentUser={currentUser}
-                  onSwitchUser={(user) => {
-                    setCurrentUser(user)
-                    setCurrentUserProfile(user)
-                    setTempUserName(user.userName)
-                    setTempUserId(user.userId)
-                    setTempUserRole(user.role)
-                    setTempUserDepartment(user.department || 'IT')
-                  }}
-                  lang={lang}
                 />
               </React.Suspense>
             ) : activePage ? (
@@ -2450,25 +2420,6 @@ export function App() {
                     )}
                   </section>
                 </div>
-
-                {currentHash === 'administration' && (
-                  <div style={{ marginTop: '24px' }}>
-                    <React.Suspense fallback={<div className="p-4 text-center text-xs text-[var(--mute)]">Loading Department RBAC & User Management...</div>}>
-                      <UserManagementView
-                        currentUser={currentUser}
-                        onSwitchUser={(user) => {
-                          setCurrentUser(user)
-                          setCurrentUserProfile(user)
-                          setTempUserName(user.userName)
-                          setTempUserId(user.userId)
-                          setTempUserRole(user.role)
-                          setTempUserDepartment(user.department || 'IT')
-                        }}
-                        lang={lang}
-                      />
-                    </React.Suspense>
-                  </div>
-                )}
               </div>
             ) : null}
           </div>
@@ -2556,19 +2507,6 @@ export function App() {
 
               {isSuperuserOrAdmin && (
                 <div className="pt-2 border-t border-[var(--line)] space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileModalOpen(false)
-                      setCurrentHash('administration')
-                      window.location.hash = '#administration'
-                    }}
-                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-[var(--acc)]/30 text-[var(--acc)] bg-[var(--acc)]/5 hover:bg-[var(--acc)]/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <span>🛡️</span>
-                    <span>Manage Department Users & Passwords (RBAC)</span>
-                  </button>
-
                   <button
                     type="button"
                     onClick={() => {
