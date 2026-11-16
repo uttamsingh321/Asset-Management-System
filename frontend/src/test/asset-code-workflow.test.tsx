@@ -159,7 +159,7 @@ describe('Asset code workflow', () => {
     expect(screen.getByLabelText(/Belong to which dept/i)).toHaveValue('SMT Operations')
     expect(screen.getByPlaceholderText(/Emp ID: e\.g\. EMP-102/i)).toHaveValue('EMP-002')
     expect(screen.getByPlaceholderText(/Name: e\.g\. Rajesh Kumar/i)).toHaveValue('Employee Two')
-    expect(screen.getByPlaceholderText(/e\.g\. Submitter name or registry staff/i)).toHaveValue('Employee Two')
+    expect(screen.getByLabelText(/Submitter or logged by/i)).toHaveValue('Employee Two')
   })
 
   it('allows adding a new company and new building through the + New buttons', () => {

@@ -1,4 +1,4 @@
-import * as React from 'react'
+﻿import * as React from 'react'
 import { meridianPages } from '@/data/meridianData'
 import { AddAssetPanel } from '@/components/AddAssetPanel'
 import { AssetLibraryView } from '@/components/AssetLibraryView'
@@ -670,6 +670,14 @@ export function App() {
     setCurrentHash(key)
     setIsDrawerOpen(false)
     window.scrollTo(0, 0)
+    const mainEl = document.querySelector('main')
+    if (mainEl) {
+      if (typeof mainEl.scrollTo === 'function') {
+        mainEl.scrollTo(0, 0)
+      } else {
+        mainEl.scrollTop = 0
+      }
+    }
   }
 
   const handleSaveAsset = (newAsset: Asset) => {
