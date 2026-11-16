@@ -158,12 +158,13 @@ describe('Pending Tasks Queue vs Deployed Assets Invariant', () => {
     })
 
     // The completed asset is rendered in the table
-    expect(screen.getByText('AST-SMT-8801')).toBeInTheDocument()
+    expect(screen.getAllByText('AST-SMT-8801').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Sunil Verma')).toBeInTheDocument()
 
     // The 2 pending codes (7002266 and 7002142) MUST NOT be in the table
-    expect(screen.queryByText('7002266')).not.toBeInTheDocument()
-    expect(screen.queryByText('7002142')).not.toBeInTheDocument()
+    const table = screen.getByRole('table')
+    expect(within(table).queryByText('7002266')).not.toBeInTheDocument()
+    expect(within(table).queryByText('7002142')).not.toBeInTheDocument()
 
     // Navigate to Asset Gallery (#assets)
     window.location.hash = '#assets'

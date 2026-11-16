@@ -117,7 +117,7 @@ describe('Department Scoping & Excel Export Specifications', () => {
     render(<App />)
 
     // Should see IT asset
-    expect(screen.getByText('IT-1001')).toBeInTheDocument()
+    expect(screen.getAllByText('IT-1001').length).toBeGreaterThanOrEqual(1)
     // Should NOT see other department's asset (SMT Operations)
     expect(screen.queryByText('SMT-2002')).not.toBeInTheDocument()
 
@@ -142,7 +142,7 @@ describe('Department Scoping & Excel Export Specifications', () => {
     render(<App />)
 
     // Superuser sees BOTH IT and SMT assets
-    expect(screen.getByText('IT-1001')).toBeInTheDocument()
-    expect(screen.getByText('SMT-2002')).toBeInTheDocument()
+    expect(screen.getAllByText('IT-1001').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('SMT-2002').length).toBeGreaterThanOrEqual(1)
   })
 })

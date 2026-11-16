@@ -892,9 +892,14 @@ export function App() {
       const resolvedCompany = isPadget ? 'Padget' : (item.company || 'ismartu')
       const resolvedCompanyCode = isPadget ? '5030' : (item.companyCode || (resolvedCompany === 'Padget' ? '5030' : '5020'))
       const resolvedBuilding = item.building || (isPadget ? 'D197' : 'C39')
+      const resolvedFloor = item.floor || '1st Floor'
+      const resolvedDept = item.department || item.currentDepartment || item.costCenter || ''
+      const whoInCharge = item.whoInCharge || (item.inChargeName ? `${item.inChargeId ? item.inChargeId + ' · ' : ''}${item.inChargeName}` : '')
+
       return {
         id: uniqueId,
         assetCode: code,
+        model: item.model || '',
         serialNumber: item.serialNumber || '',
         currentCategory: item.currentCategory || item.category || 'Equipment',
         category: item.category || item.currentCategory || 'Equipment',
@@ -905,14 +910,15 @@ export function App() {
         companyCode: resolvedCompanyCode,
         plant: item.plant || (isPadget ? 'Padget Electronics Noida' : 'Noida Central Plant'),
         building: resolvedBuilding,
-        floor: item.floor || '',
-        location: item.location || (isPadget ? `Padget · ${resolvedBuilding} · 1st Floor` : `ismartu · ${resolvedBuilding} · 1st Floor`),
+        floor: resolvedFloor,
+        location: item.location || (isPadget ? `Padget · ${resolvedBuilding} · ${resolvedFloor}` : `ismartu · ${resolvedBuilding} · ${resolvedFloor}`),
         currentLocation: item.currentLocation || item.location || '',
         costCenter: item.costCenter || '',
-        department: item.department || item.currentDepartment || 'Production',
-        currentDepartment: item.currentDepartment || item.department || 'Production',
+        department: resolvedDept,
+        currentDepartment: resolvedDept,
         inChargeId: item.inChargeId || '',
         inChargeName: item.inChargeName || '',
+        whoInCharge,
         submitter: item.submitter || '',
         submitterId: item.submitterId || '',
         submitterDepartment: item.submitterDepartment || '',
@@ -922,7 +928,7 @@ export function App() {
         date: item.date || importedAt,
         purchaseCost: item.purchaseCost ?? 0,
         currentValue: item.currentValue ?? 0,
-        assignedTo: item.assignedTo || '',
+        assignedTo: item.assignedTo || whoInCharge || '',
         assetTag: item.assetTag || code,
         status: item.status || 'Pending Verification',
         isExcelImported: true,
@@ -1704,7 +1710,7 @@ export function App() {
                 {/* 3D Spatial Digital Twin Facility Visualizer */}
                 <div className="mt-3">
                   <DigitalTwinFacility3D
-                    assets={assets}
+                    assets={scopedAssets}
                     completedAssets={completedAssetsList}
                     activeBuildingFilter={dashBuildingFilter}
                     onSelectBuilding={(bldg) => {

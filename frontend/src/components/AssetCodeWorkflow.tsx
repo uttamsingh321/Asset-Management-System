@@ -5,6 +5,7 @@ import { isAssetTaskCompleted, type Asset } from '@/types/asset'
 import { toast } from 'sonner'
 import { pushAssetsToBackend, fetchBackendAssets } from '@/lib/assetStorage'
 import { isPadgetCompany } from '@/assets/companyLogos'
+import { parseExcelDate } from '@/lib/excelImporter'
 
 const DEPARTMENTS = [
   'IT',
@@ -96,9 +97,9 @@ export function parsePastedAssetCodes(raw: string): string[] {
   return [...new Set(results)]
 }
 
-async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Partial<Asset>)[]> {
+export async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Partial<Asset>)[]> {
   const buffer = await file.arrayBuffer()
-  const workbook = XLSX.read(buffer, { type: 'array', dense: true })
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, dense: true })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   if (!sheet) return []
 
@@ -111,25 +112,51 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
   let bestScore = 0
 
   for (let r = 0; r < Math.min(10, rows.length); r++) {
-    const row = (rows[r] || []).map((v) => String(v ?? '').trim().toLowerCase())
+    const rawRow = rows[r] || []
     const tempMap: Record<string, number> = {}
     let score = 0
 
-    row.forEach((colName, idx) => {
-      const norm = colName.replace(/[^a-z0-9]/g, '')
+    rawRow.forEach((val, idx) => {
+      const cleanName = String(val ?? '').trim().toLowerCase()
+      if (!cleanName) return
+      const norm = cleanName.replace(/[\s_\-./\\]+/g, '')
+
       if (
         norm.includes('companycode') ||
         norm === 'company' ||
         norm === 'cocode' ||
         norm === 'compcode' ||
-        norm === 'company_code' ||
         norm === 'companyid' ||
-        norm === 'coid'
+        norm === 'coid' ||
+        cleanName.includes('公司代码') ||
+        cleanName.includes('公司')
       ) {
         tempMap.companyCode = idx
         score += 2
-      } else if (norm.includes('assetclass') || norm === 'class') {
+      } else if (
+        norm.includes('assetclass') ||
+        norm === 'class' ||
+        norm === 'assetcategory' ||
+        norm === 'category' ||
+        cleanName.includes('资产类别') ||
+        cleanName.includes('类别') ||
+        cleanName.includes('资产分类')
+      ) {
         tempMap.assetClass = idx
+        score += 2
+      } else if (
+        norm.includes('serialnumber') ||
+        norm === 'serialno' ||
+        norm === 'serial' ||
+        norm === 'sn' ||
+        norm === 'srno' ||
+        norm === 'machineno' ||
+        cleanName.includes('出厂编号') ||
+        cleanName.includes('出厂号') ||
+        cleanName.includes('序列号') ||
+        cleanName.includes('机身号')
+      ) {
+        tempMap.serialNumber = idx
         score += 2
       } else if (
         norm === 'asset' ||
@@ -139,9 +166,13 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         norm === 'assettag' ||
         norm === 'tag' ||
         norm === 'barcode' ||
-        norm === '资产编号' ||
+        norm === 'qrcode' ||
+        norm === 'cardno' ||
+        cleanName.includes('资产编号') ||
+        cleanName.includes('卡片编号') ||
+        (cleanName.includes('编号') && !cleanName.includes('出厂') && !cleanName.includes('序列')) ||
         norm === 'equipmentcode' ||
-        (norm.includes('code') && !norm.includes('company') && !norm.includes('cost') && !norm.includes('class'))
+        (norm.includes('code') && !norm.includes('company') && !norm.includes('cost') && !norm.includes('class') && !norm.includes('postal'))
       ) {
         tempMap.assetCode = idx
         score += 3
@@ -149,9 +180,28 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         norm.includes('assetdescription') ||
         norm.includes('maintext') ||
         (norm.includes('description') && !norm.includes('user')) ||
-        norm === 'name'
+        norm === 'assetname' ||
+        norm === 'name' ||
+        norm === 'itemname' ||
+        cleanName.includes('资产名称') ||
+        cleanName.includes('设备名称') ||
+        cleanName.includes('名称')
       ) {
         tempMap.description = idx
+        score += 2
+      } else if (
+        norm.includes('devicemodel') ||
+        norm.includes('equipmentmodel') ||
+        norm === 'model' ||
+        norm === 'modelno' ||
+        norm === 'spec' ||
+        norm.includes('specification') ||
+        norm === 'specs' ||
+        cleanName.includes('规格型号') ||
+        cleanName.includes('型号') ||
+        cleanName.includes('规格')
+      ) {
+        tempMap.model = idx
         score += 2
       } else if (norm.includes('user') && norm.includes('description')) {
         tempMap.userDescription = idx
@@ -159,20 +209,116 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         norm.includes('capitalizationdate') ||
         norm.includes('capitalisationdate') ||
         norm.includes('purchasedate') ||
-        norm === 'capdate'
+        norm === 'capdate' ||
+        norm === 'date' ||
+        cleanName.includes('资本化日期') ||
+        cleanName.includes('购置日期') ||
+        cleanName.includes('入账日期') ||
+        cleanName.includes('采购日期')
       ) {
         tempMap.capDate = idx
         score += 2
-      } else if (norm.includes('costcenter') || norm === 'costctr' || norm === 'cc') {
+      } else if (
+        norm.includes('costcenter') ||
+        norm.includes('costcentre') ||
+        norm === 'costctr' ||
+        norm === 'cc' ||
+        cleanName.includes('成本中心') ||
+        cleanName.includes('费用中心')
+      ) {
         tempMap.costCenter = idx
         score += 2
-      } else if (norm === 'location' || norm.includes('plantlocation') || norm.includes('factory')) {
+      } else if (
+        norm.includes('department') ||
+        norm === 'dept' ||
+        norm.includes('usingdept') ||
+        norm.includes('belongingdept') ||
+        norm.includes('currentdepartment') ||
+        cleanName.includes('使用部门') ||
+        cleanName.includes('部门') ||
+        cleanName.includes('所属部门')
+      ) {
+        tempMap.department = idx
+        score += 2
+      } else if (
+        norm.includes('location') ||
+        norm.includes('plantlocation') ||
+        norm === 'plant' ||
+        norm === 'factory' ||
+        norm === 'site' ||
+        cleanName.includes('存放地点') ||
+        cleanName.includes('位置') ||
+        cleanName.includes('工厂')
+      ) {
         tempMap.location = idx
         score += 1
+      } else if (
+        norm === 'building' ||
+        norm === 'bldg' ||
+        norm === 'block' ||
+        cleanName.includes('厂房') ||
+        cleanName.includes('建筑物') ||
+        cleanName.includes('栋')
+      ) {
+        tempMap.building = idx
+        score += 1
+      } else if (
+        norm === 'floor' ||
+        norm === 'flr' ||
+        norm === 'level' ||
+        cleanName.includes('楼层') ||
+        cleanName.includes('层')
+      ) {
+        tempMap.floor = idx
+        score += 1
+      } else if (
+        norm === 'custodianid' ||
+        norm === 'inchargeid' ||
+        norm === 'empid' ||
+        norm === 'employeeid' ||
+        norm === 'staffid' ||
+        cleanName.includes('工号') ||
+        cleanName.includes('员工号')
+      ) {
+        tempMap.custodianId = idx
+        score += 1
+      } else if (
+        norm === 'custodianname' ||
+        norm === 'inchargename' ||
+        norm === 'employeename' ||
+        norm === 'staffname' ||
+        cleanName.includes('责任人姓名') ||
+        cleanName.includes('员工姓名')
+      ) {
+        tempMap.custodianName = idx
+        score += 1
+      } else if (
+        norm === 'custodian' ||
+        norm.includes('incharge') ||
+        norm.includes('personincharge') ||
+        norm.includes('whoincharge') ||
+        norm === 'owner' ||
+        cleanName.includes('责任人') ||
+        cleanName.includes('保管人') ||
+        cleanName.includes('使用人') ||
+        cleanName.includes('负责人')
+      ) {
+        tempMap.custodian = idx
+        score += 2
       } else if (norm === 'quantity' || norm === 'qty') {
         tempMap.quantity = idx
       } else if (norm.includes('userlife') || norm.includes('usefullife')) {
         tempMap.usefulLife = idx
+      } else if (
+        norm.includes('condition') ||
+        norm.includes('assetcondition') ||
+        norm === 'status' ||
+        cleanName.includes('设备状态') ||
+        cleanName.includes('状态')
+      ) {
+        tempMap.condition = idx
+      } else if (norm.includes('remark') || norm.includes('note') || cleanName.includes('备注')) {
+        tempMap.remarks = idx
       }
     })
 
@@ -215,23 +361,37 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
 
     if (!rawCode || CODE_HEADER_ALIASES.has(normalized(rawCode))) continue
 
-    // If multi-column Excel (has description, companyCode, costCenter, or location)
+    // If multi-column Excel (has description, companyCode, costCenter, department, or location)
     if (
       colMap.description !== undefined ||
       colMap.companyCode !== undefined ||
       colMap.location !== undefined ||
       colMap.costCenter !== undefined ||
-      colMap.assetClass !== undefined
+      colMap.department !== undefined ||
+      colMap.assetClass !== undefined ||
+      colMap.model !== undefined ||
+      colMap.serialNumber !== undefined
     ) {
       const compCode = colMap.companyCode !== undefined ? String(row[colMap.companyCode] ?? '').trim() : ''
       const assetClass = colMap.assetClass !== undefined ? String(row[colMap.assetClass] ?? '').trim() : ''
       const desc = colMap.description !== undefined ? String(row[colMap.description] ?? '').trim() : ''
-      const capDate = colMap.capDate !== undefined ? String(row[colMap.capDate] ?? '').trim() : ''
+      const rawCapDate = colMap.capDate !== undefined ? row[colMap.capDate] : undefined
       const costCenter = colMap.costCenter !== undefined ? String(row[colMap.costCenter] ?? '').trim() : ''
+      const explicitDept = colMap.department !== undefined ? String(row[colMap.department] ?? '').trim() : ''
       const loc = colMap.location !== undefined ? String(row[colMap.location] ?? '').trim() : ''
+      const explicitBldg = colMap.building !== undefined ? String(row[colMap.building] ?? '').trim() : ''
+      const explicitFloor = colMap.floor !== undefined ? String(row[colMap.floor] ?? '').trim() : ''
+      const model = colMap.model !== undefined ? String(row[colMap.model] ?? '').trim() : ''
+      const serialNumber = colMap.serialNumber !== undefined ? String(row[colMap.serialNumber] ?? '').trim() : ''
+      const explicitCustodian = colMap.custodian !== undefined ? String(row[colMap.custodian] ?? '').trim() : ''
+      const explicitCustodianId = colMap.custodianId !== undefined ? String(row[colMap.custodianId] ?? '').trim() : ''
+      const explicitCustodianName = colMap.custodianName !== undefined ? String(row[colMap.custodianName] ?? '').trim() : ''
+      const condition = colMap.condition !== undefined ? String(row[colMap.condition] ?? '').trim() : ''
+      const remarks = colMap.remarks !== undefined ? String(row[colMap.remarks] ?? '').trim() : ''
 
-      let resolvedBuilding = 'C39'
-      const locUpper = loc.toUpperCase()
+      // Building resolution: priority to explicit building column, then location hints
+      let resolvedBuilding = explicitBldg ? explicitBldg.toUpperCase() : 'C39'
+      const locUpper = `${explicitBldg} ${loc}`.toUpperCase()
       if (locUpper.includes('D197') || locUpper.includes('D-197')) resolvedBuilding = 'D197'
       else if (locUpper.includes('D198') || locUpper.includes('D-198')) resolvedBuilding = 'D198'
       else if (locUpper.includes('D199') || locUpper.includes('D-199')) resolvedBuilding = 'D199'
@@ -251,18 +411,50 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         resolvedBuilding = 'D197'
       }
 
-      let formattedDate = capDate
-      try {
-        if (capDate.includes('/')) {
-          const parts = capDate.split('/')
-          if (parts.length === 3) {
-            const y = parts[2].length === 4 ? parts[2] : `20${parts[2]}`
-            const m = parts[0].padStart(2, '0')
-            const d = parts[1].padStart(2, '0')
-            formattedDate = `${y}-${m}-${d}`
-          }
+      // Department resolution: EXACT DATA ONLY
+      // If explicit Department column exists, use it.
+      // If not, but Cost Center exists, use Cost Center as department!
+      // NEVER hardcode 'Production' for non-production assets!
+      const resolvedDept = explicitDept || costCenter || ''
+
+      // Date resolution via parseExcelDate (handles dates, numeric serials, slash and dash formats)
+      const formattedDate = parseExcelDate(rawCapDate) || new Date().toISOString().slice(0, 10)
+
+      // Floor resolution
+      let resolvedFloor = explicitFloor
+      if (!resolvedFloor) {
+        const lowerLoc = loc.toLowerCase()
+        if (lowerLoc.includes('ground') || lowerLoc.includes('gf')) resolvedFloor = 'Ground Floor'
+        else if (lowerLoc.includes('1st') || lowerLoc.includes('1f')) resolvedFloor = '1st Floor'
+        else if (lowerLoc.includes('2nd') || lowerLoc.includes('2f')) resolvedFloor = '2nd Floor'
+        else if (lowerLoc.includes('3rd') || lowerLoc.includes('3f')) resolvedFloor = '3rd Floor'
+        else resolvedFloor = '1st Floor'
+      }
+
+      // Custodian resolution: EXACT DATA ONLY (never fake EMP hash or active super user)
+      let inChargeId = explicitCustodianId
+      let inChargeName = explicitCustodianName
+      if (!inChargeId && !inChargeName && explicitCustodian) {
+        const idMatch1 = explicitCustodian.match(/^([A-Z0-9_-]{3,15})\s*[-:·,]\s*(.+)$/i)
+        const idMatch2 = explicitCustodian.match(/^(.+?)\s*\(([A-Z0-9_-]{3,15})\)$/i)
+        if (idMatch1) {
+          inChargeId = idMatch1[1].trim()
+          inChargeName = idMatch1[2].trim()
+        } else if (idMatch2) {
+          inChargeName = idMatch2[1].trim()
+          inChargeId = idMatch2[2].trim()
+        } else if (/^[A-Z0-9_-]{3,12}$/i.test(explicitCustodian)) {
+          inChargeId = explicitCustodian
+          inChargeName = ''
+        } else {
+          inChargeName = explicitCustodian
+          inChargeId = ''
         }
-      } catch {}
+      }
+
+      const whoInCharge = inChargeId && inChargeName
+        ? `${inChargeId} · ${inChargeName}`
+        : inChargeName || inChargeId || ''
 
       // Guarantee each imported row has a 100% globally unique ID
       const rowUniqueId = `imported-${rawCode}-${r + 1}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
@@ -279,15 +471,23 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         currentCategory: assetClass || 'Equipment',
         assetClass,
         costCenter,
-        department: 'Production',
-        currentDepartment: 'Production',
-        location: loc || (isPadget ? `Padget · ${resolvedBuilding} · 1st Floor` : `ismartu · ${resolvedBuilding} · 1st Floor`),
+        department: resolvedDept,
+        currentDepartment: resolvedDept,
+        location: loc || (isPadget ? `Padget · ${resolvedBuilding} · ${resolvedFloor}` : `ismartu · ${resolvedBuilding} · ${resolvedFloor}`),
         plant: loc || (isPadget ? 'Padget Electronics Noida' : 'Noida Central Plant'),
         building: resolvedBuilding,
-        purchaseDate: formattedDate || new Date().toISOString().slice(0, 10),
-        capitalizationDate: capDate || formattedDate,
-        date: formattedDate || new Date().toISOString().slice(0, 10),
+        floor: resolvedFloor,
+        model: model || undefined,
+        serialNumber: serialNumber || '',
+        inChargeId: inChargeId || '',
+        inChargeName: inChargeName || '',
+        whoInCharge,
+        purchaseDate: formattedDate,
+        capitalizationDate: formattedDate,
+        date: formattedDate,
         status: 'Pending Verification',
+        assetCondition: condition ? (condition as any) : 'Operational',
+        remarks: remarks || '',
         isExcelImported: true,
       })
     } else {

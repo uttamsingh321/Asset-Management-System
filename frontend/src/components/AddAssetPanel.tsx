@@ -43,6 +43,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
   // Company and Building state with dynamic custom additions
   const [company, setCompany] = React.useState<string>('ismartu')
   const [showEditMasterData, setShowEditMasterData] = React.useState(false)
+  const [hasInitialCustodian, setHasInitialCustodian] = React.useState(false)
   const [companyCode, setCompanyCode] = React.useState('')
   const [costCenter, setCostCenter] = React.useState('')
   const [capitalizationDate, setCapitalizationDate] = React.useState('')
@@ -205,14 +206,63 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setFloor(initialAsset.floor || '')
       setCurrentLocation(initialAsset.currentLocation || '')
 
-      // Auto-fill Ownership from asset or current active user (Main Owner: Auto-filled & Non-editable)
       const currentUserName = currentUser?.userName || ''
       const currentUserId = currentUser?.userId || ''
       const currentUserDept = currentUser?.department || ''
+      const isSuperUserOrAdmin = Boolean(
+        currentUser?.role === 'Super User' ||
+        currentUser?.role === 'Admin' ||
+        currentUser?.role === 'Administrator' ||
+        currentUser?.userId?.toUpperCase() === 'USR-ADMIN'
+      )
 
-      const assignedDept = initialAsset.currentDepartment || initialAsset.department || currentUserDept || 'IT'
-      const assignedId = (initialAsset.inChargeId && initialAsset.inChargeId !== 'ID Pending' ? initialAsset.inChargeId : '') || currentUserId || ''
-      const assignedName = (initialAsset.inChargeName && initialAsset.inChargeName !== 'Unassigned Staff' ? initialAsset.inChargeName : '') || currentUserName || ''
+      // Department: prioritize initialAsset's currentDepartment -> department -> costCenter
+      // Only fall back to currentUserDept if initialAsset has no department or cost center
+      const excelDept = initialAsset.currentDepartment || initialAsset.department || initialAsset.costCenter || ''
+      const assignedDept = excelDept || currentUserDept || 'IT'
+
+      // Custodian resolution: extract exact custodian from initialAsset (inChargeName, inChargeId, assignedTo, whoInCharge)
+      // Rule: "fill the correct data only" - NEVER force super user (USR-ADMIN) onto imported assets that had no custodian in Excel!
+      let rawCustodianName = (initialAsset.inChargeName && initialAsset.inChargeName !== 'Unassigned Staff') ? initialAsset.inChargeName : ''
+      let rawCustodianId = (initialAsset.inChargeId && initialAsset.inChargeId !== 'ID Pending') ? initialAsset.inChargeId : ''
+
+      if (!rawCustodianName && initialAsset.assignedTo) {
+        rawCustodianName = initialAsset.assignedTo
+      }
+      if (!rawCustodianName && initialAsset.whoInCharge) {
+        rawCustodianName = initialAsset.whoInCharge
+      }
+
+      if (rawCustodianName) {
+        const idMatch1 = rawCustodianName.match(/^([A-Z0-9_-]{3,15})\s*[-:·,]\s*(.+)$/i)
+        const idMatch2 = rawCustodianName.match(/^(.+?)\s*\(([A-Z0-9_-]{3,15})\)$/i)
+        if (idMatch1) {
+          if (!rawCustodianId) rawCustodianId = idMatch1[1].trim()
+          rawCustodianName = idMatch1[2].trim()
+        } else if (idMatch2) {
+          rawCustodianName = idMatch2[1].trim()
+          if (!rawCustodianId) rawCustodianId = idMatch2[2].trim()
+        }
+      }
+
+      // If custodian matches current user, populate ID if missing
+      if (rawCustodianName && currentUser && rawCustodianName.toLowerCase() === currentUser.userName.toLowerCase()) {
+        if (!rawCustodianId) rawCustodianId = currentUser.userId
+      }
+
+      // If NO custodian in Excel:
+      // If staff member / operator on the floor: auto-assign staff member
+      // If Super User / Admin: do NOT fake-fill super user! Leave unassigned for floor staff!
+      if (!rawCustodianName && !rawCustodianId && currentUser && !isSuperUserOrAdmin) {
+        rawCustodianId = currentUserId
+        rawCustodianName = currentUserName
+      }
+
+      const hasCustodian = Boolean(rawCustodianId || rawCustodianName)
+      setHasInitialCustodian(hasCustodian)
+
+      const assignedId = rawCustodianId
+      const assignedName = rawCustodianName
       
       // Current user / logged-in manual entry section starts empty unless already previously saved
       const assignedSubmitter = initialAsset.submitter || ''
@@ -262,6 +312,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setCurrentLocation('')
 
       // Auto-fill Ownership from current active user
+      setHasInitialCustodian(false)
       setCurrentDepartment(currentUser?.department || 'IT')
       setInChargeId(currentUser?.userId || '')
       setInChargeName(currentUser?.userName || '')
@@ -512,11 +563,11 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       unavailNotes.length > 0 ? `[Unavailable Data Reasons: ${unavailNotes.join('; ')}]` : ''
     ].filter(Boolean).join(' — ')
 
-    const finalInChargeId = inChargeId.trim() || currentUser?.userId || ''
-    const finalInChargeName = inChargeName.trim() || currentUser?.userName || ''
+    const finalInChargeId = inChargeId.trim()
+    const finalInChargeName = inChargeName.trim()
     const whoInCharge = (finalInChargeId && finalInChargeName)
       ? `${finalInChargeId} · ${finalInChargeName}`
-      : (finalInChargeName || submitter.trim() || currentUser?.userName || 'Operations Staff')
+      : (finalInChargeName || finalInChargeId || submitter.trim() || '')
 
     const finalAssetName = assetName.trim() || currentDescription.trim() || (initialAsset?.name && initialAsset.name !== initialAsset.assetCode ? initialAsset.name : '') || 'Equipment Fixed Asset'
     const finalDescription = currentDescription.trim() || assetName.trim() || finalAssetName
@@ -540,7 +591,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       building: building.trim() || 'C39',
       floor: floor.trim() || '1st Floor',
       currentLocation: currentLocation.trim() || `${building.trim() || 'C39'} - ${floor.trim() || '1st Floor'}`,
-      currentDepartment: currentDepartment.trim() || currentUser?.department || 'Operations',
+      currentDepartment: currentDepartment.trim() || initialAsset?.currentDepartment || initialAsset?.department || initialAsset?.costCenter || currentUser?.department || 'Operations',
       submitter: submitter.trim() || undefined,
       submitterId: submitterId.trim() || undefined,
       submitterDepartment: submitterDepartment.trim() || undefined,
@@ -564,7 +615,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       name: finalAssetName,
       assetTag: effectiveAssetCode,
       category: currentCategory.trim() || 'IT Hardware',
-      department: currentDepartment.trim() || 'Operations',
+      department: currentDepartment.trim() || initialAsset?.department || initialAsset?.costCenter || 'Operations',
       status: initialAsset ? 'Completed' : determinedStatus,
       purchaseDate: date,
       purchaseCost: 0,
@@ -748,10 +799,17 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 </div>
 
                 {/* Col D: Asset Description (Main text) / 资产名称 */}
-                <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)] sm:col-span-3">
+                <div className={`p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)] ${model ? 'sm:col-span-2' : 'sm:col-span-3'}`}>
                   <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Asset Description / 资产名称 (Col D)</span>
                   <span className="font-bold text-[var(--ink)] block text-xs">{assetName || currentDescription || 'Equipment Fixed Asset'}</span>
                 </div>
+
+                {model && (
+                  <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                    <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Model / 规格型号 (Row 3)</span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 block text-xs truncate">{model}</span>
+                  </div>
+                )}
 
                 {/* Col G: Capitalization date */}
                 <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
@@ -1152,6 +1210,31 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </p>
             </div>
 
+            {/* Dedicated Equipment Model & Spec (Row 3 of QR Label) */}
+            <div className="space-y-1.5 p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-950/20">
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="field-physical-model" style={{ ...labelStyle, marginBottom: 0 }} className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold">
+                  <span>设备型号 / Equipment Model & Spec</span>
+                  {model ? (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      ✓ Pre-filled
+                    </span>
+                  ) : null}
+                </label>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                  Row 3 of QR Label
+                </span>
+              </div>
+              <input
+                id="field-physical-model"
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="e.g. MPM Momentum BTB 125, ESD Tray 450*350, JT-1000D"
+                style={inputStyle}
+              />
+            </div>
+
             {/* A. Physical Serial Number / Model */}
             <div className="space-y-1.5 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
               <div className="flex items-center justify-between mb-1">
@@ -1498,24 +1581,30 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
             </div>
 
-            {/* C. Custodian & Department (Main Owner: Auto-filled & Non-editable) */}
+            {/* C. Custodian & Department (Main Owner: Auto-filled from ERP or Assigned on floor) */}
             <div className="space-y-3 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
                     Ownership & Custodian
                   </h4>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-[var(--mute)] border border-[var(--line)]">
-                    🔒 Auto-filled (Non-editable)
-                  </span>
+                  {hasInitialCustodian && !showEditMasterData ? (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-[var(--mute)] border border-[var(--line)]">
+                      🔒 Pre-filled from ERP
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      ✍️ Floor Assignment
+                    </span>
+                  )}
                 </div>
-                {currentUser && (
+                {currentUser && (!hasInitialCustodian || showEditMasterData) && (
                   <button
                     type="button"
                     onClick={() => {
                       setInChargeId(currentUser.userId)
                       setInChargeName(currentUser.userName)
-                      if (currentUser.department) setCurrentDepartment(currentUser.department)
+                      if (currentUser.department && !currentDepartment) setCurrentDepartment(currentUser.department)
                     }}
                     className="text-[11px] font-semibold text-[var(--acc)] hover:underline flex items-center gap-1 cursor-pointer bg-[var(--acc)]/10 px-2 py-0.5 rounded border border-[var(--acc)]/20"
                     title="Assign this asset to current logged-in user"
@@ -1538,18 +1627,18 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   id="field-currentDepartment"
                   aria-label="Belong to which dept"
                   type="text"
-                  readOnly={Boolean(initialAsset)}
+                  readOnly={Boolean(initialAsset && currentDepartment && !showEditMasterData)}
                   value={currentDepartment}
                   onChange={(e) => setCurrentDepartment(e.target.value)}
                   placeholder="e.g. SMT Operations, Quality Control, Production & SMT, IT, Maintenance"
                   style={{
                     ...inputStyle,
-                    backgroundColor: initialAsset ? 'var(--surf2)' : undefined,
-                    cursor: initialAsset ? 'not-allowed' : undefined,
+                    backgroundColor: initialAsset && currentDepartment && !showEditMasterData ? 'var(--surf2)' : undefined,
+                    cursor: initialAsset && currentDepartment && !showEditMasterData ? 'not-allowed' : undefined,
                     color: 'var(--ink)',
-                    opacity: initialAsset ? 0.9 : 1,
+                    opacity: initialAsset && currentDepartment && !showEditMasterData ? 0.9 : 1,
                   }}
-                  title={initialAsset ? "Main Owner Department (Auto-filled & Non-editable)" : "Main Owner Department"}
+                  title={initialAsset && !showEditMasterData ? "Main Owner Department (Auto-filled)" : "Main Owner Department"}
                 />
               </div>
 
@@ -1567,36 +1656,36 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     <input
                       id="field-inChargeId"
                       type="text"
-                      readOnly={Boolean(initialAsset)}
+                      readOnly={Boolean(initialAsset && inChargeId && !showEditMasterData)}
                       value={inChargeId}
                       onChange={(e) => setInChargeId(e.target.value)}
                       placeholder="Emp ID: e.g. EMP-102 or MANISH5533"
                       style={{
                         ...inputStyle,
-                        backgroundColor: initialAsset ? 'var(--surf2)' : undefined,
-                        cursor: initialAsset ? 'not-allowed' : undefined,
+                        backgroundColor: initialAsset && inChargeId && !showEditMasterData ? 'var(--surf2)' : undefined,
+                        cursor: initialAsset && inChargeId && !showEditMasterData ? 'not-allowed' : undefined,
                         color: 'var(--ink)',
-                        opacity: initialAsset ? 0.9 : 1,
+                        opacity: initialAsset && inChargeId && !showEditMasterData ? 0.9 : 1,
                       }}
-                      title={initialAsset ? "Custodian Employee ID (Auto-filled & Non-editable)" : "Custodian Employee ID"}
+                      title={inChargeId && !showEditMasterData ? "Custodian Employee ID (Auto-filled)" : "Enter Custodian Employee ID"}
                     />
                   </div>
                   <div>
                     <input
                       id="field-inChargeName"
                       type="text"
-                      readOnly={Boolean(initialAsset)}
+                      readOnly={Boolean(initialAsset && inChargeName && !showEditMasterData)}
                       value={inChargeName}
                       onChange={(e) => setInChargeName(e.target.value)}
                       placeholder="Full Name: e.g. Rajesh Kumar"
                       style={{
                         ...inputStyle,
-                        backgroundColor: initialAsset ? 'var(--surf2)' : undefined,
-                        cursor: initialAsset ? 'not-allowed' : undefined,
+                        backgroundColor: initialAsset && inChargeName && !showEditMasterData ? 'var(--surf2)' : undefined,
+                        cursor: initialAsset && inChargeName && !showEditMasterData ? 'not-allowed' : undefined,
                         color: 'var(--ink)',
-                        opacity: initialAsset ? 0.9 : 1,
+                        opacity: initialAsset && inChargeName && !showEditMasterData ? 0.9 : 1,
                       }}
-                      title={initialAsset ? "Custodian Name (Auto-filled & Non-editable)" : "Custodian Name"}
+                      title={inChargeName && !showEditMasterData ? "Custodian Name (Auto-filled)" : "Enter Custodian Name"}
                     />
                   </div>
                 </div>

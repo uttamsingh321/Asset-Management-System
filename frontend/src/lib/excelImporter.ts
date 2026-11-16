@@ -184,15 +184,18 @@ export function parseExcelDate(val: any): string | null {
 }
 
 /**
- * Flexible header lookup to find column values across varied Excel formats
+ * Flexible header lookup to find column values across varied Excel formats (supports English, Chinese, and symbols)
  */
 function findRowValue(row: Record<string, any>, possibleKeys: string[]): string {
   const rowKeys = Object.keys(row)
   for (const target of possibleKeys) {
-    const cleanTarget = target.toLowerCase().replace(/[^a-z0-9]/g, '')
-    const foundKey = rowKeys.find(
-      (k) => k.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTarget
-    )
+    const lowerTarget = target.toLowerCase().trim()
+    const cleanTarget = lowerTarget.replace(/[\s_\-./\\]+/g, '')
+    const foundKey = rowKeys.find((k) => {
+      const lowerK = k.toLowerCase().trim()
+      const cleanK = lowerK.replace(/[\s_\-./\\]+/g, '')
+      return cleanK === cleanTarget || lowerK === lowerTarget || lowerK.includes(lowerTarget)
+    })
     if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
       const val = String(row[foundKey]).trim()
       if (val !== '') return val
@@ -275,19 +278,42 @@ export async function parseExcelOrCsvFile(
         'itemname',
         'description',
         'currentdescription',
-        'model',
+        'assetdescription',
+        'maintext',
         'product',
         'equipment',
         'item',
+        '资产名称',
+        '设备名称',
+        '名称',
       ]) || `Asset Unit #${r + 1}`
+
+      const model = findRowValue(row, [
+        'model',
+        'modelno',
+        'devicemodel',
+        'equipmentmodel',
+        'spec',
+        'specification',
+        'specifications',
+        'specs',
+        '规格型号',
+        '型号',
+        '规格',
+      ]) || ''
 
       const rawCategory = findRowValue(row, [
         'category',
         'currentcategory',
+        'assetclass',
+        'class',
         'type',
         'assettype',
         'group',
         'classification',
+        '资产类别',
+        '类别',
+        '资产分类',
       ])
 
       const category = autoCategorize(name, '', rawCategory)
@@ -301,6 +327,10 @@ export async function parseExcelOrCsvFile(
         'id',
         'barcode',
         'qrcode',
+        'cardno',
+        '资产编号',
+        '编号',
+        '卡片编号',
       ]) || `AST-IMP-${String(r + 1).padStart(5, '0')}`
 
       const serialNumber = findRowValue(row, [
@@ -309,7 +339,11 @@ export async function parseExcelOrCsvFile(
         'serial',
         'sn',
         'srno',
-      ]) || `SN-${String(Math.abs(hashString(assetCode) % 1000000)).padStart(6, '0')}`
+        'machineno',
+        '出厂编号',
+        '序列号',
+        '机身号',
+      ]) || ''
 
       const rawCompany = findRowValue(row, [
         'company',
@@ -324,10 +358,12 @@ export async function parseExcelOrCsvFile(
         'co',
         'client',
         'firm',
+        '公司代码',
+        '公司',
       ])
 
-      const rawCostCenter = findRowValue(row, ['costcenter', 'costctr', 'cc']) || ''
-      const rawBuilding = findRowValue(row, ['building', 'bldg', 'block', 'wing', 'premise', 'structure'])
+      const rawCostCenter = findRowValue(row, ['costcenter', 'costcentre', 'costctr', 'cc', '成本中心', '费用中心']) || ''
+      const rawBuilding = findRowValue(row, ['building', 'bldg', 'block', 'wing', 'premise', 'structure', '厂房', '建筑物', '栋'])
       let building = rawBuilding || 'C39'
       if (rawBuilding) {
         const cleanB = rawBuilding.toUpperCase().replace(/\s+/g, '')
@@ -355,10 +391,10 @@ export async function parseExcelOrCsvFile(
         building = 'D197'
       }
 
-      const plant = findRowValue(row, ['plant', 'site', 'facility', 'factory', 'premises']) || (isPadget ? 'Padget Electronics Central Plant' : `${company} Central Plant`)
+      const plant = findRowValue(row, ['plant', 'site', 'facility', 'factory', 'premises', '工厂']) || (isPadget ? 'Padget Electronics Central Plant' : `${company} Central Plant`)
 
-      const floor = findRowValue(row, ['floor', 'flr', 'level', 'storey', 'story']) || 'Ground Floor'
-      const currentLocation = findRowValue(row, ['location', 'currentlocation', 'room', 'bay', 'desk', 'area']) || `${building} - ${floor}`
+      const floor = findRowValue(row, ['floor', 'flr', 'level', 'storey', 'story', '楼层', '层']) || 'Ground Floor'
+      const currentLocation = findRowValue(row, ['location', 'currentlocation', 'room', 'bay', 'desk', 'area', '存放地点', '位置']) || `${building} - ${floor}`
 
       const department = findRowValue(row, [
         'department',
@@ -367,10 +403,12 @@ export async function parseExcelOrCsvFile(
         'belongtowhichdept',
         'belongstodept',
         'belongingdept',
-        'costcenter',
         'team',
         'division',
-      ]) || 'Operations'
+        '使用部门',
+        '部门',
+        '所属部门',
+      ]) || rawCostCenter || 'Operations'
 
       const explicitInChargeId = findRowValue(row, [
         'inchargeid',
@@ -381,6 +419,8 @@ export async function parseExcelOrCsvFile(
         'custodianid',
         'incharge_id',
         'emp_id',
+        '工号',
+        '员工号',
       ])
 
       const explicitInChargeName = findRowValue(row, [
@@ -396,6 +436,10 @@ export async function parseExcelOrCsvFile(
         'assignedto',
         'submitter',
         'user',
+        '责任人',
+        '保管人',
+        '使用人',
+        '负责人',
       ])
 
       let inChargeId = explicitInChargeId
@@ -413,10 +457,11 @@ export async function parseExcelOrCsvFile(
         }
       }
 
-      if (!inChargeId) inChargeId = `EMP-${String(Math.abs(hashString(assetCode) % 900) + 100)}`
-      if (!inChargeName) inChargeName = 'Operations Staff'
-      const whoInCharge = `${inChargeId} · ${inChargeName}`
-      const submitter = inChargeName
+      // Exact data only: Do not generate fake EMP hash or fake staff name if absent in Excel
+      const whoInCharge = inChargeId && inChargeName
+        ? `${inChargeId} · ${inChargeName}`
+        : inChargeName || inChargeId || ''
+      const submitter = findRowValue(row, ['submitter', 'createdby', 'uploadedby']) || inChargeName || ''
 
       const assetCondition = findRowValue(row, ['assetcondition', 'condition', 'health', 'state']) || 'Operational - Good'
       const movementReason = findRowValue(row, ['movementreason', 'reason', 'purpose']) || 'Bulk inventory import'
@@ -478,6 +523,7 @@ export async function parseExcelOrCsvFile(
         companyCode,
         costCenter: rawCostCenter || undefined,
         assetCode,
+        model: model || undefined,
         serialNumber,
         currentCategory: category,
         currentDescription: name,
@@ -556,17 +602,6 @@ export async function parseExcelOrCsvFile(
   }
 }
 
-/**
- * Deterministic hash for synthetic serials when missing
- */
-function hashString(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
-  }
-  return hash
-}
 
 /**
  * Guess manufacturer from common equipment brands
