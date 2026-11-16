@@ -83,24 +83,28 @@ function sanitizeAssetList(assets: Asset[]): Asset[] {
   if (!assets || assets.length === 0) return []
 
   // Check if storage contains old dummy/corrupted batch (like 500 assets with Sector 63 / 5020 or ast-c39 mock assets)
-  const isDummyOrCorruptedBatch = assets.some(
-    (a) =>
-      a.id.startsWith('ast-c39-') ||
-      a.id.startsWith('ast-d198-') ||
-      a.assetCode.includes('Sector 63') ||
-      a.assetCode === '5020' ||
-      a.assetCode === '5030'
-  )
+  const isDummyOrCorruptedBatch = assets.some((a) => {
+    if (!a) return false
+    const idStr = String(a.id || '')
+    const codeStr = String(a.assetCode || a.assetTag || '')
+    return (
+      idStr.startsWith('ast-c39-') ||
+      idStr.startsWith('ast-d198-') ||
+      codeStr.includes('Sector 63') ||
+      codeStr === '5020' ||
+      codeStr === '5030'
+    )
+  })
 
   if (isDummyOrCorruptedBatch) {
     purgeAllDummyDataStorage()
     return []
   }
 
-  // Ensure unique IDs across all real assets
+  // Ensure unique string IDs across all real assets
   return assets.map((a, idx) => {
-    const uniqueId = a.id || `AST-${a.assetCode || 'REG'}-${idx + 1}`
-    return { ...a, id: uniqueId }
+    const idStr = a.id ? String(a.id) : `AST-${a.assetCode || 'REG'}-${idx + 1}`
+    return { ...a, id: idStr }
   })
 }
 
@@ -384,9 +388,9 @@ export function App() {
         if (backendAssets && backendAssets.length > 0) {
           setAssets((prev) => {
             // Deduplicate and merge backend assets
-            const existingMap = new Map(prev.map((a) => [a.assetCode.toLowerCase(), a]))
+            const existingMap = new Map(prev.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
             for (const ba of backendAssets) {
-              existingMap.set(ba.assetCode.toLowerCase(), ba)
+              existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
             }
             const merged = Array.from(existingMap.values())
             if (merged.length !== prev.length || backendAssets.length > prev.length) {
@@ -412,9 +416,9 @@ export function App() {
         if (!isMounted || !backendAssets || backendAssets.length === 0) return
         setAssets((prev) => {
           if (backendAssets.length > prev.length) {
-            const existingMap = new Map(prev.map((a) => [a.assetCode.toLowerCase(), a]))
+            const existingMap = new Map(prev.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
             for (const ba of backendAssets) {
-              existingMap.set(ba.assetCode.toLowerCase(), ba)
+              existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
             }
             const merged = Array.from(existingMap.values())
             void saveAssetsToStorage(merged)
@@ -804,8 +808,8 @@ export function App() {
     })
 
     setAssets((prev) => {
-      const existingCodes = new Set(prev.map((a) => a.assetCode.toLowerCase()))
-      const deduped = importedCodes.filter((a) => !existingCodes.has(a.assetCode.toLowerCase()))
+      const existingCodes = new Set(prev.map((a) => String(a.assetCode || a.assetTag || a.id).toLowerCase()))
+      const deduped = importedCodes.filter((a) => !existingCodes.has(String(a.assetCode || a.assetTag || a.id).toLowerCase()))
       if (deduped.length > 0) {
         void pushAssetsToBackend(deduped, currentUser)
       }

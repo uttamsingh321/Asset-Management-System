@@ -73,7 +73,7 @@ class Asset(models.Model):
 
     def to_dict(self):
         return {
-            "id": self.id,
+            "id": str(self.id),
             "assetTag": self.tag or self.asset_code,
             "assetCode": self.asset_code or self.tag,
             "serialNumber": self.serial_number,
