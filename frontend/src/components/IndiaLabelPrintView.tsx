@@ -6,6 +6,7 @@ import { checkAssetDataCompleteness, isAssetPrintable } from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
 import { toast } from 'sonner'
 import { getCompanyLogo, isPadgetCompany } from '@/assets/companyLogos'
+import { resolveDepartmentName } from '@/lib/departmentResolver'
 import { getCurrentUserProfile, type UserProfile } from '@/lib/deviceTracker'
 import {
   checkPrintEligibility,
@@ -237,11 +238,11 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
     return asset.category?.trim() || '-'
   }, [asset.model, asset.serialNumber, asset.currentCategory, asset.assetClass, asset.category])
 
-  // 4. Department: real department filled in asset (strictly matches the asset form)
+  // 4. Department: real department filled in asset or resolved from RBAC directory
   const departmentDisplay = React.useMemo(() => {
-    const dept = asset.currentDepartment?.trim() || asset.department?.trim() || ''
-    return dept || (asset.building?.trim() ? `${asset.building.trim()} Operations` : '-')
-  }, [asset.currentDepartment, asset.department, asset.building])
+    const rawDept = asset.currentDepartment?.trim() || asset.department?.trim() || ''
+    return resolveDepartmentName(rawDept, asset)
+  }, [asset])
 
   // 5. Custodian (责任人 / Custodian): Real Owner - display Employee ID and Name
   const custodianDisplay = React.useMemo(() => {

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
 import type { Asset, AssetTypeTemplate, AssetStatus } from '@/types/asset'
 import { isPadgetCompany } from '@/assets/companyLogos'
+import { isRawNumericDepartmentCode, resolveDepartmentName } from './departmentResolver'
 
 export interface ImportSummary {
   totalRows: number
@@ -398,7 +399,7 @@ export async function parseExcelOrCsvFile(
       const floor = findRowValue(row, ['floor', 'flr', 'level', 'storey', 'story', '楼层', '层']) || 'Ground Floor'
       const currentLocation = findRowValue(row, ['location', 'currentlocation', 'room', 'bay', 'desk', 'area', '存放地点', '位置']) || `${building} - ${floor}`
 
-      const department = findRowValue(row, [
+      const explicitDept = findRowValue(row, [
         'department',
         'currentdepartment',
         'dept',
@@ -410,7 +411,18 @@ export async function parseExcelOrCsvFile(
         '使用部门',
         '部门',
         '所属部门',
-      ]) || rawCostCenter || 'Operations'
+      ])
+
+      let department = explicitDept
+      if (!department && rawCostCenter && !isRawNumericDepartmentCode(rawCostCenter)) {
+        department = rawCostCenter
+      }
+      if (!department || isRawNumericDepartmentCode(department)) {
+        department = resolveDepartmentName(department, {
+          building,
+          company,
+        })
+      }
 
       const explicitInChargeId = findRowValue(row, [
         'inchargeid',

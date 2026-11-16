@@ -3,6 +3,11 @@ import type { Asset, AssetStatus } from '@/types/asset'
 import type { UserProfile } from '@/lib/deviceTracker'
 import { toast } from 'sonner'
 import { getCompanyLogo, isPadgetCompany, resolveCompanyCode } from '@/assets/companyLogos'
+import {
+  resolveDepartmentName,
+  isRawNumericDepartmentCode,
+  STANDARD_DEPARTMENTS,
+} from '@/lib/departmentResolver'
 
 interface AddAssetPanelProps {
   open: boolean
@@ -212,7 +217,6 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
 
       const currentUserName = currentUser?.userName || ''
       const currentUserId = currentUser?.userId || ''
-      const currentUserDept = currentUser?.department || ''
       const isSuperUserOrAdmin = Boolean(
         currentUser?.role === 'Super User' ||
         currentUser?.role === 'Admin' ||
@@ -220,10 +224,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
         currentUser?.userId?.toUpperCase() === 'USR-ADMIN'
       )
 
-      // Department: prioritize initialAsset's currentDepartment -> department -> costCenter
-      // Only fall back to currentUserDept if initialAsset has no department or cost center
-      const excelDept = initialAsset.currentDepartment || initialAsset.department || initialAsset.costCenter || ''
-      const assignedDept = excelDept || currentUserDept || 'IT'
+      // Department: prioritize initialAsset's currentDepartment -> department, sanitized via RBAC
+      const excelDept = initialAsset.currentDepartment || initialAsset.department || ''
+      const assignedDept = resolveDepartmentName(excelDept, initialAsset, currentUser)
 
       // Custodian resolution: extract exact custodian from initialAsset (inChargeName, inChargeId, assignedTo, whoInCharge)
       // Rule: "fill the correct data only" - NEVER force super user (USR-ADMIN) onto imported assets that had no custodian in Excel!
@@ -1708,22 +1711,39 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     Row 4 of QR Label
                   </span>
                 </div>
+                {/* RBAC Standard Department quick-select pills */}
+                <div className="flex flex-wrap gap-1 mb-1.5">
+                  {STANDARD_DEPARTMENTS.slice(0, 5).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setCurrentDepartment(d)}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                        currentDepartment === d
+                          ? 'bg-[var(--acc)] text-white border-[var(--acc)] font-bold shadow-2xs'
+                          : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)] hover:bg-[var(--surf2)]'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
                 <input
                   id="field-currentDepartment"
                   aria-label="Belong to which dept"
                   type="text"
-                  readOnly={Boolean(initialAsset && currentDepartment && !showEditMasterData)}
+                  readOnly={Boolean(initialAsset && currentDepartment && !isRawNumericDepartmentCode(currentDepartment) && !showEditMasterData && currentDepartment !== 'IT' && currentDepartment !== 'Production')}
                   value={currentDepartment}
                   onChange={(e) => setCurrentDepartment(e.target.value)}
-                  placeholder="e.g. SMT Operations, Quality Control, Production & SMT, IT, Maintenance"
+                  placeholder="e.g. IT & Infrastructure, Production, SMT Operations, Quality Control"
                   style={{
                     ...inputStyle,
-                    backgroundColor: initialAsset && currentDepartment && !showEditMasterData ? 'var(--surf2)' : undefined,
-                    cursor: initialAsset && currentDepartment && !showEditMasterData ? 'not-allowed' : undefined,
+                    backgroundColor: initialAsset && currentDepartment && !isRawNumericDepartmentCode(currentDepartment) && !showEditMasterData && currentDepartment !== 'IT' && currentDepartment !== 'Production' ? 'var(--surf2)' : undefined,
+                    cursor: initialAsset && currentDepartment && !isRawNumericDepartmentCode(currentDepartment) && !showEditMasterData && currentDepartment !== 'IT' && currentDepartment !== 'Production' ? 'not-allowed' : undefined,
                     color: 'var(--ink)',
-                    opacity: initialAsset && currentDepartment && !showEditMasterData ? 0.9 : 1,
+                    opacity: initialAsset && currentDepartment && !isRawNumericDepartmentCode(currentDepartment) && !showEditMasterData && currentDepartment !== 'IT' && currentDepartment !== 'Production' ? 0.9 : 1,
                   }}
-                  title={initialAsset && !showEditMasterData ? "Main Owner Department (Auto-filled)" : "Main Owner Department"}
+                  title={initialAsset && !showEditMasterData ? "Main Owner Department (Auto-resolved from RBAC)" : "Main Owner Department"}
                 />
               </div>
 

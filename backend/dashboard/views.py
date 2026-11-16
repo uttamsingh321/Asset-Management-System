@@ -256,7 +256,16 @@ def api_assets(request: HttpRequest) -> JsonResponse:
                         # Create new asset
                         name = str(item.get("currentDescription") or item.get("name") or tag)[:255]
                         category = str(item.get("currentCategory") or item.get("category") or "Equipment")[:64]
-                        dept = str(item.get("currentDepartment") or item.get("department") or "Production")[:128]
+                        dept = str(item.get("currentDepartment") or item.get("department") or "").strip()
+                        if not dept or dept.isdigit() or (dept.startswith("C") and dept[1:].isdigit()):
+                            custodian = str(item.get("inChargeName") or item.get("custodian") or item.get("whoInCharge") or "").lower()
+                            if "uttam" in custodian or item.get("inChargeId") == "USR-ADMIN":
+                                dept = "IT & Infrastructure"
+                            elif "manish" in custodian or "arbind" in custodian:
+                                dept = "Production & SMT"
+                            else:
+                                dept = str(item.get("submitterDepartment") or "Production")
+                        dept = dept[:128]
                         raw_comp = str(item.get("company") or "").strip()
                         raw_comp_code = str(item.get("companyCode") or "").strip()
                         raw_bldg = str(item.get("building") or "C39")[:128]

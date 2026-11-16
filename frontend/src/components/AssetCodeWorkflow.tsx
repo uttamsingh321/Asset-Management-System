@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { pushAssetsToBackend, fetchBackendAssets } from '@/lib/assetStorage'
 import { isPadgetCompany } from '@/assets/companyLogos'
 import { parseExcelDate } from '@/lib/excelImporter'
+import { isRawNumericDepartmentCode, resolveDepartmentName } from '@/lib/departmentResolver'
 
 const DEPARTMENTS = [
   'IT',
@@ -416,26 +417,6 @@ export async function readCodesOrMasterAssetsFromFile(file: File): Promise<(stri
         resolvedBuilding = 'D197'
       }
 
-      // Department resolution: EXACT DATA ONLY
-      // If explicit Department column exists, use it.
-      // If not, but Cost Center exists, use Cost Center as department!
-      // NEVER hardcode 'Production' for non-production assets!
-      const resolvedDept = explicitDept || costCenter || ''
-
-      // Date resolution via parseExcelDate (handles dates, numeric serials, slash and dash formats)
-      const formattedDate = parseExcelDate(rawCapDate) || new Date().toISOString().slice(0, 10)
-
-      // Floor resolution
-      let resolvedFloor = explicitFloor
-      if (!resolvedFloor) {
-        const lowerLoc = loc.toLowerCase()
-        if (lowerLoc.includes('ground') || lowerLoc.includes('gf')) resolvedFloor = 'Ground Floor'
-        else if (lowerLoc.includes('1st') || lowerLoc.includes('1f')) resolvedFloor = '1st Floor'
-        else if (lowerLoc.includes('2nd') || lowerLoc.includes('2f')) resolvedFloor = '2nd Floor'
-        else if (lowerLoc.includes('3rd') || lowerLoc.includes('3f')) resolvedFloor = '3rd Floor'
-        else resolvedFloor = '1st Floor'
-      }
-
       // Custodian resolution: EXACT DATA ONLY (never fake EMP hash or active super user)
       let inChargeId = explicitCustodianId
       let inChargeName = explicitCustodianName
@@ -460,6 +441,35 @@ export async function readCodesOrMasterAssetsFromFile(file: File): Promise<(stri
       const whoInCharge = inChargeId && inChargeName
         ? `${inChargeId} · ${inChargeName}`
         : inChargeName || inChargeId || ''
+
+      // Department resolution: EXACT DATA ONLY - never use raw numeric cost center codes as department names
+      let resolvedDept = explicitDept
+      if (!resolvedDept && costCenter && !isRawNumericDepartmentCode(costCenter)) {
+        resolvedDept = costCenter
+      }
+      if (!resolvedDept || isRawNumericDepartmentCode(resolvedDept)) {
+        resolvedDept = resolveDepartmentName(resolvedDept, {
+          building: resolvedBuilding,
+          whoInCharge: whoInCharge,
+          inChargeId: inChargeId,
+          inChargeName: inChargeName,
+          company: resolvedCompany,
+        })
+      }
+
+      // Date resolution via parseExcelDate (handles dates, numeric serials, slash and dash formats)
+      const formattedDate = parseExcelDate(rawCapDate) || new Date().toISOString().slice(0, 10)
+
+      // Floor resolution
+      let resolvedFloor = explicitFloor
+      if (!resolvedFloor) {
+        const lowerLoc = loc.toLowerCase()
+        if (lowerLoc.includes('ground') || lowerLoc.includes('gf')) resolvedFloor = 'Ground Floor'
+        else if (lowerLoc.includes('1st') || lowerLoc.includes('1f')) resolvedFloor = '1st Floor'
+        else if (lowerLoc.includes('2nd') || lowerLoc.includes('2f')) resolvedFloor = '2nd Floor'
+        else if (lowerLoc.includes('3rd') || lowerLoc.includes('3f')) resolvedFloor = '3rd Floor'
+        else resolvedFloor = '1st Floor'
+      }
 
       // Guarantee each imported row has a 100% globally unique ID
       const rowUniqueId = `imported-${rawCode}-${r + 1}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`

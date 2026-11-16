@@ -144,7 +144,7 @@ describe('Super User Excel Import Accuracy & Flexibility Specification', () => {
     expect(screen.getByText('12001433')).toBeInTheDocument()
     expect(screen.getByText('Aging Rack')).toBeInTheDocument()
     expect(screen.getByText('2026-11-16')).toBeInTheDocument()
-    expect(screen.getByText('Production')).toBeInTheDocument()
+    expect(screen.getAllByText('Production').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Noida Central Plant')).toBeInTheDocument()
 
     // 2. Verify Department input has 'Production' from Excel, NOT 'IT & Infrastructure'
