@@ -332,8 +332,9 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
       // Department scoping: If asset is already tagged to another department, scope by filter; unassigned codes are open to all
       const effectiveDept = !isAdmin && userDepartment ? userDepartment : departmentFilter
       if (effectiveDept !== 'All') {
-        const d = (asset.currentDepartment || asset.department || '').toLowerCase()
-        if (d && !d.includes(effectiveDept.toLowerCase())) return false
+        const d = (asset.currentDepartment || asset.department || '').toLowerCase().trim()
+        const ed = effectiveDept.toLowerCase().trim()
+        if (d && !d.includes(ed) && !ed.includes(d)) return false
       }
 
       // Query filter
