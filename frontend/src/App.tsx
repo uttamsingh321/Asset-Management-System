@@ -196,6 +196,7 @@ export function App() {
       currentUser.isSuperuser ||
       currentUser.role === 'Admin' ||
       currentUser.role === 'Administrator' ||
+      currentUser.role === 'Super User' ||
       currentUser.userId?.toUpperCase() === 'USR-ADMIN'
     )
   }, [currentUser])
@@ -512,10 +513,18 @@ export function App() {
     logAuditEvent('THEME_TOGGLE', { theme: next }, 'SYSTEM')
   }
 
-  // Sync hash routing
+  // Sync hash routing & enforce Super User protection
   React.useEffect(() => {
+    const superuserOnlyRoutes = ['audit', 'administration', 'security', 'master-mapping', 'rbac', 'users']
+
     const onHashChange = () => {
       const h = window.location.hash.replace('#', '')
+      if (!isSuperuserOrAdmin && superuserOnlyRoutes.includes(h)) {
+        toast.error('Access Restricted: System Governance & Administration are restricted to Super Users.')
+        setCurrentHash('dashboard')
+        window.location.hash = '#dashboard'
+        return
+      }
       if (
         h &&
         (meridianPages[h] ||
@@ -539,9 +548,17 @@ export function App() {
         setCurrentHash('dashboard')
       }
     }
+
+    // Guard on load or when user privileges change
+    const initialH = window.location.hash.replace('#', '')
+    if (!isSuperuserOrAdmin && superuserOnlyRoutes.includes(initialH)) {
+      setCurrentHash('dashboard')
+      window.location.hash = '#dashboard'
+    }
+
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
+  }, [isSuperuserOrAdmin])
 
   // Sync RBAC directory between local store and backend SQLite
   React.useEffect(() => {
@@ -550,6 +567,11 @@ export function App() {
 
   const handleNavClick = (key: string, e: React.MouseEvent) => {
     e.preventDefault()
+    const superuserOnlyRoutes = ['audit', 'administration', 'security', 'master-mapping', 'rbac', 'users']
+    if (!isSuperuserOrAdmin && superuserOnlyRoutes.includes(key)) {
+      toast.error('Access Restricted: System Governance & Administration are restricted to Super Users.')
+      return
+    }
     window.location.hash = `#${key}`
     setCurrentHash(key)
     setIsDrawerOpen(false)
@@ -978,53 +1000,53 @@ export function App() {
               <span>Scrapping & Disposal</span>
             </a>
 
-            {/* ── Governance & Administration ── */}
-            <div
-              style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                color: 'var(--mute)',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                padding: '12px 14px 4px',
-                borderTop: '1px solid var(--line)',
-                marginTop: '8px',
-              }}
-            >
-              ⚙️ System & Governance
-            </div>
-
-            {/* 11. Audit & Tracking */}
-            <a
-              className={currentHash === 'audit' ? 'on' : ''}
-              href="#audit"
-              onClick={(e) => handleNavClick('audit', e)}
-              title={isMini ? 'Audit & Tracking' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
-              <span>Audit & Tracking</span>
-            </a>
-
-            {/* 12. Administration */}
-            <a
-              className={currentHash === 'administration' ? 'on' : ''}
-              href="#administration"
-              onClick={(e) => handleNavClick('administration', e)}
-              title={isMini ? 'Administration' : undefined}
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
-              </svg>
-              <span>Administration</span>
-            </a>
-
-            {/* 13. SUPERUSER EXCLUSIVE: Master Governance (Master Mapping & User RBAC) */}
+            {/* ── SUPERUSER EXCLUSIVE: Governance & Administration ── */}
             {isSuperuserOrAdmin && (
               <>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: 'var(--mute)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    padding: '12px 14px 4px',
+                    borderTop: '1px solid var(--line)',
+                    marginTop: '8px',
+                  }}
+                >
+                  ⚙️ System & Governance
+                </div>
+
+                {/* 11. Audit & Tracking */}
+                <a
+                  className={currentHash === 'audit' ? 'on' : ''}
+                  href="#audit"
+                  onClick={(e) => handleNavClick('audit', e)}
+                  title={isMini ? 'Audit & Tracking' : undefined}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                  <span>Audit & Tracking</span>
+                </a>
+
+                {/* 12. Administration */}
+                <a
+                  className={currentHash === 'administration' ? 'on' : ''}
+                  href="#administration"
+                  onClick={(e) => handleNavClick('administration', e)}
+                  title={isMini ? 'Administration' : undefined}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+                  </svg>
+                  <span>Administration</span>
+                </a>
+
+                {/* 13. Master Governance (Master Mapping & User RBAC) */}
                 <div className="pt-3 pb-1 px-3 text-[10px] font-bold tracking-wider text-purple-600/90 uppercase select-none">
                   {!isMini ? '👑 Master Governance' : '👑'}
                 </div>
@@ -1766,7 +1788,33 @@ export function App() {
                 addAssetButtonRef={addAssetButtonRef}
               />
             ) : currentHash === 'audit' ? (
-              <AuditLogView />
+              isSuperuserOrAdmin ? (
+                <AuditLogView />
+              ) : (
+                <div className="p-8 text-center bg-white rounded-xl border border-red-200 shadow-xs max-w-lg mx-auto my-12">
+                  <div className="text-4xl mb-3">🛡️🔒</div>
+                  <h2 className="text-lg font-bold text-red-600 mb-2">Access Restricted</h2>
+                  <p className="text-sm text-[var(--mute)]">
+                    Audit & Device Tracking is restricted to Super Users. Your current role does not possess the required clearance.
+                  </p>
+                </div>
+              )
+            ) : currentHash === 'administration' && !isSuperuserOrAdmin ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-red-200 shadow-xs max-w-lg mx-auto my-12">
+                <div className="text-4xl mb-3">⚙️🔒</div>
+                <h2 className="text-lg font-bold text-red-600 mb-2">Access Restricted</h2>
+                <p className="text-sm text-[var(--mute)]">
+                  System Administration is restricted to Super Users. Your current role does not possess the required clearance.
+                </p>
+              </div>
+            ) : (currentHash === 'security' || currentHash === 'master-mapping' || currentHash === 'rbac' || currentHash === 'users') && !isSuperuserOrAdmin ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-red-200 shadow-xs max-w-lg mx-auto my-12">
+                <div className="text-4xl mb-3">👑🔒</div>
+                <h2 className="text-lg font-bold text-red-600 mb-2">Access Restricted</h2>
+                <p className="text-sm text-[var(--mute)]">
+                  Master Governance & Security are restricted to Super Users.
+                </p>
+              </div>
             ) : currentHash === 'security' ? (
               <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--mute)]">Loading Superuser Security Console...</div>}>
                 <SuperuserSecurityView currentUser={currentUser} lang={lang} />
@@ -2067,63 +2115,61 @@ export function App() {
                 </button>
               </div>
 
-              <div className="pt-2 border-t border-[var(--line)] space-y-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsProfileModalOpen(false)
-                    setCurrentHash('administration')
-                    window.location.hash = '#administration'
-                  }}
-                  className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-[var(--acc)]/30 text-[var(--acc)] bg-[var(--acc)]/5 hover:bg-[var(--acc)]/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <span>🛡️</span>
-                  <span>Manage Department Users & Passwords (RBAC)</span>
-                </button>
+              {isSuperuserOrAdmin && (
+                <div className="pt-2 border-t border-[var(--line)] space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileModalOpen(false)
+                      setCurrentHash('administration')
+                      window.location.hash = '#administration'
+                    }}
+                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-[var(--acc)]/30 text-[var(--acc)] bg-[var(--acc)]/5 hover:bg-[var(--acc)]/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>🛡️</span>
+                    <span>Manage Department Users & Passwords (RBAC)</span>
+                  </button>
 
-                {isSuperuserOrAdmin && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileModalOpen(false)
-                        setCurrentHash('master-mapping')
-                        window.location.hash = '#master-mapping'
-                      }}
-                      className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <span>🏢</span>
-                      <span>Master Mapping (Hierarchy Foundation)</span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileModalOpen(false)
+                      setCurrentHash('master-mapping')
+                      window.location.hash = '#master-mapping'
+                    }}
+                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>🏢</span>
+                    <span>Master Mapping (Hierarchy Foundation)</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileModalOpen(false)
-                        setCurrentHash('rbac')
-                        window.location.hash = '#rbac'
-                      }}
-                      className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <span>🛡️</span>
-                      <span>User & RBAC Administration</span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileModalOpen(false)
+                      setCurrentHash('rbac')
+                      window.location.hash = '#rbac'
+                    }}
+                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>🛡️</span>
+                    <span>User & RBAC Administration</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileModalOpen(false)
-                        setCurrentHash('security')
-                        window.location.hash = '#security'
-                      }}
-                      className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <span>🔒</span>
-                      <span>Superuser Security & IP Audit</span>
-                    </button>
-                  </>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileModalOpen(false)
+                      setCurrentHash('security')
+                      window.location.hash = '#security'
+                    }}
+                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>🔒</span>
+                    <span>Superuser Security & IP Audit</span>
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>
