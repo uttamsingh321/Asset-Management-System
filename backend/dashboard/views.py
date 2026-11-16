@@ -88,6 +88,8 @@ def api_health(request: HttpRequest) -> JsonResponse:
 @csrf_exempt
 def api_assets(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
+        if request.GET.get("only_count") == "1":
+            return JsonResponse({"count": Asset.objects.count()})
         dept = request.GET.get("department")
         limit_param = request.GET.get("limit")
         include_photos = request.GET.get("include_photos") == "1"

@@ -121,6 +121,25 @@ function getApiUrl(path: string): string {
 }
 
 /**
+ * Fetch total asset count from backend (lightweight ping, uses almost zero network bandwidth)
+ */
+export async function fetchBackendAssetCount(): Promise<number | null> {
+  try {
+    const res = await fetch(getApiUrl('/api/assets/?only_count=1'), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return typeof data?.count === 'number' ? data.count : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Fetch master asset registry from central Django backend
  */
 export async function fetchBackendAssets(): Promise<Asset[]> {

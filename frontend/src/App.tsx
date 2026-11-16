@@ -21,6 +21,7 @@ import {
   saveAssetsToStorage,
   loadAssetsFromStorage,
   fetchBackendAssets,
+  fetchBackendAssetCount,
   pushAssetsToBackend,
   purgeBackendAssets,
 } from '@/lib/assetStorage'
@@ -415,24 +416,29 @@ export function App() {
 
     void syncWithBackendAndLocal()
 
-    // 3. Periodic background sync every 10 seconds so all terminals receive live updates
+    // 3. Periodic background sync: lightweight ping every 15 seconds; only downloads full data if count changes
     const syncInterval = setInterval(() => {
-      fetchBackendAssets().then((backendAssets) => {
-        if (!isMounted || !backendAssets || backendAssets.length === 0) return
+      fetchBackendAssetCount().then((count) => {
+        if (!isMounted || count === null) return
         setAssets((prev) => {
-          if (backendAssets.length > prev.length) {
-            const existingMap = new Map(prev.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
-            for (const ba of backendAssets) {
-              existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
-            }
-            const merged = Array.from(existingMap.values())
-            void saveAssetsToStorage(merged)
-            return sanitizeAssetList(merged)
+          if (count > prev.length) {
+            fetchBackendAssets().then((backendAssets) => {
+              if (!isMounted || !backendAssets || backendAssets.length === 0) return
+              setAssets((current) => {
+                const existingMap = new Map(current.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
+                for (const ba of backendAssets) {
+                  existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
+                }
+                const merged = Array.from(existingMap.values())
+                void saveAssetsToStorage(merged)
+                return sanitizeAssetList(merged)
+              })
+            }).catch(() => {})
           }
           return prev
         })
       }).catch(() => {})
-    }, 10000)
+    }, 15000)
 
     return () => {
       isMounted = false
