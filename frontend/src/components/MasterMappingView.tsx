@@ -94,16 +94,16 @@ const LEVEL_LABELS: Record<HierarchyLevel, LevelConfig> = {
 const DEFAULT_DASHBOARD_SUMMARY: MasterMappingSummary = {
   summary: {
     companies: { total: 2, active: 2, archived: 0 },
-    plants: { total: 3, active: 3 },
-    buildings: { total: 4, active: 4 },
+    plants: { total: 6, active: 6 },
+    buildings: { total: 6, active: 6 },
     floors: { total: 4, active: 4 },
     departments: { total: 5, active: 5 },
     areas: { total: 4, active: 4 },
     locations: { total: 4, active: 4 },
   },
   totals: {
-    totalNodes: 26,
-    activeNodes: 26,
+    totalNodes: 31,
+    activeNodes: 31,
     archivedNodes: 0,
     completionPercent: 100,
   },

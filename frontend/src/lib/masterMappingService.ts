@@ -133,19 +133,24 @@ function getHeaders(user?: UserProfile) {
 // ─────────────────────────────────────────────────────────────────────────────
 export const BASELINE_DATA = {
   companies: [
-    { id: 1, name: 'IIPL (ismartu India Private Limited)', code: 'IIPL', description: 'Primary mobile and electronics manufacturing corporation', isArchived: false },
-    { id: 2, name: 'Padget Electronics Private Limited', code: 'PADGET', description: 'Electronics manufacturing and assembly', isArchived: false },
+    { id: 1, name: 'IIPL (ismartu India Private Limited)', code: '5020', description: 'Primary mobile and electronics manufacturing corporation', isArchived: false },
+    { id: 2, name: 'Padget Electronics Private Limited', code: '9500', description: 'Padget electronics manufacturing and assembly', isArchived: false },
   ],
   plants: [
-    { id: 1, companyId: 1, companyName: 'IIPL (ismartu India Private Limited)', name: 'Noida Central Plant', code: 'PLANT-NOI', description: 'Main SMT and cleanroom assembly facility', isArchived: false },
-    { id: 2, companyId: 2, companyName: 'Padget Electronics Private Limited', name: 'Noida Sector 63 Facility', code: 'PLANT-PAD', description: 'High-volume production facility', isArchived: false },
-    { id: 3, companyId: 1, companyName: 'IIPL (ismartu India Private Limited)', name: 'Gurgaon Tooling Facility', code: 'PLANT-GGN', description: 'Tooling, jigs, and machining plant', isArchived: false },
+    { id: 1, companyId: 1, companyName: 'IIPL (ismartu India Private Limited)', name: 'Noida Central Plant', code: '5020', description: 'C39 Complex (Main SMT and cleanroom assembly facility)', isArchived: false },
+    { id: 2, companyId: 2, companyName: 'Padget Electronics Private Limited', name: 'Sector 63', code: '9502', description: 'SECTOR 63', isArchived: false },
+    { id: 4, companyId: 2, companyName: 'Padget Electronics Private Limited', name: 'Sector 63 (Unit 2)', code: '9503', description: 'SECTOR 63', isArchived: false },
+    { id: 5, companyId: 2, companyName: 'Padget Electronics Private Limited', name: 'Sector 63 (OEM Business)', code: '9504', description: 'SECTOR 63 (OEM BUSINESS)', isArchived: false },
+    { id: 6, companyId: 2, companyName: 'Padget Electronics Private Limited', name: 'C39 Our Business', code: '9505', description: 'C39 OUR BUSINESS', isArchived: false },
+    { id: 7, companyId: 2, companyName: 'Padget Electronics Private Limited', name: 'C39 (OEM Business NT)', code: '9506', description: 'C39 (OEM BUSINESS NT)', isArchived: false },
   ],
   buildings: [
     { id: 1, plantId: 1, plantName: 'Noida Central Plant', name: 'Building C39', code: 'BLDG-C39', description: 'Main corporate and cleanroom complex', isArchived: false },
-    { id: 2, plantId: 2, plantName: 'Noida Sector 63 Facility', name: 'Building D197', code: 'BLDG-D197', description: 'SMT production unit 1', isArchived: false },
-    { id: 3, plantId: 2, plantName: 'Noida Sector 63 Facility', name: 'Building D198', code: 'BLDG-D198', description: 'Automated test and inspection facility', isArchived: false },
-    { id: 4, plantId: 2, plantName: 'Noida Sector 63 Facility', name: 'Building D199', code: 'BLDG-D199', description: 'Warehouse and central dispatch hub', isArchived: false },
+    { id: 2, plantId: 2, plantName: 'Sector 63', name: 'Building D197', code: 'BLDG-D197', description: 'SMT production unit 1', isArchived: false },
+    { id: 3, plantId: 4, plantName: 'Sector 63 (Unit 2)', name: 'Building D198', code: 'BLDG-D198', description: 'Automated test and inspection facility', isArchived: false },
+    { id: 4, plantId: 5, plantName: 'Sector 63 (OEM Business)', name: 'Building D199', code: 'BLDG-D199', description: 'Warehouse and central dispatch hub', isArchived: false },
+    { id: 5, plantId: 6, plantName: 'C39 Our Business', name: 'Building C39 (Padget Our Business)', code: 'BLDG-C39-PAD', description: 'C39 Padget operational lines', isArchived: false },
+    { id: 6, plantId: 7, plantName: 'C39 (OEM Business NT)', name: 'Building C39 (Padget OEM NT)', code: 'BLDG-C39-NT', description: 'C39 Padget OEM NT manufacturing', isArchived: false },
   ],
   floors: [
     { id: 1, buildingId: 1, buildingName: 'Building C39', name: 'Ground Floor', code: 'FLR-GF', description: 'Heavy machinery, warehousing, utilities', isArchived: false },

@@ -50,8 +50,12 @@ export function isPadgetCompany(
     return true
   }
 
-  // 2. Company Code 5030 is Padget Electronics Pvt Ltd
+  // 2. Company Code 9500 (BUKRS) or legacy 5030 is Padget Electronics Pvt Ltd
   if (
+    normComp === '9500' ||
+    normComp.includes('9500') ||
+    normCompCode === '9500' ||
+    normCompCode.includes('9500') ||
     normComp === '5030' ||
     normComp.includes('5030') ||
     normCompCode === '5030' ||
@@ -59,11 +63,34 @@ export function isPadgetCompany(
   ) {
     return true
   }
-  if (normCostCenter.startsWith('5030') || normCostCenter.includes('5030')) {
+  if (
+    normCostCenter.startsWith('9500') ||
+    normCostCenter.includes('9500') ||
+    normCostCenter.startsWith('5030') ||
+    normCostCenter.includes('5030')
+  ) {
     return true
   }
 
-  // 3. Buildings D197, D198, D199 are Padget manufacturing units (C39 is ismartu / IIPL)
+  // 3. Plant Code(s) (WERKS): 9502, 9503, 9504, 9505, 9506, or Sector 63
+  const padgetPlantCodes = ['9502', '9503', '9504', '9505', '9506']
+  if (
+    padgetPlantCodes.some(
+      (pc) =>
+        normPlant.includes(pc) ||
+        normCompCode === pc ||
+        normComp === pc ||
+        normLoc.includes(pc) ||
+        normCostCenter.includes(pc)
+    )
+  ) {
+    return true
+  }
+  if (normPlant.includes('sector 63') || normPlant.includes('sector-63') || normLoc.includes('sector 63')) {
+    return true
+  }
+
+  // 4. Buildings D197, D198, D199 are Padget manufacturing units (C39 is ismartu / IIPL)
   const padgetBuildings = ['d197', 'd-197', 'd198', 'd-198', 'd199', 'd-199']
   if (padgetBuildings.some((b) => normBldg.includes(b) || normLoc.includes(b))) {
     return true
@@ -82,8 +109,8 @@ export function resolveCompanyName(
 export function resolveCompanyCode(
   input?: any,
   extra?: any
-): '5030' | '5020' {
-  return isPadgetCompany(input, extra) ? '5030' : '5020'
+): '9500' | '5020' | '5030' {
+  return isPadgetCompany(input, extra) ? '9500' : '5020'
 }
 
 export function getCompanyLogo(

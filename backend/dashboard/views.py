@@ -263,6 +263,9 @@ def api_assets(request: HttpRequest) -> JsonResponse:
                         raw_loc = str(item.get("currentLocation") or item.get("location") or "")[:255]
                         is_padget = bool(
                             "padget" in raw_comp.lower() or
+                            "9500" in raw_comp or
+                            "9500" in raw_comp_code or
+                            any(pc in raw_comp_code for pc in ["9502", "9503", "9504", "9505", "9506"]) or
                             "5030" in raw_comp or
                             "5030" in raw_comp_code or
                             any(b in raw_bldg.upper() for b in ["D197", "D198", "D199"]) or

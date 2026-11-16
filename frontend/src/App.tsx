@@ -945,7 +945,7 @@ export function App() {
       const uniqueId = item.id || `imported-${code}-${idx + 1}-${Date.now().toString(36)}`
       const isPadget = isPadgetCompany(item)
       const resolvedCompany = isPadget ? 'Padget' : (item.company || 'ismartu')
-      const resolvedCompanyCode = isPadget ? '5030' : (item.companyCode || (resolvedCompany === 'Padget' ? '5030' : '5020'))
+      const resolvedCompanyCode = isPadget ? '9500' : (item.companyCode || (resolvedCompany === 'Padget' ? '9500' : '5020'))
       const resolvedBuilding = item.building || (isPadget ? 'D197' : 'C39')
       const resolvedFloor = item.floor || '1st Floor'
       const resolvedDept = item.department || item.currentDepartment || item.costCenter || ''

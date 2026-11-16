@@ -350,8 +350,8 @@ export async function readCodesOrMasterAssetsFromFile(file: File): Promise<(stri
     const row = rows[r] || []
     let rawCode = String(row[codeCol] ?? '').trim().replace(/^["']|["']$/g, '')
 
-    // Guard against Company Code (5020 / 5030) being mistakenly taken as assetCode
-    if ((rawCode === '5020' || rawCode === '5030') && row.length > 2) {
+    // Guard against Company Code (5020 / 9500 / 5030) being mistakenly taken as assetCode
+    if ((rawCode === '5020' || rawCode === '9500' || rawCode === '5030') && row.length > 2) {
       const realCode = row.find((val, idx) => {
         if (idx === colMap.companyCode) return false
         const s = String(val ?? '').trim()
@@ -409,7 +409,9 @@ export async function readCodesOrMasterAssetsFromFile(file: File): Promise<(stri
       })
 
       const resolvedCompany = isPadget ? 'Padget' : (compCode === '5020' || compCode.toLowerCase().includes('ismartu') || compCode.toLowerCase().includes('iipl') ? 'ismartu' : (compCode || 'ismartu'))
-      const resolvedCompanyCode = isPadget ? '5030' : (compCode === '5020' ? '5020' : (compCode || '5020'))
+      const resolvedCompanyCode = isPadget
+        ? (compCode === '9500' || compCode === '5030' ? compCode : '9500')
+        : (compCode === '5020' ? '5020' : (compCode || '5020'))
       if (isPadget && resolvedBuilding === 'C39') {
         resolvedBuilding = 'D197'
       }

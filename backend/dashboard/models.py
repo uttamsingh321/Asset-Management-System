@@ -75,12 +75,13 @@ class Asset(models.Model):
 
     def to_dict(self, include_photos: bool = True):
         is_padget = bool(
-            (self.company and ("padget" in self.company.lower() or "5030" in self.company)) or
+            (self.company and any(k in self.company.lower() for k in ["padget", "9500", "5030"])) or
+            (self.plant and any(k in str(self.plant).upper() for k in ["9502", "9503", "9504", "9505", "9506", "SECTOR 63"])) or
             (self.building and any(b in self.building.upper() for b in ["D197", "D198", "D199"])) or
             (self.location and any(b in self.location.upper() for b in ["D197", "D198", "D199", "PADGET"]))
         )
         resolved_company = "Padget" if is_padget else (self.company or "IIPL")
-        resolved_company_code = "5030" if is_padget else "5020"
+        resolved_company_code = "9500" if is_padget else "5020"
         resolved_building = self.building or ("D197" if is_padget else "C39")
 
         return {

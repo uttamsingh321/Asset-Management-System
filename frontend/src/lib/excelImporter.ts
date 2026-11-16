@@ -382,10 +382,12 @@ export async function parseExcelOrCsvFile(
       })
 
       let company = isPadget ? 'Padget' : 'IIPL'
-      let companyCode = isPadget ? '5030' : '5020'
+      let companyCode = isPadget ? '9500' : '5020'
       if (!isPadget && rawCompany) {
         if (/iipl/i.test(rawCompany) || /ismartu/i.test(rawCompany)) company = 'IIPL'
         else if (rawCompany === '5020') { company = 'IIPL'; companyCode = '5020' }
+      } else if (isPadget && rawCompany) {
+        if (rawCompany === '9500' || rawCompany === '5030') companyCode = rawCompany
       }
       if (isPadget && building === 'C39') {
         building = 'D197'
@@ -602,17 +604,7 @@ export async function parseExcelOrCsvFile(
   }
 }
 
-/**
- * Deterministic hash for synthetic serials when missing
- */
-function hashString(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
-  }
-  return hash
-}
+
 
 /**
  * Guess manufacturer from common equipment brands

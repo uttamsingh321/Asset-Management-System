@@ -13,12 +13,22 @@ import { AddAssetPanel } from '@/components/AddAssetPanel'
 import type { Asset } from '@/types/asset'
 
 describe('Company Differentiator for ismartu vs Padget Specification', () => {
-  it('correctly identifies Padget across company name, company code (5030), buildings (D197, D198, D199), and cost center', () => {
-    // 1. By company code 5030
+  it('correctly identifies Padget across company name, company code (9500 / 5030), plant codes (9502-9506), buildings (D197, D198, D199), and cost center', () => {
+    // 1. By company code 9500 and legacy 5030
+    expect(isPadgetCompany({ companyCode: '9500' })).toBe(true)
+    expect(isPadgetCompany('9500')).toBe(true)
     expect(isPadgetCompany({ companyCode: '5030' })).toBe(true)
     expect(isPadgetCompany('5030')).toBe(true)
-    expect(resolveCompanyName({ companyCode: '5030' })).toBe('Padget')
-    expect(resolveCompanyCode({ company: 'Padget' })).toBe('5030')
+    expect(resolveCompanyName({ companyCode: '9500' })).toBe('Padget')
+    expect(resolveCompanyCode({ company: 'Padget' })).toBe('9500')
+
+    // 1b. By plant codes (WERKS: 9502, 9503, 9504, 9505, 9506)
+    expect(isPadgetCompany({ plant: '9502' })).toBe(true)
+    expect(isPadgetCompany({ plant: '9503' })).toBe(true)
+    expect(isPadgetCompany({ plant: '9504' })).toBe(true)
+    expect(isPadgetCompany({ plant: '9505' })).toBe(true)
+    expect(isPadgetCompany({ plant: '9506' })).toBe(true)
+    expect(isPadgetCompany({ plant: 'Sector 63' })).toBe(true)
 
     // 2. By building D197, D198, D199
     expect(isPadgetCompany({ building: 'D197' })).toBe(true)

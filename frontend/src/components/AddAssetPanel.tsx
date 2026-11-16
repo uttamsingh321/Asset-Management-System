@@ -205,7 +205,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setPlantReason('')
       setCostCenter(initialAsset.costCenter || '')
       setCapitalizationDate(initialAsset.capitalizationDate || initialAsset.purchaseDate || '')
-      setCompanyCode(initialAsset.companyCode || (isPadget ? '5030' : '5020'))
+      setCompanyCode(initialAsset.companyCode || (isPadget ? '9500' : '5020'))
       setShowEditMasterData(false)
       setFloor(initialAsset.floor || '')
       setCurrentLocation(initialAsset.currentLocation || '')
@@ -1199,7 +1199,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                         onClick={() => {
                           setCompany(comp)
                           const isPad = isPadgetCompany(comp)
-                          setCompanyCode(isPad ? '5030' : '5020')
+                          setCompanyCode(isPad ? '9500' : '5020')
                           if (isPad && building === 'C39') setBuilding('D197')
                           if (!isPad && ['D197', 'D198', 'D199'].includes(building)) setBuilding('C39')
                         }}
@@ -1503,7 +1503,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                         const isPad = isPadgetCompany(bldg)
                         if (isPad) {
                           setCompany('Padget')
-                          setCompanyCode('5030')
+                          setCompanyCode('9500')
                         } else if (bldg === 'C39') {
                           setCompany('ismartu')
                           setCompanyCode('5020')
@@ -1528,7 +1528,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     setBuilding(val)
                     if (isPadgetCompany(val)) {
                       setCompany('Padget')
-                      setCompanyCode('5030')
+                      setCompanyCode('9500')
                     } else if (val.toUpperCase() === 'C39') {
                       setCompany('ismartu')
                       setCompanyCode('5020')
