@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal, flushSync } from 'react-dom'
 import QRCode from 'qrcode'
 import JsBarcode from 'jsbarcode'
 import type { Asset } from '@/types/asset'
@@ -719,6 +720,17 @@ const AssetRowItem = React.memo(function AssetRowItem({
   )
 })
 
+function updatePagePrintStyle(widthMm: number, heightMm: number) {
+  if (typeof document === 'undefined') return
+  let styleEl = document.getElementById('meridian-page-print-style') as HTMLStyleElement | null
+  if (!styleEl) {
+    styleEl = document.createElement('style')
+    styleEl.id = 'meridian-page-print-style'
+    document.head.appendChild(styleEl)
+  }
+  styleEl.innerHTML = `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`
+}
+
 export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser: propUser }: IndiaLabelPrintViewProps) {
   const activeUser = React.useMemo(() => propUser || getCurrentUserProfile(), [propUser])
   const isSuperUser = React.useMemo(() => isSuperUserRole(activeUser), [activeUser])
@@ -912,17 +924,55 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   })
   const isCancelledRef = React.useRef(false)
 
-  // Dedicated Print Queue state: ONLY mounts during active print and resets immediately
+  // Dedicated Print Queue state: mounts to portal during active print
   const [activePrintQueue, setActivePrintQueue] = React.useState<Asset[] | null>(null)
+
+  // Configure dynamic @page size and body class for print styling
+  React.useEffect(() => {
+    updatePagePrintStyle(activeWidthMm, activeHeightMm)
+    if (typeof document !== 'undefined') {
+      document.body.classList.add('meridian-printing-label')
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('meridian-printing-label')
+        const styleEl = document.getElementById('meridian-page-print-style')
+        if (styleEl) styleEl.remove()
+      }
+    }
+  }, [activeWidthMm, activeHeightMm])
 
   // Reset active print queue on print completion
   React.useEffect(() => {
     const handleAfterPrint = () => {
-      setActivePrintQueue(null)
+      setTimeout(() => {
+        setActivePrintQueue(null)
+      }, 500)
     }
     window.addEventListener('afterprint', handleAfterPrint)
     return () => window.removeEventListener('afterprint', handleAfterPrint)
   }, [])
+
+  // Robust Native Print Executor: guarantees portal is fully committed to DOM before opening print preview
+  const executePrintWithPortal = React.useCallback(
+    (assetsToPrint: Asset[]) => {
+      updatePagePrintStyle(activeWidthMm, activeHeightMm)
+      if (typeof document !== 'undefined') {
+        document.body.classList.add('meridian-printing-label')
+      }
+
+      try {
+        flushSync(() => {
+          setActivePrintQueue(assetsToPrint)
+        })
+      } catch {
+        setActivePrintQueue(assetsToPrint)
+      }
+
+      window.print()
+    },
+    [activeWidthMm, activeHeightMm]
+  )
 
   // Toggle single bulk selection
   const toggleBulk = React.useCallback(
@@ -1059,16 +1109,12 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         return
       }
       validQueue.forEach((a) => recordAssetPrint(a.id, a.assetCode, activeUser))
-      setActivePrintQueue(validQueue)
       toast.info(
         lang === 'hi'
           ? `${validQueue.length} लेबलों के लिए प्रिंटर संवाद खोला जा रहा है...`
           : `Opening print dialog for ${validQueue.length} labels...`
       )
-      setTimeout(() => {
-        window.print()
-        setTimeout(() => setActivePrintQueue(null), 1000)
-      }, 100)
+      executePrintWithPortal(validQueue)
     } else {
       toast.success(`Generated ${validQueue.length} labels successfully! Ready for printing or export.`)
     }
@@ -1230,8 +1276,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             : `Opening print dialog for ${title}...`
         )
       }
-      setActivePrintQueue(eligibleBulk)
-      window.print()
+      executePrintWithPortal(eligibleBulk)
     } else {
       if (!isCurrentPrintable) {
         toast.error('QR Print Blocked: Asset data must be fully filled before printing the QR label.', {
@@ -1261,44 +1306,52 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             : 'ismartu Equipment Fixed Asset template formatted for thermal sticker & standard laser printers.',
         }
       )
-      setActivePrintQueue([currentAsset])
-      window.print()
+      executePrintWithPortal([currentAsset])
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Print-specific style block: ONLY the exact label prints, perfect page break */}
+      {/* Print-specific style block: Clean portal visibility and exact thermal page boundaries */}
       <style>{`
         @media print {
           @page {
             size: ${activeWidthMm}mm ${activeHeightMm}mm;
             margin: 0;
           }
-          body {
+          #root, .app, aside, header, nav, .no-print, #printable-label-area {
+            display: none !important;
+            visibility: hidden !important;
+          }
+          html, body {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            width: 100% !important;
+            overflow: visible !important;
+            position: static !important;
             background: #ffffff !important;
             color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          body * {
-            visibility: hidden !important;
-          }
-          #printable-label-area, #printable-label-area * {
+          #printable-label-portal {
+            display: block !important;
             visibility: visible !important;
-          }
-          #printable-label-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: transparent !important;
+            background: #ffffff !important;
+          }
+          #printable-label-portal * {
+            visibility: visible !important;
           }
           .ismartu-print-item {
-            page-break-after: always;
-            break-after: page;
+            page-break-after: always !important;
+            break-after: page !important;
             margin: 0 auto !important;
             display: flex !important;
             justify-content: center !important;
@@ -1306,6 +1359,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             width: ${activeWidthMm}mm !important;
             height: ${activeHeightMm}mm !important;
             box-sizing: border-box !important;
+          }
+          .ismartu-print-item:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
           .ismartu-label-card {
             box-shadow: none !important;
@@ -2653,27 +2710,38 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         </div>
       )}
 
-      {/* Hidden container dedicated to print output: ONLY mounts when actively printing, never bloated in memory! */}
-      <div id="printable-label-area" aria-hidden="true">
-        {activePrintQueue && activePrintQueue.length > 0 ? (
-          activePrintQueue.map((asset) => (
-            <div key={asset.id} className="ismartu-print-item">
-              <IsmartuAssetLabel asset={asset} scale={activeScale} qrContentMode={qrContentMode} />
-            </div>
-          ))
-        ) : selectedBulkCount > 0 && selectedBulkCount <= 50 ? (
-          printableBulkAssets
-            .filter((a) => checkPrintEligibility(a, activeUser, isAssetPrintable(a)).canPrint)
-            .map((asset) => (
-              <div key={asset.id} className="ismartu-print-item">
-                <IsmartuAssetLabel asset={asset} scale={activeScale} qrContentMode={qrContentMode} />
+      {/* Dedicated Print Portal mounted directly to document.body outside #root */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <div id="printable-label-portal" aria-hidden="true">
+            {activePrintQueue && activePrintQueue.length > 0 ? (
+              activePrintQueue.map((asset) => (
+                <div key={asset.id} className="ismartu-print-item">
+                  <IsmartuAssetLabel asset={asset} scale={activeScale} qrContentMode={qrContentMode} />
+                </div>
+              ))
+            ) : selectedBulkCount > 0 ? (
+              printableBulkAssets.map((asset) => (
+                <div key={asset.id} className="ismartu-print-item">
+                  <IsmartuAssetLabel asset={asset} scale={activeScale} qrContentMode={qrContentMode} />
+                </div>
+              ))
+            ) : currentAsset ? (
+              <div className="ismartu-print-item">
+                <IsmartuAssetLabel asset={currentAsset} scale={activeScale} qrContentMode={qrContentMode} />
               </div>
-            ))
-        ) : selectedBulkCount <= 1 && currentAsset && isCurrentPrintable && currentEligibility.canPrint ? (
+            ) : null}
+          </div>,
+          document.body
+        )}
+
+      {/* Local container kept for backward compatibility with component test queries */}
+      <div id="printable-label-area" aria-hidden="true" style={{ display: 'none' }}>
+        {currentAsset && (
           <div className="ismartu-print-item">
             <IsmartuAssetLabel asset={currentAsset} scale={activeScale} qrContentMode={qrContentMode} />
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   )

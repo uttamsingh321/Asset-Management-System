@@ -1411,3 +1411,86 @@ h1 {
 .login-offline-btn:hover {
   background: rgba(245, 158, 11, 0.22);
 }
+
+/* ==========================================================================
+   ENTERPRISE LABEL PRINT STYLESHEET
+   Ensures 1:1 crisp thermal label (100x65mm / 80x50mm) and PDF generation
+   without blank pages, clipping, or viewport height locks.
+   ========================================================================== */
+@media screen {
+  #printable-label-portal {
+    display: none !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+@media print {
+  /* When printing asset labels, hide the interactive web app root completely */
+  body.meridian-printing-label #root,
+  body.meridian-printing-label .app,
+  body.meridian-printing-label aside,
+  body.meridian-printing-label header,
+  body.meridian-printing-label nav,
+  body.meridian-printing-label .no-print,
+  #printable-label-area {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Reset document and viewport flow so browser does not clip or paginate blank pages */
+  html:has(body.meridian-printing-label),
+  body.meridian-printing-label {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: 100% !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Make the portal visible and properly positioned at the very top of print page */
+  body.meridian-printing-label #printable-label-portal {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.meridian-printing-label #printable-label-portal * {
+    visibility: visible !important;
+  }
+
+  .ismartu-print-item {
+    page-break-after: always !important;
+    break-after: page !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .ismartu-print-item:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .ismartu-label-card {
+    box-shadow: none !important;
+  }
+}
