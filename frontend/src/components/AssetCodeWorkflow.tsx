@@ -704,15 +704,15 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         </div>
 
         {/* Tasks Table / List */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[540px] md:max-h-[calc(100vh-380px)] min-h-[320px] rounded-lg border border-[var(--line)]/60 relative scrollbar-thin">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-[var(--surf)] shadow-xs">
               <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
-                <th className="py-2.5 px-3">Asset Code</th>
-                <th className="py-2.5 px-3">Department</th>
-                <th className="py-2.5 px-3">Data Status</th>
-                <th className="py-2.5 px-3">Location & Custodian</th>
-                <th className="py-2.5 px-3 text-right">Action</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Asset Code</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Department</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Data Status</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Location & Custodian</th>
+                <th className="py-2.5 px-3 text-right bg-[var(--surf)]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
