@@ -70,7 +70,7 @@ function encodeCode128SetB(text: string): string {
 }
 
 // 1D Barcode SVG Component with official ISO/IEC 15417 Code-128 standard encoding scannable by all barcode guns and camera scanners
-function BarcodeSvg({ value, height = 44 }: { value: string; height?: number }) {
+export const BarcodeSvg = React.memo(function BarcodeSvg({ value, height = 44 }: { value: string; height?: number }) {
   const { totalWidth, rects } = React.useMemo(() => {
     const rawVal = String(value || '2004218').trim()
     let binaryData = ''
@@ -141,10 +141,10 @@ function BarcodeSvg({ value, height = 44 }: { value: string; height?: number }) 
       ))}
     </svg>
   )
-}
+})
 
 // 2D QR Code SVG Component with ISO/IEC 18004 standards-compliant matrix scannable by all mobile cameras and barcode readers
-function QrCodeSvg({
+export const QrCodeSvg = React.memo(function QrCodeSvg({
   value,
   displayLabel,
   size = 68,
@@ -186,10 +186,10 @@ function QrCodeSvg({
       ))}
     </svg>
   )
-}
+})
 
 // The Exact Template Component requested by the user
-export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: number }) {
+export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: number }) {
   // 1. Asset Code
   const assetCode = asset.assetCode || '-'
 
@@ -374,7 +374,7 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
         </div>
       </div>
 
-      {/* 2. Middle Table: 7 Rows */}
+      {/* 2. Middle Table: 6 Rows */}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {rows.map((row, idx) => (
           <div
@@ -515,7 +515,7 @@ export function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: 
       </div>
     </div>
   )
-}
+})
 
 export interface LabelSizePreset {
   id: string
@@ -535,6 +535,97 @@ export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
   { id: 'custom', name: 'Custom Size', widthMm: 100, heightMm: 65, scale: 1.0, desc: 'User-defined Dimensions' },
 ]
 
+// Memoized List Row Item for Zero Lag under 15,000+ assets
+interface AssetRowItemProps {
+  asset: Asset
+  isSelected: boolean
+  isChecked: boolean
+  isPrintable: boolean
+  printCount: number
+  isApproved: boolean
+  isPending: boolean
+  onSelect: (id: string) => void
+  onToggleCheck: (asset: Asset) => void
+}
+
+const AssetRowItem = React.memo(function AssetRowItem({
+  asset,
+  isSelected,
+  isChecked,
+  isPrintable,
+  printCount,
+  isApproved,
+  isPending,
+  onSelect,
+  onToggleCheck,
+}: AssetRowItemProps) {
+  return (
+    <div
+      onClick={() => onSelect(asset.id)}
+      className={`p-2.5 flex items-center gap-2.5 cursor-pointer transition-colors ${
+        isSelected ? 'bg-[var(--acc)]/10 font-bold' : 'hover:bg-[var(--surf2)]'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={isChecked}
+        disabled={!isPrintable}
+        onChange={(e) => {
+          e.stopPropagation()
+          onToggleCheck(asset)
+        }}
+        title={isPrintable ? 'Select for QR print' : 'Cannot select: asset data is incomplete'}
+        className={`rounded ${isPrintable ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-mono font-bold text-[var(--ink)] flex items-center gap-1.5 truncate">
+          <span>{asset.assetCode}</span>
+          {isPrintable ? (
+            printCount === 0 ? (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
+                ✓ Ready
+              </span>
+            ) : isApproved ? (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30">
+                ✅ Re-print OK
+              </span>
+            ) : isPending ? (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
+                ⏳ Pending
+              </span>
+            ) : (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold border border-purple-500/20">
+                🔒 Printed ({printCount}x)
+              </span>
+            )
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 font-semibold border border-amber-500/20">
+              🔒 Incomplete
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-[var(--mute)] truncate">
+          {asset.currentDescription || asset.name} · {asset.building || 'C39'}
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <span
+          className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
+            asset.company?.toLowerCase().includes('padget')
+              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+              : 'bg-red-500/10 text-red-600 border-red-500/20'
+          }`}
+        >
+          {asset.company?.toLowerCase().includes('padget') ? 'PadGET' : (asset.company || 'ismartu')}
+        </span>
+        <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surf2)] text-[var(--mute)] font-medium">
+          {asset.currentDepartment || asset.department || 'IT'}
+        </span>
+      </div>
+    </div>
+  )
+})
+
 export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser: propUser }: IndiaLabelPrintViewProps) {
   const activeUser = React.useMemo(() => propUser || getCurrentUserProfile(), [propUser])
   const isSuperUser = React.useMemo(() => isSuperUserRole(activeUser), [activeUser])
@@ -553,6 +644,22 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     () => reprintRequests.filter((r) => r.status === 'pending'),
     [reprintRequests]
   )
+
+  // Fast O(1) status lookup index to avoid quadratic iteration over thousands of assets
+  const statusIndex = React.useMemo(() => {
+    const approvedSet = new Set<string>()
+    const pendingSet = new Set<string>()
+    for (const r of reprintRequests) {
+      if (r.status === 'approved' && !r.isUsed) {
+        if (r.assetId) approvedSet.add(r.assetId)
+        if (r.assetCode) approvedSet.add(r.assetCode)
+      } else if (r.status === 'pending') {
+        if (r.assetId) pendingSet.add(r.assetId)
+        if (r.assetCode) pendingSet.add(r.assetCode)
+      }
+    }
+    return { approvedSet, pendingSet }
+  }, [reprintRequests])
 
   // Modals state
   const [isRequestModalOpen, setIsRequestModalOpen] = React.useState(false)
@@ -579,6 +686,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   const activeHeightMm = selectedPresetId === 'custom' ? customHeightMm : activePreset.heightMm
   const activeScale = selectedPresetId === 'custom' ? customScalePercent / 100 : activePreset.scale
 
+  // Active single selection state
   const [selectedAssetId, setSelectedAssetId] = React.useState<string>(() => {
     try {
       const stored = sessionStorage.getItem('meridian_print_asset_id')
@@ -599,20 +707,34 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     } catch {}
   }, [assets])
 
+  // 10. Search debounce (300ms) to ensure butter-smooth typing without lag
   const [search, setSearch] = React.useState('')
+  const [debouncedSearch, setDebouncedSearch] = React.useState('')
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [search])
+
   const [filterTab, setFilterTab] = React.useState<'all' | 'ready' | 'pending'>('all')
   const [bulkSelected, setBulkSelected] = React.useState<Record<string, boolean>>({})
 
-  // Compute counts
+  // 8. Pagination State (50 items per page default)
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(50)
+
+  // Compute counts efficiently
   const readyAssetsCount = React.useMemo(() => assets.filter(isAssetPrintable).length, [assets])
   const pendingAssetsCount = assets.length - readyAssetsCount
 
   const searchedAssets = React.useMemo(() => {
-    if (!search.trim()) return assets
-    const q = search.toLowerCase()
+    if (!debouncedSearch.trim()) return assets
+    const q = debouncedSearch.toLowerCase().trim()
     return assets.filter(
       (a) =>
-        a.assetCode.toLowerCase().includes(q) ||
+        (a.assetCode && a.assetCode.toLowerCase().includes(q)) ||
         (a.name && a.name.toLowerCase().includes(q)) ||
         (a.currentDescription && a.currentDescription.toLowerCase().includes(q)) ||
         (a.serialNumber && a.serialNumber.toLowerCase().includes(q)) ||
@@ -629,7 +751,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         (a.department && a.department.toLowerCase().includes(q)) ||
         (a.currentDepartment && a.currentDepartment.toLowerCase().includes(q))
     )
-  }, [assets, search])
+  }, [assets, debouncedSearch])
 
   const filteredAssets = React.useMemo(() => {
     if (filterTab === 'ready') return searchedAssets.filter(isAssetPrintable)
@@ -637,8 +759,33 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     return searchedAssets
   }, [searchedAssets, filterTab])
 
-  const currentAsset = assets.find((a) => a.id === selectedAssetId) || filteredAssets[0] || assets[0]
+  // Pagination slice
+  const totalPages = Math.max(1, Math.ceil(filteredAssets.length / pageSize))
+  const pagedAssets = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredAssets.slice(start, start + pageSize)
+  }, [filteredAssets, currentPage, pageSize])
 
+  // Multi-selection calculations
+  const selectedBulkAssets = React.useMemo(() => {
+    return assets.filter((a) => bulkSelected[a.id])
+  }, [assets, bulkSelected])
+
+  const selectedBulkCount = selectedBulkAssets.length
+
+  const printableBulkAssets = React.useMemo(() => {
+    return selectedBulkAssets.filter(isAssetPrintable)
+  }, [selectedBulkAssets])
+
+  // Active single asset: if exactly 1 is checked, that's currentAsset; otherwise selectedAssetId
+  const currentAsset = React.useMemo(() => {
+    if (selectedBulkCount === 1) {
+      return selectedBulkAssets[0]
+    }
+    return assets.find((a) => a.id === selectedAssetId) || filteredAssets[0] || assets[0]
+  }, [selectedBulkCount, selectedBulkAssets, assets, selectedAssetId, filteredAssets])
+
+  // Current Asset validation & completeness
   const currentCompleteness = React.useMemo(
     () => checkAssetDataCompleteness(currentAsset),
     [currentAsset]
@@ -651,27 +798,63 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     [currentAsset, activeUser, isCurrentPrintable, reprintUpdateVersion]
   )
 
-  const toggleBulk = (asset: Asset) => {
-    if (!isAssetPrintable(asset)) {
-      toast.error(`Cannot select ${asset.assetCode} for printing: Asset data is not fully filled.`, {
-        description: `Missing: ${checkAssetDataCompleteness(asset).missingFields.join(', ')}`,
-      })
-      return
+  // 4 & 5. Select All & Confirmation Modal State
+  const [isSelectAllModalOpen, setIsSelectAllModalOpen] = React.useState(false)
+
+  // 6. Sequential Bulk Generation State (Non-blocking)
+  const [isBulkGenerating, setIsBulkGenerating] = React.useState(false)
+  const [bulkProgress, setBulkProgress] = React.useState<{
+    current: number
+    total: number
+    currentAssetCode: string
+    percent: number
+    eta: string
+  }>({
+    current: 0,
+    total: 0,
+    currentAssetCode: '',
+    percent: 0,
+    eta: '',
+  })
+  const isCancelledRef = React.useRef(false)
+
+  // Dedicated Print Queue state: ONLY mounts during active print and resets immediately
+  const [activePrintQueue, setActivePrintQueue] = React.useState<Asset[] | null>(null)
+
+  // Reset active print queue on print completion
+  React.useEffect(() => {
+    const handleAfterPrint = () => {
+      setActivePrintQueue(null)
     }
+    window.addEventListener('afterprint', handleAfterPrint)
+    return () => window.removeEventListener('afterprint', handleAfterPrint)
+  }, [])
 
-    // Check single-print policy on individual selection
-    const elig = checkPrintEligibility(asset, activeUser, true)
-    if (elig.isReprintBlocked) {
-      toast.warning(`Cannot select ${asset.assetCode}: Duplicate Print Restricted`, {
-        description: `This asset label was already printed. Submit a Re-print Request to the Super User to authorize a re-print.`,
-      })
-      return
-    }
+  // Toggle single bulk selection
+  const toggleBulk = React.useCallback(
+    (asset: Asset) => {
+      if (!isAssetPrintable(asset)) {
+        toast.error(`Cannot select ${asset.assetCode} for printing: Asset data is not fully filled.`, {
+          description: `Missing: ${checkAssetDataCompleteness(asset).missingFields.join(', ')}`,
+        })
+        return
+      }
 
-    setBulkSelected((prev) => ({ ...prev, [asset.id]: !prev[asset.id] }))
-  }
+      const elig = checkPrintEligibility(asset, activeUser, true)
+      if (elig.isReprintBlocked) {
+        toast.warning(`Cannot select ${asset.assetCode}: Duplicate Print Restricted`, {
+          description: `This asset label was already printed. Submit a Re-print Request to the Super User to authorize a re-print.`,
+        })
+        return
+      }
 
-  const selectAll = () => {
+      setBulkSelected((prev) => ({ ...prev, [asset.id]: !prev[asset.id] }))
+    },
+    [activeUser]
+  )
+
+  // Select All click handler: prompts confirmation if large set (>50)
+  const executeSelectAll = React.useCallback((andStartGeneration = false) => {
     const all: Record<string, boolean> = {}
     const printableInList = filteredAssets.filter(isAssetPrintable)
     let skippedCount = 0
@@ -699,21 +882,158 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
       } else {
         toast.success(`Selected ${selectedCount} fully filled assets for printing.`)
       }
+      if (andStartGeneration) {
+        const selectedList = printableInList.filter((a) => all[a.id])
+        runSequentialBulk(selectedList, false)
+      }
+    }
+  }, [filteredAssets, activeUser])
+
+  const handleSelectAllClick = () => {
+    const printableInList = filteredAssets.filter(isAssetPrintable)
+    if (printableInList.length === 0) {
+      toast.info('No fully filled assets available in the current view to select.')
+      return
+    }
+
+    if (printableInList.length > 50) {
+      setIsSelectAllModalOpen(true)
+    } else {
+      executeSelectAll(false)
     }
   }
 
-  const clearAll = () => {
+  const clearAll = React.useCallback(() => {
     setBulkSelected({})
+  }, [])
+
+  // 6. Sequential Bulk Generator (Non-blocking chunks of 25)
+  const runSequentialBulk = async (assetsToGenerate: Asset[], autoPrint = false) => {
+    if (assetsToGenerate.length === 0) {
+      toast.error('No printable assets available in selection.')
+      return
+    }
+
+    isCancelledRef.current = false
+    setIsBulkGenerating(true)
+    const total = assetsToGenerate.length
+    const startTime = Date.now()
+
+    const validQueue: Asset[] = []
+    const CHUNK_SIZE = 25
+
+    for (let i = 0; i < total; i += CHUNK_SIZE) {
+      if (isCancelledRef.current) {
+        toast.info('Label generation cancelled by user.')
+        setIsBulkGenerating(false)
+        return
+      }
+
+      const chunk = assetsToGenerate.slice(i, i + CHUNK_SIZE)
+      for (const asset of chunk) {
+        const elig = checkPrintEligibility(asset, activeUser, isAssetPrintable(asset))
+        if (elig.canPrint) {
+          validQueue.push(asset)
+        }
+      }
+
+      const currentCount = Math.min(i + CHUNK_SIZE, total)
+      const elapsed = (Date.now() - startTime) / 1000
+      const rate = currentCount / (elapsed || 0.1)
+      const remainingSecs = Math.max(0, Math.round((total - currentCount) / rate))
+      const eta = remainingSecs < 60 ? `${remainingSecs}s` : `${Math.ceil(remainingSecs / 60)} min`
+
+      setBulkProgress({
+        current: currentCount,
+        total,
+        currentAssetCode: chunk[chunk.length - 1]?.assetCode || '',
+        percent: Math.round((currentCount / total) * 100),
+        eta,
+      })
+
+      // Non-blocking yield to browser event loop
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    setIsBulkGenerating(false)
+
+    if (autoPrint) {
+      if (validQueue.length === 0) {
+        toast.error('Duplicate Print Blocked: All selected assets have already been printed once.', {
+          description: 'Single-print policy enforced. Re-printing requires Super User authorization.',
+        })
+        return
+      }
+      validQueue.forEach((a) => recordAssetPrint(a.id, a.assetCode, activeUser))
+      setActivePrintQueue(validQueue)
+      toast.info(
+        lang === 'hi'
+          ? `${validQueue.length} लेबलों के लिए प्रिंटर संवाद खोला जा रहा है...`
+          : `Opening print dialog for ${validQueue.length} labels...`
+      )
+      setTimeout(() => {
+        window.print()
+        setTimeout(() => setActivePrintQueue(null), 1000)
+      }, 100)
+    } else {
+      toast.success(`Generated ${validQueue.length} labels successfully! Ready for printing or export.`)
+    }
   }
 
-  const selectedBulkCount = Object.values(bulkSelected).filter(Boolean).length
-  const selectedBulkAssets = React.useMemo(() => {
-    return assets.filter((a) => bulkSelected[a.id])
-  }, [assets, bulkSelected])
+  // Export Labels to CSV
+  const handleExportCsv = (assetsToExport: Asset[]) => {
+    if (assetsToExport.length === 0) {
+      toast.error('No assets selected to export.')
+      return
+    }
+    const headers = [
+      'Asset Code',
+      'Asset Name',
+      'Model',
+      'Department',
+      'Custodian ID',
+      'Custodian Name',
+      'Placement Area',
+      'Company',
+      'Plant',
+      'Status',
+    ]
+    const rows = assetsToExport.map((a) => {
+      const custodian =
+        a.inChargeId && a.inChargeName
+          ? `${a.inChargeId} · ${a.inChargeName}`
+          : a.whoInCharge || a.custodian || '-'
+      const loc = a.building
+        ? `${a.building}-${a.floor || '1F'} (${a.currentLocation || 'Floor'})`
+        : a.currentLocation || '-'
+      return [
+        a.assetCode,
+        a.currentDescription || a.name || 'Equipment Fixed Asset',
+        a.model || a.serialNumber || '-',
+        a.currentDepartment || a.department || 'Operations',
+        a.inChargeId || '-',
+        custodian,
+        loc,
+        a.company || 'ismartu',
+        a.plant || 'Noida Plant',
+        isAssetPrintable(a) ? 'Ready' : 'Incomplete',
+      ]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(',')
+    })
 
-  const printableBulkAssets = React.useMemo(() => {
-    return selectedBulkAssets.filter(isAssetPrintable)
-  }, [selectedBulkAssets])
+    const csvContent = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `meridian_labels_${Date.now()}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success(`Exported ${assetsToExport.length} asset labels to CSV.`)
+  }
 
   // Submit Reprint Request Handler
   const handleSubmitReprintRequest = (e?: React.FormEvent) => {
@@ -770,6 +1090,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     }
   }
 
+  // Standard Print Handler
   const handlePrint = (title: string) => {
     if (selectedBulkCount > 0) {
       if (printableBulkAssets.length === 0) {
@@ -786,6 +1107,13 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         })
         return
       }
+
+      // If large bulk (> 50), use sequential non-blocking generator
+      if (eligibleBulk.length > 50) {
+        runSequentialBulk(eligibleBulk, true)
+        return
+      }
+
       // Record prints
       eligibleBulk.forEach((a) => {
         recordAssetPrint(a.id, a.assetCode, activeUser)
@@ -799,13 +1127,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         toast.info(
           lang === 'hi'
             ? `प्रिंटर संवाद खोला जा रहा है: ${title}...`
-            : `Opening print dialog for ${title}...`,
-          {
-            description:
-              'ismartu Equipment Fixed Asset template formatted for thermal sticker & standard laser printers.',
-          }
+            : `Opening print dialog for ${title}...`
         )
       }
+      setActivePrintQueue(eligibleBulk)
       window.print()
     } else {
       if (!isCurrentPrintable) {
@@ -836,6 +1161,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             : 'ismartu Equipment Fixed Asset template formatted for thermal sticker & standard laser printers.',
         }
       )
+      setActivePrintQueue([currentAsset])
       window.print()
     }
   }
@@ -934,30 +1260,30 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
 
           <button
             type="button"
-            disabled={selectedBulkCount > 0 ? printableBulkAssets.length === 0 : !currentEligibility.canPrint}
+            disabled={selectedBulkCount > 1 ? printableBulkAssets.length === 0 : !currentEligibility.canPrint}
             onClick={() =>
               handlePrint(
-                selectedBulkCount > 0
+                selectedBulkCount > 1
                   ? `${printableBulkAssets.length} Selected Labels`
                   : (currentAsset?.assetCode || 'Asset Label')
               )
             }
             className={`btn text-xs flex items-center gap-1.5 px-4 py-2 shadow-sm transition ${
-              (selectedBulkCount > 0 ? printableBulkAssets.length > 0 : currentEligibility.canPrint)
+              (selectedBulkCount > 1 ? printableBulkAssets.length > 0 : currentEligibility.canPrint)
                 ? 'p cursor-pointer'
                 : 'opacity-60 cursor-not-allowed bg-[var(--surf2)] text-[var(--mute)] border border-[var(--line)]'
             }`}
             title={
-              selectedBulkCount > 0
+              selectedBulkCount > 1
                 ? (printableBulkAssets.length === 0 ? 'No fully completed assets selected' : `Print ${printableBulkAssets.length} Ready Labels`)
                 : !isCurrentPrintable
                   ? `QR Print Blocked: ${currentCompleteness.missingFields.join(', ')}`
                   : currentEligibility.message
             }
           >
-            <span>{selectedBulkCount > 0 ? (printableBulkAssets.length > 0 ? '🖨️' : '🔒') : (currentEligibility.canPrint ? '🖨️' : '🔒')}</span>
+            <span>{selectedBulkCount > 1 ? (printableBulkAssets.length > 0 ? '🖨️' : '🔒') : (currentEligibility.canPrint ? '🖨️' : '🔒')}</span>
             <span>
-              {selectedBulkCount > 0
+              {selectedBulkCount > 1
                 ? (printableBulkAssets.length > 0 ? `Print ${printableBulkAssets.length} Ready Labels` : 'No Ready Labels Selected')
                 : !isCurrentPrintable
                   ? `QR Print Locked (${currentAsset?.assetCode || 'Incomplete'})`
@@ -1013,7 +1339,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)] flex items-center justify-between">
               <span>Select Asset</span>
               <span className="text-[11px] font-normal lowercase">
-                {filteredAssets.length} available
+                {filteredAssets.length.toLocaleString()} available
               </span>
             </h2>
 
@@ -1021,7 +1347,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             <div className="flex rounded-lg border border-[var(--line)] p-0.5 bg-[var(--surf2)] text-xs">
               <button
                 type="button"
-                onClick={() => setFilterTab('all')}
+                onClick={() => {
+                  setFilterTab('all')
+                  setCurrentPage(1)
+                }}
                 className={`flex-1 py-1 px-2 rounded-md font-medium text-center transition-all ${
                   filterTab === 'all'
                     ? 'bg-[var(--surf)] text-[var(--ink)] shadow-xs font-bold'
@@ -1032,7 +1361,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
               </button>
               <button
                 type="button"
-                onClick={() => setFilterTab('ready')}
+                onClick={() => {
+                  setFilterTab('ready')
+                  setCurrentPage(1)
+                }}
                 className={`flex-1 py-1 px-2 rounded-md font-medium text-center transition-all flex items-center justify-center gap-1 ${
                   filterTab === 'ready'
                     ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 shadow-xs font-bold'
@@ -1046,7 +1378,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
               </button>
               <button
                 type="button"
-                onClick={() => setFilterTab('pending')}
+                onClick={() => {
+                  setFilterTab('pending')
+                  setCurrentPage(1)
+                }}
                 className={`flex-1 py-1 px-2 rounded-md font-medium text-center transition-all flex items-center justify-center gap-1 ${
                   filterTab === 'pending'
                     ? 'bg-amber-500/15 text-amber-600 border border-amber-500/30 shadow-xs font-bold'
@@ -1060,6 +1395,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
               </button>
             </div>
 
+            {/* 10. Debounced Search Input */}
             <input
               type="text"
               value={search}
@@ -1071,7 +1407,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             <div className="flex items-center justify-between text-xs pt-1">
               <button
                 type="button"
-                onClick={selectAll}
+                onClick={handleSelectAllClick}
                 className="text-[var(--acc)] hover:underline font-semibold cursor-pointer"
               >
                 Select Ready
@@ -1085,97 +1421,31 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
               </button>
             </div>
 
+            {/* 8. Paginated Asset List (50 items rendered max) */}
             <div className="max-h-[380px] overflow-y-auto divide-y divide-[var(--line)] border border-[var(--line)] rounded-lg">
-              {filteredAssets.length > 0 ? (
-                filteredAssets.map((asset) => {
+              {pagedAssets.length > 0 ? (
+                pagedAssets.map((asset) => {
                   const isSelected = currentAsset?.id === asset.id
                   const isChecked = Boolean(bulkSelected[asset.id])
                   const isPrintable = isAssetPrintable(asset)
-                  return (
-                    <div
-                      key={asset.id}
-                      onClick={() => setSelectedAssetId(asset.id)}
-                      className={`p-2.5 flex items-center gap-2.5 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-[var(--acc)]/10 font-bold' : 'hover:bg-[var(--surf2)]'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        disabled={!isPrintable}
-                        onChange={(e) => {
-                          e.stopPropagation()
-                          toggleBulk(asset)
-                        }}
-                        title={isPrintable ? 'Select for QR print' : 'Cannot select: asset data is incomplete'}
-                        className={`rounded ${isPrintable ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-mono font-bold text-[var(--ink)] flex items-center gap-1.5 truncate">
-                          <span>{asset.assetCode}</span>
-                          {isPrintable ? (
-                            (() => {
-                              const aRec = printRecords[asset.id] || (asset.assetCode ? printRecords[asset.assetCode] : null)
-                              const pCount = aRec?.printCount || 0
-                              const isApproved = reprintRequests.some(
-                                (r) => (r.assetId === asset.id || r.assetCode === asset.assetCode) && r.status === 'approved' && !r.isUsed
-                              )
-                              const isPending = reprintRequests.some(
-                                (r) => (r.assetId === asset.id || r.assetCode === asset.assetCode) && r.status === 'pending'
-                              )
+                  const aRec = printRecords[asset.id] || (asset.assetCode ? printRecords[asset.assetCode] : null)
+                  const pCount = aRec?.printCount || 0
+                  const isApproved = statusIndex.approvedSet.has(asset.id) || (asset.assetCode ? statusIndex.approvedSet.has(asset.assetCode) : false)
+                  const isPending = statusIndex.pendingSet.has(asset.id) || (asset.assetCode ? statusIndex.pendingSet.has(asset.assetCode) : false)
 
-                              if (pCount === 0) {
-                                return (
-                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
-                                    ✓ Ready
-                                  </span>
-                                )
-                              }
-                              if (isApproved) {
-                                return (
-                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30">
-                                    ✅ Re-print OK
-                                  </span>
-                                )
-                              }
-                              if (isPending) {
-                                return (
-                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
-                                    ⏳ Pending
-                                  </span>
-                                )
-                              }
-                              return (
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold border border-purple-500/20">
-                                  🔒 Printed ({pCount}x)
-                                </span>
-                              )
-                            })()
-                          ) : (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 font-semibold border border-amber-500/20">
-                              🔒 Incomplete
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-[var(--mute)] truncate">
-                          {asset.currentDescription || asset.name} · {asset.building || 'C39'}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span
-                          className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
-                            asset.company?.toLowerCase().includes('padget')
-                              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                              : 'bg-red-500/10 text-red-600 border-red-500/20'
-                          }`}
-                        >
-                          {asset.company?.toLowerCase().includes('padget') ? 'PadGET' : (asset.company || 'ismartu')}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surf2)] text-[var(--mute)] font-medium">
-                          {asset.currentDepartment || asset.department || 'IT'}
-                        </span>
-                      </div>
-                    </div>
+                  return (
+                    <AssetRowItem
+                      key={asset.id}
+                      asset={asset}
+                      isSelected={isSelected}
+                      isChecked={isChecked}
+                      isPrintable={isPrintable}
+                      printCount={pCount}
+                      isApproved={isApproved}
+                      isPending={isPending}
+                      onSelect={(id) => setSelectedAssetId(id)}
+                      onToggleCheck={toggleBulk}
+                    />
                   )
                 })
               ) : (
@@ -1185,428 +1455,711 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
               )}
             </div>
 
-            {selectedBulkCount > 0 && (
-              <button
-                type="button"
-                disabled={printableBulkAssets.length === 0}
-                onClick={() => handlePrint(`${printableBulkAssets.length} Selected Labels`)}
-                className={`w-full btn text-xs py-2 flex items-center justify-center gap-2 shadow-sm ${
-                  printableBulkAssets.length > 0 ? 'p cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                }`}
-              >
-                <span>{printableBulkAssets.length > 0 ? '🖨️' : '🔒'}</span>
+            {/* Pagination Controls */}
+            <div className="pt-2 flex flex-col gap-2 border-t border-[var(--line)]">
+              <div className="flex items-center justify-between text-xs text-[var(--mute)]">
                 <span>
-                  {printableBulkAssets.length > 0
-                    ? `Print ${printableBulkAssets.length} Selected Labels`
-                    : 'No Complete Assets Selected'}
+                  Showing {filteredAssets.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to{' '}
+                  {Math.min(currentPage * pageSize, filteredAssets.length)} of {filteredAssets.length.toLocaleString()}
                 </span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Live Label Preview */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="card p-6 space-y-4">
-            <div className="flex flex-col gap-2 pb-3 border-b border-[var(--line)]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)]">
-                    Exact Label Preview
-                  </h2>
-                  <span className="text-[11px] text-[var(--mute)]">
-                    Exact representation that will print on thermal sticker or laser printer
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--acc)] font-mono font-bold">
-                    {activeWidthMm}mm × {activeHeightMm}mm
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowSizeManager(!showSizeManager)}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--surf)] text-[var(--ink)] cursor-pointer flex items-center gap-1.5 shadow-2xs transition"
-                    title="Change print label dimensions and scale"
-                  >
-                    <span>📐</span>
-                    <span>{showSizeManager ? 'Close Size Manager' : 'Manage Size'}</span>
-                  </button>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-[var(--mute)]">Per page:</span>
+                  {[50, 100, 200].map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => {
+                        setPageSize(sz)
+                        setCurrentPage(1)
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border transition cursor-pointer ${
+                        pageSize === sz
+                          ? 'bg-[var(--acc)] text-white border-[var(--acc)]'
+                          : 'bg-[var(--surf2)] text-[var(--mute)] border-[var(--line)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Manage Label Size Control Bar */}
-              {showSizeManager && (
-                <div className="p-3.5 rounded-xl border border-[var(--acc)]/30 bg-[var(--acc)]/5 space-y-3 animate-fadeIn">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-[var(--ink)] flex items-center gap-1.5">
-                      <span>⚙️</span>
-                      <span>Label Print Dimensions & Scaling</span>
-                    </span>
-                    <span className="text-[11px] text-[var(--mute)]">
-                      Configure thermal roll sticker (Zebra/TSC/TVS) or laser printer output
-                    </span>
-                  </div>
-
-                  {/* Standard Presets */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-[var(--mute)]">Standard Roll Presets</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {LABEL_SIZE_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedPresetId(preset.id)
-                            if (preset.id !== 'custom') {
-                              setCustomWidthMm(preset.widthMm)
-                              setCustomHeightMm(preset.heightMm)
-                              setCustomScalePercent(Math.round(preset.scale * 100))
-                            }
-                          }}
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                            selectedPresetId === preset.id
-                              ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-xs font-bold'
-                              : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
-                          }`}
-                          title={preset.desc}
-                        >
-                          <span>{preset.name}</span>
-                          {selectedPresetId === preset.id && <span className="text-[10px]">✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Custom Width, Height & Zoom Scale */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[var(--line)]/50 text-xs">
-                    {/* Custom Width */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[var(--mute)] block">
-                        Width (mm)
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min={30}
-                          max={250}
-                          value={activeWidthMm}
-                          onChange={(e) => {
-                            const val = Number(e.target.value) || 30
-                            setSelectedPresetId('custom')
-                            setCustomWidthMm(val)
-                            setCustomScalePercent(Math.round((val / 100) * 100))
-                          }}
-                          className="w-full text-xs font-mono font-bold p-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
-                        />
-                        <span className="text-[11px] text-[var(--mute)] font-medium">mm</span>
-                      </div>
-                    </div>
-
-                    {/* Custom Height */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[var(--mute)] block">
-                        Height (mm)
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min={20}
-                          max={200}
-                          value={activeHeightMm}
-                          onChange={(e) => {
-                            const val = Number(e.target.value) || 20
-                            setSelectedPresetId('custom')
-                            setCustomHeightMm(val)
-                          }}
-                          className="w-full text-xs font-mono font-bold p-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
-                        />
-                        <span className="text-[11px] text-[var(--mute)] font-medium">mm</span>
-                      </div>
-                    </div>
-
-                    {/* Scale / Zoom Slider */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-semibold text-[var(--mute)]">
-                          Visual Scale
-                        </label>
-                        <span className="text-[11px] font-mono font-bold text-[var(--acc)]">
-                          {Math.round(activeScale * 100)}%
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min={40}
-                          max={160}
-                          step={5}
-                          value={Math.round(activeScale * 100)}
-                          onChange={(e) => {
-                            const val = Number(e.target.value)
-                            setSelectedPresetId('custom')
-                            setCustomScalePercent(val)
-                            setCustomWidthMm(Math.round((100 * val) / 100))
-                            setCustomHeightMm(Math.round((65 * val) / 100))
-                          }}
-                          className="w-full accent-[var(--acc)] cursor-pointer"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPresetId('100x65')
-                            setCustomWidthMm(100)
-                            setCustomHeightMm(65)
-                            setCustomScalePercent(100)
-                          }}
-                          className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)] whitespace-nowrap cursor-pointer"
-                          title="Reset to 100% (100×65mm)"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-1 text-xs">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(1)}
+                    className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40 hover:bg-[var(--line)] cursor-pointer text-[11px]"
+                  >
+                    « First
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="px-2.5 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40 hover:bg-[var(--line)] cursor-pointer"
+                  >
+                    ‹ Prev
+                  </button>
+                  <span className="px-2 py-1 font-mono font-bold text-[var(--ink)]">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-2.5 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40 hover:bg-[var(--line)] cursor-pointer"
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--surf2)] disabled:opacity-40 hover:bg-[var(--line)] cursor-pointer text-[11px]"
+                  >
+                    Last »
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* Incomplete Asset Warning Banner */}
-            {currentAsset && !isCurrentPrintable && (
-              <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 font-bold text-sm text-amber-800 dark:text-amber-300">
-                    <span className="text-base">🔒</span>
-                    <span>QR Rule Enforced: Printing Blocked Until Data is Fully Filled</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30 shrink-0">
-                    Printing Prohibited
+            {selectedBulkCount > 0 && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={printableBulkAssets.length === 0}
+                  onClick={() => handlePrint(`${printableBulkAssets.length} Selected Labels`)}
+                  className={`w-full btn text-xs py-2 flex items-center justify-center gap-2 shadow-sm ${
+                    printableBulkAssets.length > 0 ? 'p cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <span>{printableBulkAssets.length > 0 ? '🖨️' : '🔒'}</span>
+                  <span>
+                    {printableBulkAssets.length > 0
+                      ? `Print ${printableBulkAssets.length} Selected Labels`
+                      : 'No Complete Assets Selected'}
                   </span>
-                </div>
-                <p className="text-xs text-[var(--mute)] leading-relaxed">
-                  Strict QR Rule: No one will be able to print the QR until data for the asset has been fully filled.
-                </p>
-                <div className="text-xs bg-[var(--surf)] p-3 rounded-lg border border-[var(--line)] space-y-1.5">
-                  <div className="font-semibold text-amber-700 dark:text-amber-300">
-                    Missing Required Information ({currentCompleteness.missingFields.length}):
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Live Label Preview OR Bulk Action Hub */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* 4. MULTIPLE SELECTION BEHAVIOR: When multiple assets selected, do NOT generate previews immediately! */}
+          {selectedBulkCount > 1 ? (
+            <div className="card p-6 space-y-5 border border-[var(--line)] shadow-sm bg-[var(--surf)] animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[var(--line)]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📦</span>
+                    <h2 className="text-base font-bold text-[var(--ink)]">
+                      {selectedBulkCount.toLocaleString()} Assets Selected
+                    </h2>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentCompleteness.missingFields.map((f) => (
+                  <p className="text-xs text-[var(--mute)] mt-1">
+                    Multi-selection mode active. Previews are generated on-demand to keep browser fast and responsive.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                    ✓ {printableBulkAssets.length.toLocaleString()} Ready
+                  </span>
+                  {selectedBulkCount - printableBulkAssets.length > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                      🔒 {(selectedBulkCount - printableBulkAssets.length).toLocaleString()} Incomplete
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  disabled={printableBulkAssets.length === 0}
+                  onClick={() => runSequentialBulk(printableBulkAssets, false)}
+                  className="btn p text-xs py-3 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <span>⚡</span>
+                  <span>Generate Labels</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={printableBulkAssets.length === 0}
+                  onClick={() => handlePrint(`${printableBulkAssets.length} Selected Labels`)}
+                  className="btn text-xs py-3 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm cursor-pointer"
+                >
+                  <span>🖨️</span>
+                  <span>Print Selected</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportCsv(selectedBulkAssets)}
+                  className="px-3 py-3 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--surf)] text-[var(--ink)] flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                >
+                  <span>📥</span>
+                  <span>Export Labels</span>
+                </button>
+              </div>
+
+              {/* Summary details */}
+              <div className="p-4 rounded-xl bg-[var(--surf2)]/50 border border-[var(--line)] space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-[var(--ink)]">Selected Assets Preview Queue</span>
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="text-red-500 hover:underline cursor-pointer"
+                  >
+                    Clear All Selected
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-[var(--line)] border border-[var(--line)] rounded-lg bg-[var(--surf)]">
+                  {selectedBulkAssets.slice(0, 10).map((a) => (
+                    <div key={a.id} className="p-2 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-[var(--ink)]">{a.assetCode}</span>
+                        <span className="text-[var(--mute)] truncate max-w-[200px]">
+                          {a.currentDescription || a.name || 'Equipment'}
+                        </span>
+                      </div>
                       <span
-                        key={f}
-                        className="px-2 py-0.5 rounded text-[11px] font-medium bg-red-500/10 text-red-600 border border-red-500/20"
+                        className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                          isAssetPrintable(a)
+                            ? 'bg-emerald-500/10 text-emerald-600'
+                            : 'bg-amber-500/10 text-amber-600'
+                        }`}
                       >
-                        ✗ {f}
+                        {isAssetPrintable(a) ? 'Ready' : 'Incomplete'}
                       </span>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+                  {selectedBulkAssets.length > 10 && (
+                    <div className="p-2 text-center text-[11px] text-[var(--mute)] italic">
+                      + {(selectedBulkAssets.length - 10).toLocaleString()} more selected assets
+                    </div>
+                  )}
                 </div>
-                {onFillAssetData && (
-                  <div className="pt-1">
+              </div>
+
+              <div className="text-[11px] text-[var(--mute)] bg-blue-500/5 p-3 rounded-lg border border-blue-500/20 flex items-center gap-2">
+                <span>ℹ️</span>
+                <span>
+                  High-capacity generation enabled: Labels process sequentially in non-blocking slices to guarantee 60 FPS UI responsiveness even with 100,000+ assets.
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* 2 & 3. SINGLE SELECTION BEHAVIOR: Exactly 1 preview exists in memory */
+            <div className="card p-6 space-y-4">
+              <div className="flex flex-col gap-2 pb-3 border-b border-[var(--line)]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--mute)]">
+                      Exact Label Preview
+                    </h2>
+                    <span className="text-[11px] text-[var(--mute)]">
+                      Exact representation that will print on thermal sticker or laser printer
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--acc)] font-mono font-bold">
+                      {activeWidthMm}mm × {activeHeightMm}mm
+                    </span>
                     <button
                       type="button"
-                      onClick={() => onFillAssetData(currentAsset)}
-                      className="btn p text-xs py-2 px-3.5 inline-flex items-center gap-1.5 cursor-pointer shadow-sm hover:shadow"
+                      onClick={() => setShowSizeManager(!showSizeManager)}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--surf)] text-[var(--ink)] cursor-pointer flex items-center gap-1.5 shadow-2xs transition"
+                      title="Change print label dimensions and scale"
                     >
-                      <span>✏️</span>
-                      <span>Fill Missing Asset Details Now</span>
+                      <span>📐</span>
+                      <span>{showSizeManager ? 'Close Size Manager' : 'Manage Size'}</span>
                     </button>
+                  </div>
+                </div>
+
+                {/* Manage Label Size Control Bar */}
+                {showSizeManager && (
+                  <div className="p-3.5 rounded-xl border border-[var(--acc)]/30 bg-[var(--acc)]/5 space-y-3 animate-fadeIn">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[var(--ink)] flex items-center gap-1.5">
+                        <span>⚙️</span>
+                        <span>Label Print Dimensions & Scaling</span>
+                      </span>
+                      <span className="text-[11px] text-[var(--mute)]">
+                        Configure thermal roll sticker (Zebra/TSC/TVS) or laser printer output
+                      </span>
+                    </div>
+
+                    {/* Standard Presets */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-[var(--mute)]">Standard Roll Presets</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {LABEL_SIZE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPresetId(preset.id)
+                              if (preset.id !== 'custom') {
+                                setCustomWidthMm(preset.widthMm)
+                                setCustomHeightMm(preset.heightMm)
+                                setCustomScalePercent(Math.round(preset.scale * 100))
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                              selectedPresetId === preset.id
+                                ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-xs font-bold'
+                                : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)]'
+                            }`}
+                            title={preset.desc}
+                          >
+                            <span>{preset.name}</span>
+                            {selectedPresetId === preset.id && <span className="text-[10px]">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Custom Width, Height & Zoom Scale */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[var(--line)]/50 text-xs">
+                      {/* Custom Width */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-[var(--mute)] block">
+                          Width (mm)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={30}
+                            max={250}
+                            value={activeWidthMm}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 30
+                              setSelectedPresetId('custom')
+                              setCustomWidthMm(val)
+                              setCustomScalePercent(Math.round((val / 100) * 100))
+                            }}
+                            className="w-full text-xs font-mono font-bold p-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
+                          />
+                          <span className="text-[11px] text-[var(--mute)] font-medium">mm</span>
+                        </div>
+                      </div>
+
+                      {/* Custom Height */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-[var(--mute)] block">
+                          Height (mm)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={20}
+                            max={200}
+                            value={activeHeightMm}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 20
+                              setSelectedPresetId('custom')
+                              setCustomHeightMm(val)
+                            }}
+                            className="w-full text-xs font-mono font-bold p-1.5 rounded border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)]"
+                          />
+                          <span className="text-[11px] text-[var(--mute)] font-medium">mm</span>
+                        </div>
+                      </div>
+
+                      {/* Scale / Zoom Slider */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-semibold text-[var(--mute)]">
+                            Visual Scale
+                          </label>
+                          <span className="text-[11px] font-mono font-bold text-[var(--acc)]">
+                            {Math.round(activeScale * 100)}%
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={40}
+                            max={160}
+                            step={5}
+                            value={Math.round(activeScale * 100)}
+                            onChange={(e) => {
+                              const val = Number(e.target.value)
+                              setSelectedPresetId('custom')
+                              setCustomScalePercent(val)
+                              setCustomWidthMm(Math.round((100 * val) / 100))
+                              setCustomHeightMm(Math.round((65 * val) / 100))
+                            }}
+                            className="w-full accent-[var(--acc)] cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPresetId('100x65')
+                              setCustomWidthMm(100)
+                              setCustomHeightMm(65)
+                              setCustomScalePercent(100)
+                            }}
+                            className="text-[10px] text-[var(--mute)] hover:text-[var(--ink)] whitespace-nowrap cursor-pointer"
+                            title="Reset to 100% (100×65mm)"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
-            )}
 
-            {/* Single-Print Governance & Re-print Alerts */}
-            {currentAsset && isCurrentPrintable && (
-              <>
-                {/* 1. Duplicate Print Blocked (Already Printed) */}
-                {currentEligibility.status === 'already_printed_blocked' && (
-                  <div className="p-4 rounded-xl border border-red-500/40 bg-red-500/10 text-red-900 dark:text-red-200 space-y-2.5 animate-fadeIn">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 font-bold text-sm text-red-700 dark:text-red-300">
-                        <span className="text-base">🔒</span>
-                        <span>Single-Print Policy Enforced: Duplicate Printing Locked</span>
+              {/* Incomplete Asset Warning Banner */}
+              {currentAsset && !isCurrentPrintable && (
+                <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 font-bold text-sm text-amber-800 dark:text-amber-300">
+                      <span className="text-base">🔒</span>
+                      <span>QR Rule Enforced: Printing Blocked Until Data is Fully Filled</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30 shrink-0">
+                      Printing Prohibited
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--mute)] leading-relaxed">
+                    Strict QR Rule: No one will be able to print the QR until data for the asset has been fully filled.
+                  </p>
+                  <div className="text-xs bg-[var(--surf)] p-3 rounded-lg border border-[var(--line)] space-y-1.5">
+                    <div className="font-semibold text-amber-700 dark:text-amber-300">
+                      Missing Required Information ({currentCompleteness.missingFields.length}):
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {currentCompleteness.missingFields.map((f) => (
+                        <span
+                          key={f}
+                          className="px-2 py-0.5 rounded text-[11px] font-medium bg-red-500/10 text-red-600 border border-red-500/20"
+                        >
+                          ✗ {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {onFillAssetData && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => onFillAssetData(currentAsset)}
+                        className="btn p text-xs py-2 px-3.5 inline-flex items-center gap-1.5 cursor-pointer shadow-sm hover:shadow"
+                      >
+                        <span>✏️</span>
+                        <span>Fill Missing Asset Details Now</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Single-Print Governance & Re-print Alerts */}
+              {currentAsset && isCurrentPrintable && (
+                <>
+                  {/* 1. Duplicate Print Blocked (Already Printed) */}
+                  {currentEligibility.status === 'already_printed_blocked' && (
+                    <div className="p-4 rounded-xl border border-red-500/40 bg-red-500/10 text-red-900 dark:text-red-200 space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-red-700 dark:text-red-300">
+                          <span className="text-base">🔒</span>
+                          <span>Single-Print Policy Enforced: Duplicate Printing Locked</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30 shrink-0">
+                          Printed {currentEligibility.printCount} time{currentEligibility.printCount > 1 ? 's' : ''}
+                        </span>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30 shrink-0">
-                        Printed {currentEligibility.printCount} time{currentEligibility.printCount > 1 ? 's' : ''}
+                      <p className="text-xs text-[var(--mute)] leading-relaxed">
+                        Enterprise physical tag governance rule: No user may print a label twice. If this physical label is damaged, lost, or needs replacement, submit a Re-print Request to the Super User for authorization.
+                      </p>
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsRequestModalOpen(true)}
+                          className="btn p text-xs py-2 px-3.5 inline-flex items-center gap-1.5 cursor-pointer shadow-sm hover:shadow"
+                        >
+                          <span>📩</span>
+                          <span>Request Re-print from Super User</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Re-print Request Pending Review */}
+                  {currentEligibility.status === 'reprint_pending' && (
+                    <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-amber-800 dark:text-amber-300">
+                          <span className="text-base">⏳</span>
+                          <span>Re-print Request Pending Super User Approval</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                          Under Review
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--mute)] leading-relaxed">
+                        Request ID: <span className="font-mono font-bold">{currentEligibility.pendingRequest?.id}</span> · Submitted by <b>{currentEligibility.pendingRequest?.requestedBy}</b> ({currentEligibility.pendingRequest?.requesterDept}) on {new Date(currentEligibility.pendingRequest?.requestedAt || '').toLocaleDateString()}.
+                        <br />Reason: <b>{currentEligibility.pendingRequest?.reason}</b>
+                        {currentEligibility.pendingRequest?.notes && ` · "${currentEligibility.pendingRequest.notes}"`}
+                      </p>
+                      {isSuperUser && (
+                        <div className="pt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickApprove(currentEligibility.pendingRequest!)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>✅</span>
+                            <span>Approve Re-print Now (Super User)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickReject(currentEligibility.pendingRequest!)}
+                            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>❌</span>
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 3. Re-print Approved by Super User */}
+                  {currentEligibility.status === 'reprint_approved' && (
+                    <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 space-y-2 animate-fadeIn">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-emerald-800 dark:text-emerald-300">
+                          <span className="text-base">✅</span>
+                          <span>Re-print Authorized by Super User</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0">
+                          Single-Use Permit Valid
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--mute)] leading-relaxed">
+                        Super User <b>{currentEligibility.approvedRequest?.reviewedBy}</b> approved re-print on {new Date(currentEligibility.approvedRequest?.reviewedAt || '').toLocaleDateString()}.
+                        <br />Review note: <i>{currentEligibility.approvedRequest?.reviewNotes || 'Approved'}</i>. You are now authorized to print this label once.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 4. Super User Override */}
+                  {currentEligibility.status === 'superuser_override' && (
+                    <div className="p-3 rounded-xl border border-purple-500/30 bg-purple-500/5 text-purple-900 dark:text-purple-300 flex items-center justify-between text-xs animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <span>👑</span>
+                        <span className="font-semibold">Super User Administrative Clearance: Direct Re-print Authorized</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 font-bold">
+                        Print Count: {currentEligibility.printCount}
                       </span>
                     </div>
-                    <p className="text-xs text-[var(--mute)] leading-relaxed">
-                      Enterprise physical tag governance rule: No user may print a label twice. If this physical label is damaged, lost, or needs replacement, submit a Re-print Request to the Super User for authorization.
-                    </p>
-                    <div className="pt-1 flex flex-wrap items-center gap-2">
+                  )}
+                </>
+              )}
+
+              {/* Exact Preview Container: keyed by currentAsset.id so previous canvas/SVG is destroyed completely */}
+              {currentAsset ? (
+                <div
+                  key={currentAsset.id}
+                  className="flex flex-col items-center justify-center py-6 bg-[var(--surf2)]/50 rounded-xl p-4 overflow-x-auto relative"
+                >
+                  <div className={`transform transition-transform ${isCurrentPrintable ? 'hover:scale-[1.01]' : 'opacity-85'}`}>
+                    <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
+                  </div>
+
+                  {!isCurrentPrintable && (
+                    <div className="mt-3 text-xs font-bold text-amber-600 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/20 flex items-center gap-1.5">
+                      <span>🔒</span>
+                      <span>Preview Only — Printing Locked Until Form is Completed</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-xs text-[var(--mute)]">
+                  Select an asset from the list to preview label.
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-[11px] text-[var(--mute)]">
+                  💡 Tip: Hit <kbd className="px-1.5 py-0.5 rounded border border-[var(--line)] bg-[var(--surf2)] font-mono">Ctrl+P</kbd> or click the button to print directly.
+                </div>
+
+                {currentAsset && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {currentEligibility.status === 'already_printed_blocked' && (
                       <button
                         type="button"
                         onClick={() => setIsRequestModalOpen(true)}
-                        className="btn p text-xs py-2 px-3.5 inline-flex items-center gap-1.5 cursor-pointer shadow-sm hover:shadow"
+                        className="btn p text-sm px-5 py-2.5 inline-flex items-center gap-2 shadow-md cursor-pointer hover:shadow-lg"
                       >
                         <span>📩</span>
                         <span>Request Re-print from Super User</span>
                       </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 2. Re-print Request Pending Review */}
-                {currentEligibility.status === 'reprint_pending' && (
-                  <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-2.5 animate-fadeIn">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 font-bold text-sm text-amber-800 dark:text-amber-300">
-                        <span className="text-base">⏳</span>
-                        <span>Re-print Request Pending Super User Approval</span>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
-                        Under Review
-                      </span>
-                    </div>
-                    <p className="text-xs text-[var(--mute)] leading-relaxed">
-                      Request ID: <span className="font-mono font-bold">{currentEligibility.pendingRequest?.id}</span> · Submitted by <b>{currentEligibility.pendingRequest?.requestedBy}</b> ({currentEligibility.pendingRequest?.requesterDept}) on {new Date(currentEligibility.pendingRequest?.requestedAt || '').toLocaleDateString()}.
-                      <br />Reason: <b>{currentEligibility.pendingRequest?.reason}</b>
-                      {currentEligibility.pendingRequest?.notes && ` · "${currentEligibility.pendingRequest.notes}"`}
-                    </p>
-                    {isSuperUser && (
-                      <div className="pt-2 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleQuickApprove(currentEligibility.pendingRequest!)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>✅</span>
-                          <span>Approve Re-print Now (Super User)</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleQuickReject(currentEligibility.pendingRequest!)}
-                          className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>❌</span>
-                          <span>Reject</span>
-                        </button>
-                      </div>
                     )}
-                  </div>
-                )}
 
-                {/* 3. Re-print Approved by Super User */}
-                {currentEligibility.status === 'reprint_approved' && (
-                  <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 space-y-2 animate-fadeIn">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 font-bold text-sm text-emerald-800 dark:text-emerald-300">
-                        <span className="text-base">✅</span>
-                        <span>Re-print Authorized by Super User</span>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0">
-                        Single-Use Permit Valid
+                    {currentEligibility.status === 'reprint_pending' && isSuperUser && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickApprove(currentEligibility.pendingRequest!)}
+                        className="btn text-sm px-5 py-2.5 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md cursor-pointer"
+                      >
+                        <span>✅</span>
+                        <span>Approve Re-print (Super User)</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={!currentEligibility.canPrint}
+                      onClick={() => handlePrint(currentAsset.assetCode)}
+                      className={`btn text-sm px-6 py-2.5 inline-flex items-center gap-2 shadow-md transition ${
+                        currentEligibility.canPrint
+                          ? currentEligibility.isReprintApproved
+                            ? 'p cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-lg'
+                            : 'p cursor-pointer hover:shadow-lg'
+                          : 'opacity-50 cursor-not-allowed bg-[var(--surf2)] text-[var(--mute)] border border-[var(--line)]'
+                      }`}
+                      title={
+                        !isCurrentPrintable
+                          ? `Cannot print: missing ${currentCompleteness.missingFields.join(', ')}`
+                          : currentEligibility.message
+                      }
+                    >
+                      <span>{currentEligibility.canPrint ? '🖨️' : '🔒'}</span>
+                      <span>
+                        {!isCurrentPrintable
+                          ? `QR Print Locked: Complete Data First`
+                          : currentEligibility.status === 'already_printed_blocked'
+                            ? `QR Print Locked (Already Printed)`
+                            : currentEligibility.status === 'reprint_pending'
+                              ? `⏳ Re-print Pending Super User Approval`
+                              : currentEligibility.status === 'reprint_approved'
+                                ? `Print Approved Re-print ("${currentAsset.assetCode}")`
+                                : currentEligibility.status === 'superuser_override'
+                                  ? `Print "${currentAsset.assetCode}" Label (Super User Clearance)`
+                                  : `Print "${currentAsset.assetCode}" Label`}
                       </span>
-                    </div>
-                    <p className="text-xs text-[var(--mute)] leading-relaxed">
-                      Super User <b>{currentEligibility.approvedRequest?.reviewedBy}</b> approved re-print on {new Date(currentEligibility.approvedRequest?.reviewedAt || '').toLocaleDateString()}.
-                      <br />Review note: <i>{currentEligibility.approvedRequest?.reviewNotes || 'Approved'}</i>. You are now authorized to print this label once.
-                    </p>
-                  </div>
-                )}
-
-                {/* 4. Super User Override */}
-                {currentEligibility.status === 'superuser_override' && (
-                  <div className="p-3 rounded-xl border border-purple-500/30 bg-purple-500/5 text-purple-900 dark:text-purple-300 flex items-center justify-between text-xs animate-fadeIn">
-                    <div className="flex items-center gap-2">
-                      <span>👑</span>
-                      <span className="font-semibold">Super User Administrative Clearance: Direct Re-print Authorized</span>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 font-bold">
-                      Print Count: {currentEligibility.printCount}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {currentAsset ? (
-              <div className="flex flex-col items-center justify-center py-6 bg-[var(--surf2)]/50 rounded-xl p-4 overflow-x-auto relative">
-                {/* Visual Label Presentation */}
-                <div className={`transform transition-transform ${isCurrentPrintable ? 'hover:scale-[1.01]' : 'opacity-85'}`}>
-                  <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
-                </div>
-
-                {!isCurrentPrintable && (
-                  <div className="mt-3 text-xs font-bold text-amber-600 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/20 flex items-center gap-1.5">
-                    <span>🔒</span>
-                    <span>Preview Only — Printing Locked Until Form is Completed</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="py-12 text-center text-xs text-[var(--mute)]">
-                Select an asset from the list to preview label.
-              </div>
-            )}
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-[11px] text-[var(--mute)]">
-                💡 Tip: Hit <kbd className="px-1.5 py-0.5 rounded border border-[var(--line)] bg-[var(--surf2)] font-mono">Ctrl+P</kbd> or click the button to print directly.
-              </div>
-
-              {currentAsset && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {currentEligibility.status === 'already_printed_blocked' && (
-                    <button
-                      type="button"
-                      onClick={() => setIsRequestModalOpen(true)}
-                      className="btn p text-sm px-5 py-2.5 inline-flex items-center gap-2 shadow-md cursor-pointer hover:shadow-lg"
-                    >
-                      <span>📩</span>
-                      <span>Request Re-print from Super User</span>
                     </button>
-                  )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-                  {currentEligibility.status === 'reprint_pending' && isSuperUser && (
-                    <button
-                      type="button"
-                      onClick={() => handleQuickApprove(currentEligibility.pendingRequest!)}
-                      className="btn text-sm px-5 py-2.5 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md cursor-pointer"
-                    >
-                      <span>✅</span>
-                      <span>Approve Re-print (Super User)</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled={!currentEligibility.canPrint}
-                    onClick={() => handlePrint(currentAsset.assetCode)}
-                    className={`btn text-sm px-6 py-2.5 inline-flex items-center gap-2 shadow-md transition ${
-                      currentEligibility.canPrint
-                        ? currentEligibility.isReprintApproved
-                          ? 'p cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-lg'
-                          : 'p cursor-pointer hover:shadow-lg'
-                        : 'opacity-50 cursor-not-allowed bg-[var(--surf2)] text-[var(--mute)] border border-[var(--line)]'
-                    }`}
-                    title={
-                      !isCurrentPrintable
-                        ? `Cannot print: missing ${currentCompleteness.missingFields.join(', ')}`
-                        : currentEligibility.message
-                    }
-                  >
-                    <span>{currentEligibility.canPrint ? '🖨️' : '🔒'}</span>
-                    <span>
-                      {!isCurrentPrintable
-                        ? `QR Print Locked: Complete Data First`
-                        : currentEligibility.status === 'already_printed_blocked'
-                          ? `QR Print Locked (Already Printed)`
-                          : currentEligibility.status === 'reprint_pending'
-                            ? `⏳ Re-print Pending Super User Approval`
-                            : currentEligibility.status === 'reprint_approved'
-                              ? `Print Approved Re-print ("${currentAsset.assetCode}")`
-                              : currentEligibility.status === 'superuser_override'
-                                ? `Print "${currentAsset.assetCode}" Label (Super User Clearance)`
-                                : `Print "${currentAsset.assetCode}" Label`}
-                    </span>
-                  </button>
+      {/* ── 5. SELECT ALL CONFIRMATION DIALOG (matches exact user wireframe) ── */}
+      {isSelectAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="card p-6 max-w-sm w-full space-y-4 border border-[var(--line)] shadow-2xl bg-[var(--surf)] text-center">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center text-2xl mx-auto font-bold">
+              🏷️
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-semibold text-sm text-[var(--mute)]">
+                You are about to generate labels for
+              </h3>
+              <div className="text-3xl font-extrabold font-mono text-[var(--ink)]">
+                {readyAssetsCount.toLocaleString()} assets
+              </div>
+              <div className="text-xs text-[var(--mute)] pt-2">
+                Estimated time:
+                <div className="font-bold text-sm text-[var(--ink)] mt-0.5">
+                  {readyAssetsCount > 10000 ? '3–8 minutes' : readyAssetsCount > 2000 ? '1–3 minutes' : '10–30 seconds'}
                 </div>
-              )}
+              </div>
+            </div>
+
+            <p className="text-[11px] text-[var(--mute)] bg-[var(--surf2)] p-2.5 rounded-lg border border-[var(--line)] text-left">
+              Sequential generation will execute in the background so your browser remains responsive with no freezing.
+            </p>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsSelectAllModalOpen(false)}
+                className="flex-1 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] hover:bg-[var(--surf2)] text-[var(--ink)] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSelectAllModalOpen(false)
+                  executeSelectAll(true)
+                }}
+                className="flex-1 btn p py-2 text-xs font-bold shadow-md cursor-pointer hover:shadow-lg"
+              >
+                Generate Labels
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── 6. SEQUENTIAL BULK GENERATION PROGRESS MODAL (matches user spec) ── */}
+      {isBulkGenerating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="card p-6 max-w-md w-full space-y-4 border border-[var(--line)] shadow-2xl bg-[var(--surf)] text-center">
+            <div className="w-12 h-12 rounded-full bg-[var(--acc)]/10 text-[var(--acc)] flex items-center justify-center text-2xl mx-auto font-bold animate-spin">
+              ⚙️
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-[var(--ink)]">Generating Labels...</h3>
+              <p className="text-xs text-[var(--mute)] mt-1">
+                Processing sequentially in background. Browser remains responsive.
+              </p>
+            </div>
+
+            <div className="text-xl font-mono font-bold text-[var(--ink)]">
+              {bulkProgress.current.toLocaleString()} / {bulkProgress.total.toLocaleString()}
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-[var(--surf2)] rounded-full h-3 overflow-hidden border border-[var(--line)]">
+              <div
+                className="bg-[var(--acc)] h-full transition-all duration-150 rounded-full"
+                style={{ width: `${bulkProgress.percent}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-[var(--mute)]">
+              <span className="font-bold text-[var(--ink)]">{bulkProgress.percent}%</span>
+              <span>Remaining: ~{bulkProgress.eta || 'calculating...'}</span>
+            </div>
+
+            {bulkProgress.currentAssetCode && (
+              <div className="text-xs font-mono bg-[var(--surf2)] p-2 rounded border border-[var(--line)] text-[var(--ink)] truncate">
+                Current Asset: <b>{bulkProgress.currentAssetCode}</b>
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  isCancelledRef.current = true
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-lg border border-red-500/30 text-red-600 hover:bg-red-500/10 cursor-pointer"
+              >
+                Cancel Generation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL 1: REQUEST RE-PRINT FROM SUPER USER ── */}
       {isRequestModalOpen && currentAsset && (
@@ -1964,9 +2517,15 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         </div>
       )}
 
-      {/* Hidden container dedicated to print output: ONLY eligible assets are rendered! */}
+      {/* Hidden container dedicated to print output: ONLY mounts when actively printing, never bloated in memory! */}
       <div id="printable-label-area" aria-hidden="true">
-        {selectedBulkCount > 0 ? (
+        {activePrintQueue && activePrintQueue.length > 0 ? (
+          activePrintQueue.map((asset) => (
+            <div key={asset.id} className="ismartu-print-item">
+              <IsmartuAssetLabel asset={asset} scale={activeScale} />
+            </div>
+          ))
+        ) : selectedBulkCount > 0 && selectedBulkCount <= 50 ? (
           printableBulkAssets
             .filter((a) => checkPrintEligibility(a, activeUser, isAssetPrintable(a)).canPrint)
             .map((asset) => (
@@ -1974,7 +2533,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                 <IsmartuAssetLabel asset={asset} scale={activeScale} />
               </div>
             ))
-        ) : currentAsset && isCurrentPrintable && currentEligibility.canPrint ? (
+        ) : selectedBulkCount <= 1 && currentAsset && isCurrentPrintable && currentEligibility.canPrint ? (
           <div className="ismartu-print-item">
             <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
           </div>

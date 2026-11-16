@@ -367,12 +367,12 @@ export const AuditLogView: React.FC = () => {
       {/* Search and Filters Bar & Scrollable Table */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold flex items-center gap-2">
-            <span>Live audit events</span>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Live audit events</h2>
             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[var(--acc2)] text-[var(--acc)]">
               {logs.length} Total Events
             </span>
-          </h2>
+          </div>
           <span className="text-[11px] text-[var(--mute)]">Scrollable immutable ledger</span>
         </div>
         <div className="card p-3 flex flex-wrap items-center justify-between gap-3 bg-[var(--surf)] border border-[var(--line)]">

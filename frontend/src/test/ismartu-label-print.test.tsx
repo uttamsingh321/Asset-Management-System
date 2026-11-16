@@ -269,4 +269,79 @@ describe('ismartu Equipment Fixed Asset QR Label Specification', () => {
     fireEvent.click(screen.getByRole('button', { name: /50 × 35 mm/i }))
     expect(screen.getByText('50mm × 35mm')).toBeInTheDocument()
   })
+
+  it('Performance: Paginates large asset lists rendering only 50 rows per page instead of thousands', () => {
+    // Generate 120 mock assets
+    const manyAssets: Asset[] = Array.from({ length: 120 }, (_, i) => ({
+      ...sampleAsset,
+      id: `perf-asset-${i + 1}`,
+      assetCode: `PERF-${1000 + i}`,
+      name: `Equipment ${i + 1}`,
+    }))
+
+    render(<IndiaLabelPrintView assets={manyAssets} lang="en" />)
+
+    // Should show pagination controls: Showing 1 to 50 of 120
+    expect(screen.getByText(/Showing 1 to 50 of 120/i)).toBeInTheDocument()
+    expect(screen.getByText('1 / 3')).toBeInTheDocument()
+
+    // First page item is rendered in the list
+    expect(screen.getAllByText('PERF-1000').length).toBeGreaterThanOrEqual(1)
+
+    // Items beyond page 1 (e.g. index 75 = PERF-1075) must NOT be mounted in the DOM
+    expect(screen.queryByText('PERF-1075')).not.toBeInTheDocument()
+
+    // Navigate to Next page
+    const nextBtn = screen.getByRole('button', { name: /Next ›/i })
+    fireEvent.click(nextBtn)
+
+    expect(screen.getByText(/Showing 51 to 100 of 120/i)).toBeInTheDocument()
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(screen.getAllByText('PERF-1075').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('Performance: Lazy multi-selection hub renders action buttons and defers preview generation when > 1 asset is selected', () => {
+    const asset1: Asset = { ...sampleAsset, id: 'multi-1', assetCode: 'M-1' }
+    const asset2: Asset = { ...sampleAsset, id: 'multi-2', assetCode: 'M-2' }
+
+    render(<IndiaLabelPrintView assets={[asset1, asset2]} lang="en" />)
+
+    // Select both checkboxes
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[1])
+
+    // Should display Bulk Selection Hub
+    expect(screen.getByText('2 Assets Selected')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Generate Labels/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Print Selected/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Export Labels/i })).toBeInTheDocument()
+
+    // The single label preview header should be replaced by the Bulk Hub
+    expect(screen.queryByText('Exact Label Preview')).not.toBeInTheDocument()
+  })
+
+  it('Performance: Select All modal dialog shows warning and estimated time for large batches (>50 assets)', () => {
+    const largeBatch: Asset[] = Array.from({ length: 60 }, (_, i) => ({
+      ...sampleAsset,
+      id: `batch-${i + 1}`,
+      assetCode: `BATCH-${1000 + i}`,
+    }))
+
+    render(<IndiaLabelPrintView assets={largeBatch} lang="en" />)
+
+    // Click "Select Ready"
+    const selectReadyBtn = screen.getByRole('button', { name: /Select Ready/i })
+    fireEvent.click(selectReadyBtn)
+
+    // Confirmation dialog appears with estimated time
+    expect(screen.getByText('You are about to generate labels for')).toBeInTheDocument()
+    expect(screen.getByText('60 assets')).toBeInTheDocument()
+    expect(screen.getByText(/Estimated time:/i)).toBeInTheDocument()
+
+    // Cancel closes dialog without changing bulk count
+    const cancelBtn = screen.getByRole('button', { name: /Cancel/i })
+    fireEvent.click(cancelBtn)
+    expect(screen.queryByText('You are about to generate labels for')).not.toBeInTheDocument()
+  })
 })
