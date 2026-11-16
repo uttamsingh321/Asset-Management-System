@@ -155,11 +155,16 @@ describe('Asset code workflow', () => {
       />
     )
 
-    // Check Ownership fields auto-filled with Employee 2
+    // Check Ownership fields auto-filled with Employee 2 and non-editable
     expect(screen.getByLabelText(/Belong to which dept/i)).toHaveValue('SMT Operations')
+    expect(screen.getByLabelText(/Belong to which dept/i)).toHaveAttribute('readonly')
     expect(screen.getByPlaceholderText(/Emp ID: e\.g\. EMP-102/i)).toHaveValue('EMP-002')
-    expect(screen.getByPlaceholderText(/Name: e\.g\. Rajesh Kumar/i)).toHaveValue('Employee Two')
-    expect(screen.getByLabelText(/Submitter or logged by/i)).toHaveValue('Employee Two')
+    expect(screen.getByPlaceholderText(/Emp ID: e\.g\. EMP-102/i)).toHaveAttribute('readonly')
+    expect(screen.getByPlaceholderText(/Full Name: e\.g\. Rajesh Kumar/i)).toHaveValue('Employee Two')
+    expect(screen.getByPlaceholderText(/Full Name: e\.g\. Rajesh Kumar/i)).toHaveAttribute('readonly')
+
+    // Current User manual entry field is empty for manual input
+    expect(screen.getByLabelText(/Submitter or logged by/i)).toHaveValue('')
   })
 
   it('allows adding a new company and new building through the + New buttons', () => {

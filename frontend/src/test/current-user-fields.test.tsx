@@ -37,7 +37,7 @@ describe('Current User / Logged-in Personnel Asset Form Invariant Specification'
     assetCondition: 'Working',
   }
 
-  it('renders Current User Employee ID and Current User Department inputs and pre-fills them from loggedInUser', () => {
+  it('renders main owner details as auto-filled and non-editable (read-only), while Current User manual inputs are empty', () => {
     render(
       <AddAssetPanel
         open={true}
@@ -48,20 +48,35 @@ describe('Current User / Logged-in Personnel Asset Form Invariant Specification'
       />
     )
 
-    // Current User Employee ID input
+    // Main owner details (Belong to Department & Custodian) are auto-filled and non-editable
+    const ownerDeptInput = screen.getByLabelText(/Belong to which dept/i) as HTMLInputElement
+    expect(ownerDeptInput).toBeInTheDocument()
+    expect(ownerDeptInput).toHaveAttribute('readonly')
+    expect(ownerDeptInput.value).toBe('Production & SMT')
+
+    const ownerIdInput = screen.getByPlaceholderText(/EMP-102 or MANISH5533/i) as HTMLInputElement
+    expect(ownerIdInput).toHaveAttribute('readonly')
+
+    const ownerNameInput = screen.getByPlaceholderText(/Full Name: e\.g\. Rajesh Kumar/i) as HTMLInputElement
+    expect(ownerNameInput).toHaveAttribute('readonly')
+
+    // Current User manual entry inputs (green box) MUST be empty so user can fill them manually
     const empIdInput = screen.getByLabelText(/Current User Employee ID/i) as HTMLInputElement
     expect(empIdInput).toBeInTheDocument()
-    expect(empIdInput.value).toBe('19102709')
+    expect(empIdInput).not.toHaveAttribute('readonly')
+    expect(empIdInput.value).toBe('')
 
     // Current User Department input
     const deptInput = screen.getByLabelText(/Current User Department/i) as HTMLInputElement
     expect(deptInput).toBeInTheDocument()
-    expect(deptInput.value).toBe('Production & SMT')
+    expect(deptInput).not.toHaveAttribute('readonly')
+    expect(deptInput.value).toBe('')
 
     // Submitter / Logged by input
     const submitterInput = screen.getByLabelText(/Submitter or logged by/i) as HTMLInputElement
     expect(submitterInput).toBeInTheDocument()
-    expect(submitterInput.value).toBe('Arbind Kumar Singh')
+    expect(submitterInput).not.toHaveAttribute('readonly')
+    expect(submitterInput.value).toBe('')
   })
 
   it('allows manual editing of Current User Employee ID and Department and saves them into the asset', () => {

@@ -204,17 +204,19 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setFloor(initialAsset.floor || '')
       setCurrentLocation(initialAsset.currentLocation || '')
 
-      // Auto-fill Ownership from the user who selected this asset code
+      // Auto-fill Ownership from asset or current active user (Main Owner: Auto-filled & Non-editable)
       const currentUserName = currentUser?.userName || ''
       const currentUserId = currentUser?.userId || ''
       const currentUserDept = currentUser?.department || ''
 
-      const assignedDept = currentUserDept || initialAsset.currentDepartment || initialAsset.department || 'IT'
-      const assignedId = currentUserId || (initialAsset.inChargeId && initialAsset.inChargeId !== 'ID Pending' ? initialAsset.inChargeId : '')
-      const assignedName = currentUserName || (initialAsset.inChargeName && initialAsset.inChargeName !== 'Unassigned Staff' ? initialAsset.inChargeName : '')
-      const assignedSubmitter = initialAsset.submitter || currentUserName || ''
-      const assignedSubmitterId = initialAsset.submitterId || currentUserId || ''
-      const assignedSubmitterDept = initialAsset.submitterDepartment || currentUserDept || ''
+      const assignedDept = initialAsset.currentDepartment || initialAsset.department || currentUserDept || 'IT'
+      const assignedId = (initialAsset.inChargeId && initialAsset.inChargeId !== 'ID Pending' ? initialAsset.inChargeId : '') || currentUserId || ''
+      const assignedName = (initialAsset.inChargeName && initialAsset.inChargeName !== 'Unassigned Staff' ? initialAsset.inChargeName : '') || currentUserName || ''
+      
+      // Current user / logged-in manual entry section starts empty unless already previously saved
+      const assignedSubmitter = initialAsset.submitter || ''
+      const assignedSubmitterId = initialAsset.submitterId || ''
+      const assignedSubmitterDept = initialAsset.submitterDepartment || ''
 
       setCurrentDepartment(assignedDept)
       setInChargeId(assignedId)
@@ -262,9 +264,11 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setCurrentDepartment(currentUser?.department || 'IT')
       setInChargeId(currentUser?.userId || '')
       setInChargeName(currentUser?.userName || '')
-      setSubmitter(currentUser?.userName || '')
-      setSubmitterId(currentUser?.userId || '')
-      setSubmitterDepartment(currentUser?.department || '')
+      
+      // Current User / Logged-in Personnel starts empty for manual entry
+      setSubmitter('')
+      setSubmitterId('')
+      setSubmitterDepartment('')
 
       setAssetCondition('')
       setAssetConditionUnavailable(false)
@@ -536,9 +540,9 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       floor: floor.trim() || '1st Floor',
       currentLocation: currentLocation.trim() || `${building.trim() || 'C39'} - ${floor.trim() || '1st Floor'}`,
       currentDepartment: currentDepartment.trim() || currentUser?.department || 'Operations',
-      submitter: submitter.trim() || currentUser?.userName || inChargeName.trim() || 'Staff',
-      submitterId: submitterId.trim() || currentUser?.userId || undefined,
-      submitterDepartment: submitterDepartment.trim() || currentUser?.department || undefined,
+      submitter: submitter.trim() || undefined,
+      submitterId: submitterId.trim() || undefined,
+      submitterDepartment: submitterDepartment.trim() || undefined,
       inChargeId: finalInChargeId || undefined,
       inChargeName: finalInChargeName || undefined,
       whoInCharge,
@@ -1467,12 +1471,17 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
             </div>
 
-            {/* C. Custodian & Department */}
+            {/* C. Custodian & Department (Main Owner: Auto-filled & Non-editable) */}
             <div className="space-y-3 p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf)]">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
-                  Ownership & Custodian
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--acc)]">
+                    Ownership & Custodian
+                  </h4>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-[var(--mute)] border border-[var(--line)]">
+                    🔒 Auto-filled (Non-editable)
+                  </span>
+                </div>
                 {currentUser && (
                   <button
                     type="button"
@@ -1480,9 +1489,6 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       setInChargeId(currentUser.userId)
                       setInChargeName(currentUser.userName)
                       if (currentUser.department) setCurrentDepartment(currentUser.department)
-                      setSubmitter(currentUser.userName)
-                      setSubmitterId(currentUser.userId)
-                      if (currentUser.department) setSubmitterDepartment(currentUser.department)
                     }}
                     className="text-[11px] font-semibold text-[var(--acc)] hover:underline flex items-center gap-1 cursor-pointer bg-[var(--acc)]/10 px-2 py-0.5 rounded border border-[var(--acc)]/20"
                     title="Assign this asset to current logged-in user"
@@ -1505,10 +1511,17 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   id="field-currentDepartment"
                   aria-label="Belong to which dept"
                   type="text"
+                  readOnly
                   value={currentDepartment}
-                  onChange={(e) => setCurrentDepartment(e.target.value)}
                   placeholder="e.g. SMT Operations, Quality Control, Production & SMT, IT, Maintenance"
-                  style={inputStyle}
+                  style={{
+                    ...inputStyle,
+                    backgroundColor: 'var(--surf2)',
+                    cursor: 'not-allowed',
+                    color: 'var(--ink)',
+                    opacity: 0.9,
+                  }}
+                  title="Main Owner Department (Auto-filled & Non-editable)"
                 />
               </div>
 
@@ -1526,36 +1539,50 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     <input
                       id="field-inChargeId"
                       type="text"
+                      readOnly
                       value={inChargeId}
-                      onChange={(e) => setInChargeId(e.target.value)}
                       placeholder="Emp ID: e.g. EMP-102 or MANISH5533"
-                      style={inputStyle}
+                      style={{
+                        ...inputStyle,
+                        backgroundColor: 'var(--surf2)',
+                        cursor: 'not-allowed',
+                        color: 'var(--ink)',
+                        opacity: 0.9,
+                      }}
+                      title="Custodian Employee ID (Auto-filled & Non-editable)"
                     />
                   </div>
                   <div>
                     <input
                       id="field-inChargeName"
                       type="text"
+                      readOnly
                       value={inChargeName}
-                      onChange={(e) => {
-                        setInChargeName(e.target.value)
-                        if (!submitter) setSubmitter(e.target.value)
-                      }}
                       placeholder="Full Name: e.g. Rajesh Kumar"
-                      style={inputStyle}
+                      style={{
+                        ...inputStyle,
+                        backgroundColor: 'var(--surf2)',
+                        cursor: 'not-allowed',
+                        color: 'var(--ink)',
+                        opacity: 0.9,
+                      }}
+                      title="Custodian Name (Auto-filled & Non-editable)"
                     />
                   </div>
                 </div>
               </div>
 
+              {/* Green Box: Current User / Logged-in Personnel (Manual Data Entry) - Empty by default */}
               <div className="pt-2 border-t border-[var(--line)] space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <label style={{ ...labelStyle, marginBottom: 0 }} className="font-bold text-[var(--ink)]">
-                    Current User / Logged-in Personnel (Manual Data Entry)
-                  </label>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                    Logged-in User
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <label style={{ ...labelStyle, marginBottom: 0 }} className="font-bold text-[var(--ink)]">
+                      Current User / Logged-in Personnel (Manual Data Entry)
+                    </label>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                      ✍️ Fill Manually
+                    </span>
+                  </div>
                 </div>
                 <div style={grid2Style}>
                   <div>
@@ -1568,7 +1595,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       type="text"
                       value={submitterId}
                       onChange={(e) => setSubmitterId(e.target.value)}
-                      placeholder="Emp ID: e.g. 19102709 or USR-ADMIN"
+                      placeholder="Enter Employee ID (e.g. 19102709)"
                       style={inputStyle}
                     />
                   </div>
@@ -1582,7 +1609,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       type="text"
                       value={submitterDepartment}
                       onChange={(e) => setSubmitterDepartment(e.target.value)}
-                      placeholder="e.g. Production & SMT, IT, Maintenance"
+                      placeholder="Enter Department (e.g. Production & SMT)"
                       style={inputStyle}
                     />
                   </div>
@@ -1597,7 +1624,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     type="text"
                     value={submitter}
                     onChange={(e) => setSubmitter(e.target.value)}
-                    placeholder="e.g. Arbind Kumar Singh or Submitter name"
+                    placeholder="Enter Submitter Full Name (e.g. Arbind Kumar Singh)"
                     style={inputStyle}
                   />
                 </div>
