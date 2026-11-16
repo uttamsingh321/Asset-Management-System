@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { createPortal, flushSync } from 'react-dom'
+import { createPortal } from 'react-dom'
 import QRCode from 'qrcode'
 import JsBarcode from 'jsbarcode'
 import type { Asset } from '@/types/asset'
@@ -961,14 +961,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         document.body.classList.add('meridian-printing-label')
       }
 
-      try {
-        flushSync(() => {
-          setActivePrintQueue(assetsToPrint)
-        })
-      } catch {
-        setActivePrintQueue(assetsToPrint)
-      }
-
+      setActivePrintQueue(assetsToPrint)
       window.print()
     },
     [activeWidthMm, activeHeightMm]

@@ -25,10 +25,10 @@ export function isRawNumericDepartmentCode(val?: string | null): boolean {
   if (!val) return false
   const s = val.trim()
   if (!s) return false
-  // All digits of length 4 to 15 (e.g. 95030021, 502006009)
+  // All digits of length 4 to 15 (e.g. 95030021, 502006009, 95020006)
   if (/^\d{4,15}$/.test(s)) return true
-  // C-prefixed alphanumeric SAP cost centers (e.g. C502006009)
-  if (/^c\d{5,15}$/i.test(s)) return true
+  // C-prefixed alphanumeric SAP cost centers (e.g. C502006009, C520T01000)
+  if (/^c[0-9a-z]{4,14}$/i.test(s)) return true
   return false
 }
 
@@ -106,10 +106,15 @@ export function resolveDepartmentName(
     return fallbackUser.department
   }
 
-  // 5. Contextual fallback based on building / machinery type
+  // 5. Contextual fallback based on building / machinery type / ERP cost center prefix
+  const rawUpper = cleanRaw.toUpperCase()
+  if (rawUpper.startsWith('950') || rawUpper.startsWith('C5020') || rawUpper.startsWith('C52')) {
+    return 'Production'
+  }
+
   const bldg = (asset?.building || '').toUpperCase()
   if (bldg.includes('D197') || bldg.includes('D198') || bldg.includes('D199')) {
-    return 'SMT Operations'
+    return 'Production'
   }
   if (bldg.includes('C39')) {
     return 'Production'

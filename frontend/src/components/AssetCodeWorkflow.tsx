@@ -610,9 +610,27 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   const pendingAssets = assets.filter((asset) => !isAssetTaskCompleted(asset))
   const completedAssets = assets.filter((asset) => isAssetTaskCompleted(asset))
 
-  const departmentAssets = assets.filter(
-    (asset) => asset.currentDepartment === userDepartment && !isAssetTaskCompleted(asset)
-  )
+  const departmentAssets = assets.filter((asset) => {
+    if (isAssetTaskCompleted(asset)) return false
+    const rawD = (asset.currentDepartment || asset.department || '').trim()
+    const resolvedD = isRawNumericDepartmentCode(rawD) || !rawD ? resolveDepartmentName(rawD, asset) : rawD
+    const d = (resolvedD || '').toLowerCase().trim()
+    const ud = userDepartment.toLowerCase().trim()
+
+    const isProductionDept =
+      d.includes('production') || d.includes('smt') || d.includes('assembly') || d.includes('operations')
+    const isUserProduction =
+      ud.includes('production') || ud.includes('smt') || ud.includes('assembly') || ud.includes('operations')
+
+    if (d === ud || d.includes(ud) || ud.includes(d) || (isProductionDept && isUserProduction)) {
+      return true
+    }
+    // Also include open pending tasks with raw numeric cost centers or unassigned
+    if (isRawNumericDepartmentCode(rawD) || !rawD || rawD === 'Unassigned') {
+      return true
+    }
+    return false
+  })
 
   // Filtered task assets
   const filteredTaskAssets = React.useMemo(() => {
@@ -626,9 +644,29 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
 
       // Department scoping: unassigned codes are open to all; if department filter is active, filter by it
       if (departmentFilter !== 'All') {
-        const d = (asset.currentDepartment || asset.department || '').toLowerCase().trim()
+        const rawD = (asset.currentDepartment || asset.department || '').trim()
+        const resolvedD = isRawNumericDepartmentCode(rawD) || !rawD
+          ? resolveDepartmentName(rawD, asset)
+          : rawD
+
+        const d = (resolvedD || '').toLowerCase().trim()
         const ed = departmentFilter.toLowerCase().trim()
-        if (d && !d.includes(ed) && !ed.includes(d)) return false
+
+        const isProductionDept =
+          d.includes('production') || d.includes('smt') || d.includes('assembly') || d.includes('operations')
+        const isFilterProduction =
+          ed.includes('production') || ed.includes('smt') || ed.includes('assembly') || ed.includes('operations')
+
+        const matches =
+          d === ed ||
+          d.includes(ed) ||
+          ed.includes(d) ||
+          (isProductionDept && isFilterProduction)
+
+        // If the asset code has an unassigned or raw numeric cost center, it is an open verification task
+        const isOpenPendingTask = !isAssetTaskCompleted(asset) && (isRawNumericDepartmentCode(rawD) || !rawD || rawD === 'Unassigned')
+
+        if (!matches && !isOpenPendingTask) return false
       }
 
       // Query filter
@@ -643,6 +681,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
           asset.building,
           asset.floor,
           asset.currentDepartment,
+          asset.department,
           asset.inChargeName,
           asset.inChargeId,
         ].filter(Boolean).join(' ').toLowerCase()
@@ -1030,7 +1069,10 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
               {paginatedTasks.length > 0 ? (
                 paginatedTasks.map((asset) => {
                   const isCompleted = isAssetTaskCompleted(asset)
-                  const dept = asset.currentDepartment || asset.department || 'Unassigned'
+                  const rawDept = (asset.currentDepartment || asset.department || '').trim()
+                  const dept = isRawNumericDepartmentCode(rawDept) || !rawDept
+                    ? resolveDepartmentName(rawDept, asset)
+                    : rawDept
                   const inCharge = asset.inChargeName || asset.submitter || asset.assignedTo || '-'
                   const isPadget = isPadgetCompany(asset)
                   const loc = [asset.company || (isPadget ? 'Padget' : 'IIPL'), asset.building || (isPadget ? 'D197' : 'C39'), asset.floor].filter(Boolean).join(' · ')
