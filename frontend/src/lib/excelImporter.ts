@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import type { Asset, AssetTypeTemplate, AssetStatus } from '@/types/asset'
+import { isPadgetCompany } from '@/assets/companyLogos'
 
 export interface ImportSummary {
   totalRows: number
@@ -312,6 +313,10 @@ export async function parseExcelOrCsvFile(
 
       const rawCompany = findRowValue(row, [
         'company',
+        'companycode',
+        'compcode',
+        'cocode',
+        'company_code',
         'entity',
         'organization',
         'org',
@@ -320,17 +325,8 @@ export async function parseExcelOrCsvFile(
         'client',
         'firm',
       ])
-      let company = 'IIPL'
-      if (rawCompany) {
-        if (/padget/i.test(rawCompany)) company = 'Padget'
-        else if (/iipl/i.test(rawCompany)) company = 'IIPL'
-        else company = rawCompany
-      } else {
-        const combined = `${name} ${row['plant'] || ''} ${row['remarks'] || ''}`.toLowerCase()
-        if (combined.includes('padget')) company = 'Padget'
-      }
 
-      const plant = findRowValue(row, ['plant', 'site', 'facility', 'factory', 'premises']) || `${company} Central Plant`
+      const rawCostCenter = findRowValue(row, ['costcenter', 'costctr', 'cc']) || ''
       const rawBuilding = findRowValue(row, ['building', 'bldg', 'block', 'wing', 'premise', 'structure'])
       let building = rawBuilding || 'C39'
       if (rawBuilding) {
@@ -340,6 +336,26 @@ export async function parseExcelOrCsvFile(
         else if (cleanB.includes('D198') || cleanB === 'D-198') building = 'D198'
         else if (cleanB.includes('D199') || cleanB === 'D-199') building = 'D199'
       }
+
+      const isPadget = isPadgetCompany({
+        company: rawCompany,
+        companyCode: rawCompany,
+        building: building,
+        location: row['location'] || row['plant'] || '',
+        costCenter: rawCostCenter,
+      })
+
+      let company = isPadget ? 'Padget' : 'IIPL'
+      let companyCode = isPadget ? '5030' : '5020'
+      if (!isPadget && rawCompany) {
+        if (/iipl/i.test(rawCompany) || /ismartu/i.test(rawCompany)) company = 'IIPL'
+        else if (rawCompany === '5020') { company = 'IIPL'; companyCode = '5020' }
+      }
+      if (isPadget && building === 'C39') {
+        building = 'D197'
+      }
+
+      const plant = findRowValue(row, ['plant', 'site', 'facility', 'factory', 'premises']) || (isPadget ? 'Padget Electronics Central Plant' : `${company} Central Plant`)
 
       const floor = findRowValue(row, ['floor', 'flr', 'level', 'storey', 'story']) || 'Ground Floor'
       const currentLocation = findRowValue(row, ['location', 'currentlocation', 'room', 'bay', 'desk', 'area']) || `${building} - ${floor}`
@@ -459,6 +475,8 @@ export async function parseExcelOrCsvFile(
       const asset: Asset = {
         id: `import-${Date.now()}-${r}`,
         company,
+        companyCode,
+        costCenter: rawCostCenter || undefined,
         assetCode,
         serialNumber,
         currentCategory: category,

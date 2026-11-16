@@ -74,6 +74,15 @@ class Asset(models.Model):
         return f"{self.tag or self.asset_code} - {self.name}"
 
     def to_dict(self, include_photos: bool = True):
+        is_padget = bool(
+            (self.company and ("padget" in self.company.lower() or "5030" in self.company)) or
+            (self.building and any(b in self.building.upper() for b in ["D197", "D198", "D199"])) or
+            (self.location and any(b in self.location.upper() for b in ["D197", "D198", "D199", "PADGET"]))
+        )
+        resolved_company = "Padget" if is_padget else (self.company or "IIPL")
+        resolved_company_code = "5030" if is_padget else "5020"
+        resolved_building = self.building or ("D197" if is_padget else "C39")
+
         return {
             "id": str(self.id),
             "assetTag": self.tag or self.asset_code,
@@ -85,9 +94,10 @@ class Asset(models.Model):
             "previousCategory": self.previous_category,
             "currentDescription": self.current_description,
             "previousDescription": self.previous_description,
-            "company": self.company or "IIPL",
+            "company": resolved_company,
+            "companyCode": resolved_company_code,
             "plant": self.plant,
-            "building": self.building or "C39",
+            "building": resolved_building,
             "floor": self.floor or "1st Floor",
             "currentLocation": self.current_location,
             "department": self.department or self.current_department,

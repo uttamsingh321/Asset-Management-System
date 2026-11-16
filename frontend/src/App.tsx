@@ -17,6 +17,7 @@ import type { Language } from '@/lib/indiaLocale'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 import { exportAssetsToExcel } from '@/lib/excelExport'
+import { isPadgetCompany } from '@/assets/companyLogos'
 import {
   saveAssetsToStorage,
   loadAssetsFromStorage,
@@ -289,7 +290,8 @@ export function App() {
       }
       // Company filter: IIPL or Padget
       if (dashCompanyFilter !== 'All') {
-        const comp = a.company || (a.location?.includes('Padget') ? 'Padget' : 'IIPL')
+        const isPadget = isPadgetCompany(a)
+        const comp = isPadget ? 'Padget' : 'IIPL'
         if (comp !== dashCompanyFilter) return false
       }
       // Building filter: C39, D197, D198, D199
@@ -886,6 +888,10 @@ export function App() {
       // If Partial<Asset> from Excel Master Import
       const code = item.assetCode || `AST-${Date.now()}`
       const uniqueId = item.id || `imported-${code}-${idx + 1}-${Date.now().toString(36)}`
+      const isPadget = isPadgetCompany(item)
+      const resolvedCompany = isPadget ? 'Padget' : (item.company || 'ismartu')
+      const resolvedCompanyCode = isPadget ? '5030' : (item.companyCode || (resolvedCompany === 'Padget' ? '5030' : '5020'))
+      const resolvedBuilding = item.building || (isPadget ? 'D197' : 'C39')
       return {
         id: uniqueId,
         assetCode: code,
@@ -895,12 +901,12 @@ export function App() {
         assetClass: item.assetClass || item.currentCategory || '',
         currentDescription: item.currentDescription || item.name || code,
         name: item.name || item.currentDescription || code,
-        company: item.company || 'ismartu',
-        companyCode: item.companyCode || (item.company === 'Padget' ? '5030' : '5020'),
-        plant: item.plant || 'Noida Central Plant',
-        building: item.building || 'C39',
+        company: resolvedCompany,
+        companyCode: resolvedCompanyCode,
+        plant: item.plant || (isPadget ? 'Padget Electronics Noida' : 'Noida Central Plant'),
+        building: resolvedBuilding,
         floor: item.floor || '',
-        location: item.location || 'C-39 Factory Noida',
+        location: item.location || (isPadget ? `Padget · ${resolvedBuilding} · 1st Floor` : `ismartu · ${resolvedBuilding} · 1st Floor`),
         currentLocation: item.currentLocation || item.location || '',
         costCenter: item.costCenter || '',
         department: item.department || item.currentDepartment || 'Production',
@@ -1884,8 +1890,9 @@ export function App() {
                         </thead>
                         <tbody className="divide-y divide-[var(--line)]">
                           {filteredDashboardAssets.map((asset) => {
-                            const comp = asset.company || (asset.location?.includes('Padget') ? 'Padget' : 'IIPL')
-                            const bldg = asset.building || 'C39'
+                            const isPadget = isPadgetCompany(asset)
+                            const comp = isPadget ? 'Padget' : (asset.company || 'IIPL')
+                            const bldg = asset.building || (isPadget ? 'D197' : 'C39')
                             const flr = asset.floor || 'Ground Floor'
                             const dept = asset.currentDepartment || asset.department || 'Operations'
                             const inChargeDisplayId = asset.inChargeId || 'ID Pending'

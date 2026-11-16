@@ -4,6 +4,7 @@ import type { UserProfile } from '@/lib/deviceTracker'
 import { isAssetTaskCompleted, type Asset } from '@/types/asset'
 import { toast } from 'sonner'
 import { pushAssetsToBackend, fetchBackendAssets } from '@/lib/assetStorage'
+import { isPadgetCompany } from '@/assets/companyLogos'
 
 const DEPARTMENTS = [
   'IT',
@@ -116,7 +117,15 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
 
     row.forEach((colName, idx) => {
       const norm = colName.replace(/[^a-z0-9]/g, '')
-      if (norm.includes('companycode') || norm === 'company' || norm === 'cocode' || norm === 'compcode') {
+      if (
+        norm.includes('companycode') ||
+        norm === 'company' ||
+        norm === 'cocode' ||
+        norm === 'compcode' ||
+        norm === 'company_code' ||
+        norm === 'companyid' ||
+        norm === 'coid'
+      ) {
         tempMap.companyCode = idx
         score += 2
       } else if (norm.includes('assetclass') || norm === 'class') {
@@ -221,21 +230,26 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
       const costCenter = colMap.costCenter !== undefined ? String(row[colMap.costCenter] ?? '').trim() : ''
       const loc = colMap.location !== undefined ? String(row[colMap.location] ?? '').trim() : ''
 
-      let resolvedCompany = 'ismartu'
-      if (compCode.toLowerCase().includes('padget')) {
-        resolvedCompany = 'Padget'
-      } else if (compCode === '5020' || compCode.toLowerCase().includes('ismartu') || compCode.toLowerCase().includes('iipl')) {
-        resolvedCompany = 'ismartu'
-      } else if (compCode) {
-        resolvedCompany = compCode
-      }
-
       let resolvedBuilding = 'C39'
       const locUpper = loc.toUpperCase()
       if (locUpper.includes('D197') || locUpper.includes('D-197')) resolvedBuilding = 'D197'
       else if (locUpper.includes('D198') || locUpper.includes('D-198')) resolvedBuilding = 'D198'
       else if (locUpper.includes('D199') || locUpper.includes('D-199')) resolvedBuilding = 'D199'
       else if (locUpper.includes('C39') || locUpper.includes('C-39')) resolvedBuilding = 'C39'
+
+      const isPadget = isPadgetCompany({
+        company: compCode,
+        companyCode: compCode,
+        building: resolvedBuilding,
+        location: loc,
+        costCenter: costCenter,
+      })
+
+      const resolvedCompany = isPadget ? 'Padget' : (compCode === '5020' || compCode.toLowerCase().includes('ismartu') || compCode.toLowerCase().includes('iipl') ? 'ismartu' : (compCode || 'ismartu'))
+      const resolvedCompanyCode = isPadget ? '5030' : (compCode === '5020' ? '5020' : (compCode || '5020'))
+      if (isPadget && resolvedBuilding === 'C39') {
+        resolvedBuilding = 'D197'
+      }
 
       let formattedDate = capDate
       try {
@@ -260,15 +274,15 @@ async function readCodesOrMasterAssetsFromFile(file: File): Promise<(string | Pa
         name: desc || rawCode,
         currentDescription: desc || rawCode,
         company: resolvedCompany,
-        companyCode: compCode || (resolvedCompany === 'Padget' ? '5030' : '5020'),
+        companyCode: resolvedCompanyCode,
         category: assetClass || 'Equipment',
         currentCategory: assetClass || 'Equipment',
         assetClass,
         costCenter,
         department: 'Production',
         currentDepartment: 'Production',
-        location: loc || `${resolvedBuilding} Factory Noida`,
-        plant: loc || 'Noida Central Plant',
+        location: loc || (isPadget ? `Padget · ${resolvedBuilding} · 1st Floor` : `ismartu · ${resolvedBuilding} · 1st Floor`),
+        plant: loc || (isPadget ? 'Padget Electronics Noida' : 'Noida Central Plant'),
         building: resolvedBuilding,
         purchaseDate: formattedDate || new Date().toISOString().slice(0, 10),
         capitalizationDate: capDate || formattedDate,
@@ -803,7 +817,8 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                   const isCompleted = isAssetTaskCompleted(asset)
                   const dept = asset.currentDepartment || asset.department || 'Unassigned'
                   const inCharge = asset.inChargeName || asset.submitter || asset.assignedTo || '-'
-                  const loc = [asset.company || 'IIPL', asset.building || 'C39', asset.floor].filter(Boolean).join(' · ')
+                  const isPadget = isPadgetCompany(asset)
+                  const loc = [asset.company || (isPadget ? 'Padget' : 'IIPL'), asset.building || (isPadget ? 'D197' : 'C39'), asset.floor].filter(Boolean).join(' · ')
 
                   return (
                     <tr

@@ -201,7 +201,13 @@ def api_assets(request: HttpRequest) -> JsonResponse:
                         if item.get("floor"):
                             ea.floor = str(item["floor"])[:64]
                         if item.get("company"):
-                            ea.company = str(item["company"])[:64]
+                            comp_val = str(item["company"])[:64]
+                            if "padget" in comp_val.lower() or "5030" in comp_val:
+                                ea.company = "Padget"
+                            else:
+                                ea.company = comp_val
+                        elif item.get("building") and any(b in str(item["building"]).upper() for b in ["D197", "D198", "D199"]):
+                            ea.company = "Padget"
                         if item.get("plant"):
                             ea.plant = str(item["plant"])[:128]
                         if item.get("currentLocation") or item.get("location"):
@@ -251,9 +257,20 @@ def api_assets(request: HttpRequest) -> JsonResponse:
                         name = str(item.get("currentDescription") or item.get("name") or tag)[:255]
                         category = str(item.get("currentCategory") or item.get("category") or "Equipment")[:64]
                         dept = str(item.get("currentDepartment") or item.get("department") or "Production")[:128]
-                        company = str(item.get("company") or "ismartu")[:64]
-                        plant = str(item.get("plant") or "Noida Central Plant")[:128]
-                        building = str(item.get("building") or "C39")[:128]
+                        raw_comp = str(item.get("company") or "").strip()
+                        raw_comp_code = str(item.get("companyCode") or "").strip()
+                        raw_bldg = str(item.get("building") or "C39")[:128]
+                        raw_loc = str(item.get("currentLocation") or item.get("location") or "")[:255]
+                        is_padget = bool(
+                            "padget" in raw_comp.lower() or
+                            "5030" in raw_comp or
+                            "5030" in raw_comp_code or
+                            any(b in raw_bldg.upper() for b in ["D197", "D198", "D199"]) or
+                            any(b in raw_loc.upper() for b in ["D197", "D198", "D199", "PADGET"])
+                        )
+                        company = "Padget" if is_padget else (raw_comp or "ismartu")[:64]
+                        plant = str(item.get("plant") or ("Padget Electronics Noida" if is_padget else "Noida Central Plant"))[:128]
+                        building = ("D197" if (is_padget and raw_bldg == "C39") else raw_bldg)
                         floor = str(item.get("floor") or "1st Floor")[:64]
                         loc = str(item.get("currentLocation") or item.get("location") or "C-39 Factory Noida")[:255]
                         status = str(item.get("status") or "Pending Verification")[:32]

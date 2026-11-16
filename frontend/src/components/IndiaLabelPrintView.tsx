@@ -5,7 +5,7 @@ import type { Asset } from '@/types/asset'
 import { checkAssetDataCompleteness, isAssetPrintable } from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
 import { toast } from 'sonner'
-import { getCompanyLogo } from '@/assets/companyLogos'
+import { getCompanyLogo, isPadgetCompany } from '@/assets/companyLogos'
 import { getCurrentUserProfile, type UserProfile } from '@/lib/deviceTracker'
 import {
   checkPrintEligibility,
@@ -193,8 +193,8 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
   // 1. Asset Code
   const assetCode = asset.assetCode || '-'
 
-  // Company Logo resolver (ismartu vs PadGET based on selected asset company)
-  const logoInfo = React.useMemo(() => getCompanyLogo(asset.company), [asset.company])
+  // Company Logo resolver (ismartu vs PadGET based on selected asset company, building, companyCode, etc.)
+  const logoInfo = React.useMemo(() => getCompanyLogo(asset), [asset])
 
   // 2. Asset Name: prioritize explicit asset name, then description, avoiding repeating assetCode
   const assetName = React.useMemo(() => {
@@ -1250,14 +1250,14 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                   : 'bg-red-500/10 text-red-600 border-red-500/20'
               }`}
             >
-              {currentAsset?.company?.toLowerCase().includes('padget')
+              {isPadgetCompany(currentAsset)
                 ? 'PadGET Equipment Template'
                 : 'ismartu Standard Template'}
             </span>
           </h1>
           <p className="text-xs text-[var(--mute)] mt-1">
             Official Equipment Fixed Asset label format with{' '}
-            {currentAsset?.company?.toLowerCase().includes('padget') ? 'PadGET' : 'ismartu'} branding, Code-128 barcode, and strict QR verification rule.
+            {isPadgetCompany(currentAsset) ? 'PadGET' : 'ismartu'} branding, Code-128 barcode, and strict QR verification rule.
           </p>
         </div>
 
@@ -1333,7 +1333,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
           </span>
           <div>
             <div className="font-bold text-[var(--ink)]">
-              {currentAsset?.company?.toLowerCase().includes('padget') ? 'PadGET' : 'ismartu'} Equipment Fixed Asset (设备固定资产) Specification
+              {isPadgetCompany(currentAsset) ? 'PadGET' : 'ismartu'} Equipment Fixed Asset (设备固定资产) Specification
             </div>
             <div className="text-[11px] text-[var(--mute)]">
               Dimensions: 100mm × 65mm · Rule: QR printing is strictly prohibited until asset details are fully filled · Single-Print Policy: Re-printing requires Super User approval

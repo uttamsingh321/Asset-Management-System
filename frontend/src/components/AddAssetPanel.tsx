@@ -2,7 +2,7 @@ import * as React from 'react'
 import type { Asset, AssetStatus } from '@/types/asset'
 import type { UserProfile } from '@/lib/deviceTracker'
 import { toast } from 'sonner'
-import { getCompanyLogo } from '@/assets/companyLogos'
+import { getCompanyLogo, isPadgetCompany, resolveCompanyCode } from '@/assets/companyLogos'
 
 interface AddAssetPanelProps {
   open: boolean
@@ -181,25 +181,26 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setCurrentDescription(initialAsset.currentDescription || resolvedName || '')
       setPreviousDescription(initialAsset.previousDescription || '')
 
-      const comp = initialAsset.company || 'ismartu'
+      const isPadget = isPadgetCompany(initialAsset)
+      const comp = isPadget ? 'Padget' : (initialAsset.company || 'ismartu')
       setCompany(comp)
       if (comp && !companies.includes(comp)) {
         setCompanies((prev) => Array.from(new Set([...prev, comp])))
       }
 
-      const bldg = initialAsset.building || 'C39'
+      const bldg = initialAsset.building || (isPadget ? 'D197' : 'C39')
       setBuilding(bldg)
       if (bldg && !buildings.includes(bldg)) {
         setBuildings((prev) => Array.from(new Set([...prev, bldg])))
       }
 
-      const defaultPlant = initialAsset.plant || initialAsset.location || 'C-39 Factory Noida'
+      const defaultPlant = initialAsset.plant || initialAsset.location || (isPadget ? 'Padget Electronics Noida' : 'C-39 Factory Noida')
       setPlant(defaultPlant)
       setPlantUnavailable(false)
       setPlantReason('')
       setCostCenter(initialAsset.costCenter || '')
       setCapitalizationDate(initialAsset.capitalizationDate || initialAsset.purchaseDate || '')
-      setCompanyCode(initialAsset.companyCode || (comp === 'Padget' ? '5030' : '5020'))
+      setCompanyCode(initialAsset.companyCode || (isPadget ? '5030' : '5020'))
       setShowEditMasterData(false)
       setFloor(initialAsset.floor || '')
       setCurrentLocation(initialAsset.currentLocation || '')
@@ -523,8 +524,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     const newAsset: Asset = {
       ...(initialAsset || {}),
       id: initialAsset?.id || `AST-${Date.now().toString().slice(-6)}`,
-      company,
-      companyCode: companyCode || initialAsset?.companyCode || (company === 'Padget' ? '5030' : '5020'),
+      company: isPadgetCompany(company, { companyCode, building } as any) ? 'Padget' : company,
+      companyCode: companyCode || resolveCompanyCode(company, { building } as any),
       costCenter: costCenter || initialAsset?.costCenter || undefined,
       capitalizationDate: capitalizationDate || initialAsset?.capitalizationDate || date,
       assetClass: currentCategory.trim() || initialAsset?.assetClass,
@@ -730,7 +731,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 {/* Col A: Company code */}
                 <div className="p-2 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
                   <span className="block text-[10px] uppercase font-bold text-[var(--mute)]">Company code (Col A)</span>
-                  <span className="font-mono font-bold text-[var(--ink)]">{companyCode || (company === 'Padget' ? '5030' : '5020')}</span>
+                  <span className="font-mono font-bold text-[var(--ink)]">{companyCode || resolveCompanyCode(company, { building } as any)}</span>
                   <span className="block text-[10px] text-[var(--mute)]">{company}</span>
                 </div>
 
@@ -776,7 +777,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-[var(--mute)]">Printed Label Brand:</span>
                   <span className="font-bold text-[var(--ink)] flex items-center gap-1.5">
-                    {company.toLowerCase().includes('padget') ? (
+                    {isPadgetCompany(company, { companyCode, building } as any) ? (
                       <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold border border-blue-500/20 text-[10px]">
                         PadGET Logo
                       </span>
@@ -789,8 +790,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 </div>
                 <div className="h-6 w-20 bg-white rounded border border-black/10 flex items-center justify-center p-0.5 shadow-2xs">
                   <img
-                    src={getCompanyLogo(company).src}
-                    alt={company}
+                    src={getCompanyLogo(company, { companyCode, building } as any).src}
+                    alt={isPadgetCompany(company, { companyCode, building } as any) ? 'PadGET Logo' : 'ismartu Logo'}
                     className="max-h-full max-w-full object-contain"
                   />
                 </div>
@@ -1102,7 +1103,13 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                       <button
                         key={comp}
                         type="button"
-                        onClick={() => setCompany(comp)}
+                        onClick={() => {
+                          setCompany(comp)
+                          const isPad = isPadgetCompany(comp)
+                          setCompanyCode(isPad ? '5030' : '5020')
+                          if (isPad && building === 'C39') setBuilding('D197')
+                          if (!isPad && ['D197', 'D198', 'D199'].includes(building)) setBuilding('C39')
+                        }}
                         className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
                           company === comp
                             ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
@@ -1323,7 +1330,17 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     <button
                       key={bldg}
                       type="button"
-                      onClick={() => setBuilding(bldg)}
+                      onClick={() => {
+                        setBuilding(bldg)
+                        const isPad = isPadgetCompany(bldg)
+                        if (isPad) {
+                          setCompany('Padget')
+                          setCompanyCode('5030')
+                        } else if (bldg === 'C39') {
+                          setCompany('ismartu')
+                          setCompanyCode('5020')
+                        }
+                      }}
                       className={`flex-1 min-w-[65px] py-1.5 px-2 rounded-lg border text-xs font-bold transition-all cursor-pointer text-center ${
                         building === bldg
                           ? 'bg-[var(--acc)] text-white border-[var(--acc)] shadow-sm'
@@ -1338,7 +1355,17 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   id="field-building"
                   type="text"
                   value={building}
-                  onChange={(e) => setBuilding(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setBuilding(val)
+                    if (isPadgetCompany(val)) {
+                      setCompany('Padget')
+                      setCompanyCode('5030')
+                    } else if (val.toUpperCase() === 'C39') {
+                      setCompany('ismartu')
+                      setCompanyCode('5020')
+                    }
+                  }}
                   placeholder="e.g. C39, D197, D198, D199"
                   style={inputStyle}
                 />

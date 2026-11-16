@@ -8,7 +8,9 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     {
       id: '1',
       assetCode: '2005941',
+      serialNumber: '',
       name: 'SMT High Speed Feeder',
+      currentCategory: 'Machinery',
       currentDescription: 'SMT Feeder Line 1',
       company: 'IIPL',
       building: 'C39',
@@ -32,7 +34,9 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     {
       id: '2',
       assetCode: '8107891',
+      serialNumber: '',
       name: 'Reflow Soldering Oven',
+      currentCategory: 'Machinery',
       currentDescription: 'Reflow Soldering Oven Unit',
       company: 'IIPL',
       building: 'C39',
@@ -55,7 +59,9 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     {
       id: '3',
       assetCode: 'PDG-197-01',
+      serialNumber: '',
       name: 'Automated Box Assembly Station',
+      currentCategory: 'Operations',
       currentDescription: 'Chassis Box Assembly Unit',
       company: 'Padget',
       building: 'D197',
