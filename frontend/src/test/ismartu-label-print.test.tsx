@@ -28,6 +28,9 @@ const sampleAsset: Asset = {
   assetCondition: 'Operational - Excellent',
   purchaseCost: 50000,
   currentValue: 45000,
+  submitter: 'Arbind Kumar Singh',
+  submitterId: '19102709',
+  submitterDepartment: 'SMT Operations',
   assignedTo: 'Rajesh Kumar',
   location: 'C39-2F',
 }
@@ -61,9 +64,13 @@ describe('ismartu Equipment Fixed Asset QR Label Specification', () => {
     expect(screen.getByText('使用部门/Department')).toBeInTheDocument()
     expect(screen.getByText('SMT Operations')).toBeInTheDocument()
 
-    // Custodian includes Employee ID: EMP-102 · Rajesh Kumar
+    // Custodian includes Employee ID: EMP-102 · Rajesh Kumar (Real Owner)
     expect(screen.getByText('责任人/Custodian')).toBeInTheDocument()
     expect(screen.getByText('EMP-102 · Rajesh Kumar')).toBeInTheDocument()
+
+    // Current User includes Submitter Employee ID, Name, and Dept
+    expect(screen.getByText('使用人/Current User')).toBeInTheDocument()
+    expect(screen.getByText('19102709 · Arbind Kumar Singh (SMT Operations)')).toBeInTheDocument()
 
     expect(screen.getByText('放置区域/Placement Area')).toBeInTheDocument()
     expect(screen.getByText('C39-2F (Bay 14 Desk 4A)')).toBeInTheDocument()

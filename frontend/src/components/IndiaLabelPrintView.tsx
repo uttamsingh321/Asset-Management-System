@@ -222,10 +222,10 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
     return dept || (asset.building?.trim() ? `${asset.building.trim()} Operations` : '-')
   }, [asset.currentDepartment, asset.department, asset.building])
 
-  // 5. Custodian: User requested "add emp ID" -> display Employee ID and Name
+  // 5. Custodian (责任人 / Custodian): Real Owner - display Employee ID and Name
   const custodianDisplay = React.useMemo(() => {
     const empId = asset.inChargeId?.trim()
-    const name = asset.inChargeName?.trim() || asset.custodian?.trim() || asset.submitter?.trim()
+    const name = asset.inChargeName?.trim() || asset.custodian?.trim()
     const cleanId = empId && empId !== 'ID Pending' ? empId : ''
     const cleanName = name && name !== 'Unassigned Staff' ? name : ''
 
@@ -238,9 +238,26 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
       return asset.whoInCharge
     }
     return '-'
-  }, [asset])
+  }, [asset.inChargeId, asset.inChargeName, asset.custodian, asset.whoInCharge])
 
-  // 6. Placement Area: real building and floor / location (filters out redundant factory address)
+  // 6. Current User (使用人 / Current User): Submitter / Logged-in Personnel who operates or registered the asset
+  const currentUserDisplay = React.useMemo(() => {
+    const empId = asset.submitterId?.trim()
+    const name = asset.submitter?.trim()
+    const dept = asset.submitterDepartment?.trim()
+    const cleanId = empId && empId !== 'ID Pending' ? empId : ''
+    const cleanName = name && name !== 'Unassigned Staff' && name !== 'Staff' ? name : ''
+
+    if (cleanId && cleanName) {
+      return dept ? `${cleanId} · ${cleanName} (${dept})` : `${cleanId} · ${cleanName}`
+    }
+    if (cleanId) return dept ? `${cleanId} (${dept})` : cleanId
+    if (cleanName) return dept ? `${cleanName} (${dept})` : cleanName
+    if (dept) return dept
+    return '-'
+  }, [asset.submitterId, asset.submitter, asset.submitterDepartment])
+
+  // 7. Placement Area: real building and floor / location (filters out redundant factory address)
   const placementArea = React.useMemo(() => {
     const bldg = asset.building?.trim() || ''
     const flr = asset.floor?.trim() || ''
@@ -274,13 +291,14 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
     return asset.assetCode || '2004218'
   }, [asset.assetCode])
 
-  // Exactly 6 rows (Row 7 "Purchase Date" removed per user annotation)
+  // Exactly 7 rows: shows BOTH Real Owner (责任人/Custodian) and Current User (使用人/Current User)
   const rows = [
     { label: '资产编号/Asset No.', value: assetCode, isCode: true },
     { label: '资产名称/Asset Name', value: assetName },
     { label: '设备型号/Model', value: model },
     { label: '使用部门/Department', value: departmentDisplay },
     { label: '责任人/Custodian', value: custodianDisplay },
+    { label: '使用人/Current User', value: currentUserDisplay },
     { label: '放置区域/Placement Area', value: placementArea },
   ]
 
@@ -374,7 +392,7 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
         </div>
       </div>
 
-      {/* 2. Middle Table: 6 Rows */}
+      {/* 2. Middle Table: 7 Rows (Shows BOTH Real Owner & Current User) */}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {rows.map((row, idx) => (
           <div
@@ -382,7 +400,7 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
             style={{
               display: 'flex',
               borderBottom: idx === rows.length - 1 ? '2px solid #000000' : '1.5px solid #000000',
-              minHeight: `${29 * scale}px`,
+              minHeight: `${26.5 * scale}px`,
               alignItems: 'center',
               boxSizing: 'border-box',
             }}
@@ -392,12 +410,12 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
               style={{
                 width: '38%',
                 borderRight: '1.5px solid #000000',
-                padding: `${3 * scale}px ${10 * scale}px`,
-                fontSize: `${12 * scale}px`,
+                padding: `${2 * scale}px ${8 * scale}px`,
+                fontSize: `${11.5 * scale}px`,
                 fontWeight: 800,
                 color: '#000000',
                 whiteSpace: 'nowrap',
-                lineHeight: 1.3,
+                lineHeight: 1.25,
                 boxSizing: 'border-box',
               }}
             >
@@ -408,11 +426,11 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
             <div
               style={{
                 width: '62%',
-                padding: `${3 * scale}px ${12 * scale}px`,
-                fontSize: row.isCode ? `${16 * scale}px` : `${13 * scale}px`,
+                padding: `${2 * scale}px ${10 * scale}px`,
+                fontSize: row.isCode ? `${15 * scale}px` : `${12 * scale}px`,
                 fontWeight: 800,
                 color: '#000000',
-                lineHeight: 1.3,
+                lineHeight: 1.25,
                 fontFamily: row.isCode ? 'monospace, "Arial", sans-serif' : 'inherit',
                 letterSpacing: row.isCode ? '1px' : 'normal',
                 overflow: 'hidden',
@@ -993,6 +1011,9 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
       'Department',
       'Custodian ID',
       'Custodian Name',
+      'Current User ID',
+      'Current User Name',
+      'Current User Dept',
       'Placement Area',
       'Company',
       'Plant',
@@ -1013,6 +1034,9 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         a.currentDepartment || a.department || 'Operations',
         a.inChargeId || '-',
         custodian,
+        a.submitterId || '-',
+        a.submitter || '-',
+        a.submitterDepartment || '-',
         loc,
         a.company || 'ismartu',
         a.plant || 'Noida Plant',
