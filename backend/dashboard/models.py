@@ -10,6 +10,12 @@ class Asset(models.Model):
     ]
 
     CATEGORY_CHOICES = [
+        ("Fixed Assets", "Fixed Assets"),
+        ("Accessories", "Accessories"),
+        ("Tools", "Tools"),
+        ("Fixtures", "Fixtures"),
+        ("Fixed Asset", "Fixed Asset"),
+        ("General Equipment", "General Equipment"),
         ("IT Hardware", "IT Hardware"),
         ("Networking", "Networking"),
         ("Vehicles", "Vehicles"),
@@ -22,7 +28,7 @@ class Asset(models.Model):
     # Core Identifiers
     tag = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=255)
-    category = models.CharField(max_length=64, choices=CATEGORY_CHOICES, default="IT Hardware")
+    category = models.CharField(max_length=64, choices=CATEGORY_CHOICES, default="Fixed Assets")
     department = models.CharField(max_length=128, default="Operations")
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="Active")
     purchase_date = models.DateField(auto_now_add=True)

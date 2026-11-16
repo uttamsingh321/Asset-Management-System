@@ -266,6 +266,79 @@ export interface AssetTypeTemplate {
   customPhotoUrl?: string
 }
 
+// ── Four Major System Asset Categories ──
+export const MAJOR_ASSET_CATEGORIES = [
+  'Fixed Assets',
+  'Accessories',
+  'Tools',
+  'Fixtures',
+] as const
+
+export type MajorAssetCategory = typeof MAJOR_ASSET_CATEGORIES[number]
+
+export interface AssetCategoryMeta {
+  key: MajorAssetCategory
+  label: string
+  chineseLabel: string
+  englishLabel: string
+  icon: string
+  description: string
+  color: string
+  badgeClass: string
+}
+
+export const MAJOR_ASSET_CATEGORIES_CONFIG: Record<MajorAssetCategory, AssetCategoryMeta> = {
+  'Fixed Assets': {
+    key: 'Fixed Assets',
+    label: 'Fixed Assets',
+    chineseLabel: '设备固定资产',
+    englishLabel: 'Equipment Fixed Asset',
+    icon: '🏢',
+    description: 'Capital machinery, SMT lines, servers, vehicles & plant equipment',
+    color: 'rgb(59, 130, 246)',
+    badgeClass: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
+  },
+  'Accessories': {
+    key: 'Accessories',
+    label: 'Accessories',
+    chineseLabel: '设备配件 / 附件',
+    englishLabel: 'Equipment Accessory',
+    icon: '🔌',
+    description: 'Power adapters, auxiliary modules, cables, trays & sub-assemblies',
+    color: 'rgb(16, 185, 129)',
+    badgeClass: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+  },
+  'Tools': {
+    key: 'Tools',
+    label: 'Tools',
+    chineseLabel: '工装工具 / 器具',
+    englishLabel: 'Equipment Tool',
+    icon: '🛠️',
+    description: 'Hand tools, calibration kits, torque drivers, multimeters & test meters',
+    color: 'rgb(245, 158, 11)',
+    badgeClass: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+  },
+  'Fixtures': {
+    key: 'Fixtures',
+    label: 'Fixtures',
+    chineseLabel: '工装夹具 / 治具',
+    englishLabel: 'Equipment Fixture',
+    icon: '🧰',
+    description: 'SMT carriers, PCB holding nests, clamping jigs & test fixtures',
+    color: 'rgb(168, 85, 247)',
+    badgeClass: 'bg-purple-500/10 text-purple-600 border-purple-500/30',
+  },
+}
+
+export function resolveMajorAssetCategory(rawCategory?: string): MajorAssetCategory {
+  if (!rawCategory) return 'Fixed Assets'
+  const clean = rawCategory.trim().toLowerCase()
+  if (clean.includes('accessor') || clean.includes('配件') || clean.includes('附件')) return 'Accessories'
+  if (clean.includes('fixture') || clean.includes('夹具') || clean.includes('治具') || clean.includes('jig') || clean.includes('nest') || clean.includes('carrier') || clean.includes('stencil')) return 'Fixtures'
+  if (clean.includes('tool') || clean.includes('工具') || clean.includes('工装') || clean.includes('torque') || clean.includes('meter')) return 'Tools'
+  return 'Fixed Assets'
+}
+
 /**
  * Determines whether an asset represents a fully completed and registered equipment unit,
  * or if it is still an unfilled pending task queue code.

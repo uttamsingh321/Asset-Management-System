@@ -3,6 +3,11 @@ import jsQR from 'jsqr'
 import { toast } from 'sonner'
 import { t, formatDateIN, type Language } from '@/lib/indiaLocale'
 import type { Asset } from '@/types/asset'
+import {
+  MAJOR_ASSET_CATEGORIES,
+  MAJOR_ASSET_CATEGORIES_CONFIG,
+  resolveMajorAssetCategory,
+} from '@/types/asset'
 import { exportAssetsToExcel } from '@/lib/excelExport'
 import { logAuditEvent, type UserProfile, getCurrentUserProfile } from '@/lib/deviceTracker'
 
@@ -130,6 +135,7 @@ export function IndiaStockCountView({
   const [activeTask, setActiveTask] = useState<StockCountTask | null>(null)
   const [taskItemRecords, setTaskItemRecords] = useState<Record<string, StockCountItemRecord>>({})
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'verified' | 'variances'>('all')
+  const [stockCategoryFilter, setStockCategoryFilter] = useState<string>('all')
 
   // 3. QR Scan Dialog State & Real Hardware Camera Feed
   const [isScanModalOpen, setIsScanModalOpen] = useState(false)
@@ -904,11 +910,16 @@ export function IndiaStockCountView({
   }, [activeTask, assets, taskItemRecords])
 
   const filteredItemsList = useMemo(() => {
-    if (statusFilter === 'pending') return activeItemsList.filter(i => i.record.status === 'Pending')
-    if (statusFilter === 'verified') return activeItemsList.filter(i => i.record.status === 'Normal')
-    if (statusFilter === 'variances') return activeItemsList.filter(i => i.record.status !== 'Pending' && i.record.status !== 'Normal')
-    return activeItemsList
-  }, [activeItemsList, statusFilter])
+    let list = activeItemsList
+    if (statusFilter === 'pending') list = list.filter(i => i.record.status === 'Pending')
+    else if (statusFilter === 'verified') list = list.filter(i => i.record.status === 'Normal')
+    else if (statusFilter === 'variances') list = list.filter(i => i.record.status !== 'Pending' && i.record.status !== 'Normal')
+
+    if (stockCategoryFilter !== 'all') {
+      list = list.filter(i => resolveMajorAssetCategory(i.asset.currentCategory || i.asset.category) === stockCategoryFilter)
+    }
+    return list
+  }, [activeItemsList, statusFilter, stockCategoryFilter])
 
   const verifiedTotal = activeItemsList.filter(i => i.record.status !== 'Pending').length
   const variancesTotal = activeItemsList.filter(i => i.record.status !== 'Pending' && i.record.status !== 'Normal').length
@@ -1076,14 +1087,50 @@ export function IndiaStockCountView({
 
           {/* Assigned Assets Verification Table */}
           <div className="card overflow-hidden border border-[var(--line)]">
-            <div className="p-4 border-b border-[var(--line)] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-2">
-                <span>📋</span>
-                <span>Assigned Units for Physical Audit</span>
-                <span className="text-xs font-normal text-[var(--mute)]">
-                  (Strict Rule: Each unit must be verified only by scanning its printed QR code)
-                </span>
-              </h3>
+            <div className="p-4 border-b border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-2">
+                  <span>📋</span>
+                  <span>Assigned Units for Physical Audit</span>
+                </h3>
+                <p className="text-xs text-[var(--mute)] mt-0.5">
+                  Strict Rule: Each unit must be verified only by scanning its printed QR code.
+                </p>
+              </div>
+
+              {/* Major Asset Category Filter */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStockCategoryFilter('all')}
+                  className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
+                    stockCategoryFilter === 'all'
+                      ? 'bg-[var(--ink)] text-[var(--surf)] font-bold'
+                      : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  All Categories
+                </button>
+                {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+                  const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+                  const isSelected = stockCategoryFilter === catKey
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      onClick={() => setStockCategoryFilter(catKey)}
+                      className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-[var(--ink)] text-[var(--surf)] font-bold shadow-xs'
+                          : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      <span>{cfg.icon}</span>
+                      <span>{cfg.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {filteredItemsList.length > 0 ? (
@@ -1120,7 +1167,10 @@ export function IndiaStockCountView({
                             </div>
                           </td>
                           <td className="p-3 text-[var(--mute)]">
-                            {asset.currentCategory || asset.category}
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].badgeClass}`}>
+                              {MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].icon}{' '}
+                              {MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].label}
+                            </span>
                           </td>
                           <td className="p-3 text-[var(--mute)]">
                             {record.currentLocation || record.bookLocation}

@@ -1,7 +1,13 @@
 import * as React from 'react'
 import * as XLSX from 'xlsx'
 import type { UserProfile } from '@/lib/deviceTracker'
-import { isAssetTaskCompleted, type Asset } from '@/types/asset'
+import {
+  isAssetTaskCompleted,
+  type Asset,
+  MAJOR_ASSET_CATEGORIES,
+  MAJOR_ASSET_CATEGORIES_CONFIG,
+  resolveMajorAssetCategory,
+} from '@/types/asset'
 import { toast } from 'sonner'
 import { pushAssetsToBackend, fetchBackendAssets } from '@/lib/assetStorage'
 import { isPadgetCompany } from '@/assets/companyLogos'
@@ -536,6 +542,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   const [departmentFilter, setDepartmentFilter] = React.useState<string>(
     isAdmin || isFinance ? 'All' : (userDepartment || 'All')
   )
+  const [categoryFilter, setCategoryFilter] = React.useState<string>('All')
 
   // Scoped to user's department for employees, or 'All' for admin/finance
   React.useEffect(() => {
@@ -603,7 +610,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   // Reset to page 1 on filter or search changes
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter, departmentFilter, query])
+  }, [statusFilter, departmentFilter, categoryFilter, query])
 
   // Categorize Assets
   const unassignedAssets = assets.filter((asset) => asset.status === 'Imported')
@@ -669,6 +676,12 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         if (!matches && !isOpenPendingTask) return false
       }
 
+      // Category filter for the 4 Major Categories
+      if (categoryFilter !== 'All') {
+        const cat = resolveMajorAssetCategory(asset.currentCategory || asset.category)
+        if (cat !== categoryFilter) return false
+      }
+
       // Query filter
       if (query.trim()) {
         const q = query.toLowerCase()
@@ -682,6 +695,8 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
           asset.floor,
           asset.currentDepartment,
           asset.department,
+          asset.currentCategory,
+          asset.category,
           asset.inChargeName,
           asset.inChargeId,
         ].filter(Boolean).join(' ').toLowerCase()
@@ -690,7 +705,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
 
       return true
     })
-  }, [assets, statusFilter, departmentFilter, query, isAdmin, userDepartment])
+  }, [assets, statusFilter, departmentFilter, categoryFilter, query, isAdmin, userDepartment])
 
   // Paginated task slice for 60fps instant rendering even with 100k+ assets
   const totalFilteredTasks = filteredTaskAssets.length
@@ -993,63 +1008,101 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         </div>
 
         {/* Filter & Search Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Department Filter Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Department Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+              <button
+                type="button"
+                onClick={() => setDepartmentFilter('All')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                  departmentFilter === 'All'
+                    ? 'bg-[var(--acc)] text-white'
+                    : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                }`}
+              >
+                All Depts
+              </button>
+              {DEPARTMENTS.slice(0, 7).map((dept) => {
+                const isSelected =
+                  departmentFilter.toLowerCase() === dept.toLowerCase() ||
+                  (departmentFilter !== 'All' &&
+                    (departmentFilter.toLowerCase().includes(dept.toLowerCase()) ||
+                      dept.toLowerCase().includes(departmentFilter.toLowerCase())))
+                return (
+                  <button
+                    key={dept}
+                    type="button"
+                    onClick={() => setDepartmentFilter(dept)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-[var(--acc)] text-white'
+                        : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {dept}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative min-w-[240px]">
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search or scan asset code"
+                aria-label="Search or scan asset code"
+                className="w-full text-xs py-1.5 pl-8 pr-4 rounded-lg border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] focus:outline-none focus:border-[var(--acc)]"
+              />
+              <span className="absolute left-2.5 top-1.5 text-xs text-[var(--mute)]">🔍</span>
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1.5 text-xs text-[var(--mute)] hover:text-[var(--ink)]"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Major Asset Category Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--mute)] shrink-0">Category:</span>
             <button
               type="button"
-              onClick={() => setDepartmentFilter('All')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
-                departmentFilter === 'All'
-                  ? 'bg-[var(--acc)] text-white'
+              onClick={() => setCategoryFilter('All')}
+              className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                categoryFilter === 'All'
+                  ? 'bg-[var(--ink)] text-[var(--surf)] font-bold'
                   : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
               }`}
             >
-              All Depts
+              All Categories
             </button>
-            {DEPARTMENTS.slice(0, 7).map((dept) => {
-              const isSelected =
-                departmentFilter.toLowerCase() === dept.toLowerCase() ||
-                (departmentFilter !== 'All' &&
-                  (departmentFilter.toLowerCase().includes(dept.toLowerCase()) ||
-                    dept.toLowerCase().includes(departmentFilter.toLowerCase())))
+            {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+              const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+              const isSelected = categoryFilter === catKey
               return (
                 <button
-                  key={dept}
+                  key={catKey}
                   type="button"
-                  onClick={() => setDepartmentFilter(dept)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                  onClick={() => setCategoryFilter(catKey)}
+                  className={`px-2 py-0.5 text-xs font-semibold rounded-md transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                     isSelected
-                      ? 'bg-[var(--acc)] text-white'
+                      ? 'bg-[var(--ink)] text-[var(--surf)] font-bold shadow-xs'
                       : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  {dept}
+                  <span>{cfg.icon}</span>
+                  <span>{cfg.label}</span>
                 </button>
               )
             })}
-          </div>
-
-          {/* Search Input */}
-          <div className="relative min-w-[240px]">
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search or scan asset code"
-              aria-label="Search or scan asset code"
-              className="w-full text-xs py-1.5 pl-8 pr-4 rounded-lg border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] focus:outline-none focus:border-[var(--acc)]"
-            />
-            <span className="absolute left-2.5 top-1.5 text-xs text-[var(--mute)]">🔍</span>
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                className="absolute right-2 top-1 text-xs text-[var(--mute)] hover:text-[var(--ink)]"
-              >
-                ×
-              </button>
-            )}
           </div>
         </div>
 
@@ -1099,6 +1152,16 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                             {asset.assetClass && <span>· {asset.assetClass}</span>}
                           </div>
                         )}
+                        <div className="mt-1 flex items-center gap-1">
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
+                              MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].badgeClass
+                            }`}
+                          >
+                            {MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].icon}{' '}
+                            {MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].label}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Department */}

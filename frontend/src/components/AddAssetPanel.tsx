@@ -1,5 +1,10 @@
 import * as React from 'react'
 import type { Asset, AssetStatus } from '@/types/asset'
+import {
+  MAJOR_ASSET_CATEGORIES,
+  MAJOR_ASSET_CATEGORIES_CONFIG,
+  resolveMajorAssetCategory,
+} from '@/types/asset'
 import type { UserProfile } from '@/lib/deviceTracker'
 import { toast } from 'sonner'
 import { getCompanyLogo, isPadgetCompany, resolveCompanyCode } from '@/assets/companyLogos'
@@ -605,7 +610,8 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       finalAssetName = currentCategory.trim()
     }
     if (!finalAssetName) {
-      finalAssetName = 'Equipment Fixed Asset'
+      const resolvedCat = resolveMajorAssetCategory(currentCategory)
+      finalAssetName = MAJOR_ASSET_CATEGORIES_CONFIG[resolvedCat]?.englishLabel || 'Equipment Fixed Asset'
     }
 
     const finalDescription = (rawProvidedDesc && rawProvidedDesc !== effectiveCode) ? rawProvidedDesc : finalAssetName
@@ -621,7 +627,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       assetCode: effectiveAssetCode,
       model: model.trim() || undefined,
       serialNumber: effectiveSerialNumber,
-      currentCategory: currentCategory.trim() || 'General Equipment',
+      currentCategory: currentCategory.trim() || 'Fixed Assets',
       previousCategory: previousCategory.trim(),
       currentDescription: finalDescription,
       previousDescription: previousDescription.trim(),
@@ -652,7 +658,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       // Compatibility fields
       name: finalAssetName,
       assetTag: effectiveAssetCode,
-      category: currentCategory.trim() || 'IT Hardware',
+      category: currentCategory.trim() || 'Fixed Assets',
       department: currentDepartment.trim() || initialAsset?.department || initialAsset?.costCenter || 'Operations',
       status: initialAsset ? 'Completed' : determinedStatus,
       purchaseDate: date,
@@ -1087,15 +1093,50 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                 />
               </div>
 
+              {/* Four Major Categories Selector */}
+              <div className="space-y-1.5">
+                <label style={labelStyle} className="flex items-center justify-between">
+                  <span>Major Asset Category (四大核心类别) <span className="text-red-500">*</span></span>
+                  <span className="text-[10px] text-[var(--mute)]">Fixed Assets · Accessories · Tools · Fixtures</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+                    const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+                    const isSelected = resolveMajorAssetCategory(currentCategory) === catKey
+                    return (
+                      <button
+                        key={catKey}
+                        type="button"
+                        onClick={() => setCurrentCategory(catKey)}
+                        className={`p-2.5 rounded-xl text-left border transition cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-[var(--acc)]/15 border-[var(--acc)] text-[var(--ink)] shadow-xs ring-1 ring-[var(--acc)] font-bold'
+                            : 'bg-[var(--surf)] border-[var(--line)] text-[var(--mute)] hover:bg-[var(--surf2)] hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg">{cfg.icon}</span>
+                          {isSelected && <span className="text-[10px] font-bold text-[var(--acc)]">✓ Selected</span>}
+                        </div>
+                        <div className="mt-1.5">
+                          <div className="font-bold text-xs text-[var(--ink)] leading-tight">{cfg.label}</div>
+                          <div className="text-[10px] text-[var(--mute)] font-medium mt-0.5">{cfg.chineseLabel}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* Categories & Descriptions */}
               <div style={grid2Style}>
                 <div>
-                  <label style={labelStyle}>Current category</label>
+                  <label style={labelStyle}>Category Specification / Sub-type</label>
                   <input
                     type="text"
                     value={currentCategory}
                     onChange={(e) => setCurrentCategory(e.target.value)}
-                    placeholder="e.g. Laptops & Compute"
+                    placeholder="e.g. Fixed Assets, Accessories, Tools, Fixtures"
                     style={inputStyle}
                   />
                 </div>

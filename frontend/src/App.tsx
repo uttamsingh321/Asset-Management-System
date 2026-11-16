@@ -12,7 +12,12 @@ import {
   type UserProfile,
 } from '@/lib/deviceTracker'
 import type { Asset } from '@/types/asset'
-import { isAssetTaskCompleted } from '@/types/asset'
+import {
+  isAssetTaskCompleted,
+  MAJOR_ASSET_CATEGORIES,
+  MAJOR_ASSET_CATEGORIES_CONFIG,
+  resolveMajorAssetCategory,
+} from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -2401,23 +2406,58 @@ export function App() {
 
                   <section className="card c4">
                     <h2>{activePage.bh}</h2>
-                    {activePage.b.length > 0 ? (
-                      activePage.b.map((r, idx) => (
-                        <div key={idx} className="row" style={{ display: 'block' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span className="t">{r[0]}</span>
-                            <span>{r[1]}</span>
+                    {(() => {
+                      const isCategoryCard = activePage.bh === 'By category'
+                      if (isCategoryCard && assets.length > 0) {
+                        const total = assets.length
+                        return (
+                          <div className="space-y-3">
+                            {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+                              const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+                              const count = assets.filter(
+                                (a) => resolveMajorAssetCategory(a.currentCategory || a.category) === catKey
+                              ).length
+                              const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                              return (
+                                <div key={catKey} className="row" style={{ display: 'block' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span className="t flex items-center gap-1.5 font-medium">
+                                      <span>{cfg.icon}</span>
+                                      <span>{cfg.label}</span>
+                                      <span className="text-[10px] text-[var(--mute)]">({cfg.chineseLabel})</span>
+                                    </span>
+                                    <span className="font-mono text-xs font-bold text-[var(--ink)]">
+                                      {count.toLocaleString()} <span className="text-[10px] text-[var(--mute)]">({pct}%)</span>
+                                    </span>
+                                  </div>
+                                  <div className="bar mt-1">
+                                    <i style={{ width: `${pct}%`, background: cfg.color }} />
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
-                          <div className="bar">
-                            <i style={{ width: `${r[2]}%` }} />
+                        )
+                      }
+                      if (activePage.b.length > 0) {
+                        return activePage.b.map((r, idx) => (
+                          <div key={idx} className="row" style={{ display: 'block' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span className="t">{r[0]}</span>
+                              <span>{r[1]}</span>
+                            </div>
+                            <div className="bar">
+                              <i style={{ width: `${r[2]}%` }} />
+                            </div>
                           </div>
+                        ))
+                      }
+                      return (
+                        <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
+                          No category breakdown data available.
                         </div>
-                      ))
-                    ) : (
-                      <div className="py-8 text-center text-xs" style={{ color: 'var(--mute)' }}>
-                        No category breakdown data available.
-                      </div>
-                    )}
+                      )
+                    })()}
                   </section>
                 </div>
               </div>

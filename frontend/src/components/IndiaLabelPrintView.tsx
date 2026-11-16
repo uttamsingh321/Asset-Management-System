@@ -3,7 +3,13 @@ import { createPortal } from 'react-dom'
 import QRCode from 'qrcode'
 import JsBarcode from 'jsbarcode'
 import type { Asset } from '@/types/asset'
-import { checkAssetDataCompleteness, isAssetPrintable } from '@/types/asset'
+import {
+  checkAssetDataCompleteness,
+  isAssetPrintable,
+  MAJOR_ASSET_CATEGORIES,
+  MAJOR_ASSET_CATEGORIES_CONFIG,
+  resolveMajorAssetCategory,
+} from '@/types/asset'
 import type { Language } from '@/lib/indiaLocale'
 import { toast } from 'sonner'
 import { getCompanyLogo, isPadgetCompany } from '@/assets/companyLogos'
@@ -209,6 +215,13 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
 
   // Company Logo resolver (ismartu vs PadGET based on selected asset company, building, companyCode, etc.)
   const logoInfo = React.useMemo(() => getCompanyLogo(asset), [asset])
+
+  // Category Info resolver for 4 Major Categories: Fixed Assets, Accessories, Tools, Fixtures
+  const categoryInfo = React.useMemo(() => {
+    const rawCat = asset.currentCategory || asset.category || ''
+    const major = resolveMajorAssetCategory(rawCat)
+    return MAJOR_ASSET_CATEGORIES_CONFIG[major]
+  }, [asset.currentCategory, asset.category])
 
   // 2. Asset Name: prioritize explicit asset name, then description, avoiding repeating assetCode
   const assetName = React.useMemo(() => {
@@ -456,7 +469,7 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
               lineHeight: 1.25,
             }}
           >
-            设备固定资产
+            {categoryInfo.chineseLabel}
           </div>
           <div
             style={{
@@ -467,7 +480,7 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
               marginTop: `${2 * scale}px`,
             }}
           >
-            Equipment Fixed Asset
+            {categoryInfo.englishLabel}
           </div>
         </div>
       </div>
@@ -699,15 +712,25 @@ const AssetRowItem = React.memo(function AssetRowItem({
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span
-          className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
-            asset.company?.toLowerCase().includes('padget')
-              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-              : 'bg-red-500/10 text-red-600 border-red-500/20'
-          }`}
-        >
-          {asset.company?.toLowerCase().includes('padget') ? 'PadGET' : (asset.company || 'ismartu')}
-        </span>
+        <div className="flex items-center gap-1">
+          <span
+            className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
+              MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].badgeClass
+            }`}
+          >
+            {MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].icon}{' '}
+            {MAJOR_ASSET_CATEGORIES_CONFIG[resolveMajorAssetCategory(asset.currentCategory || asset.category)].label}
+          </span>
+          <span
+            className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${
+              asset.company?.toLowerCase().includes('padget')
+                ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                : 'bg-red-500/10 text-red-600 border-red-500/20'
+            }`}
+          >
+            {asset.company?.toLowerCase().includes('padget') ? 'PadGET' : (asset.company || 'ismartu')}
+          </span>
+        </div>
         <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surf2)] text-[var(--mute)] font-medium">
           {asset.currentDepartment || asset.department || 'IT'}
         </span>
@@ -823,6 +846,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   }, [search])
 
   const [filterTab, setFilterTab] = React.useState<'all' | 'ready' | 'pending'>('all')
+  const [categoryFilter, setCategoryFilter] = React.useState<string>('all')
   const [bulkSelected, setBulkSelected] = React.useState<Record<string, boolean>>({})
 
   // 8. Pagination State (50 items per page default)
@@ -832,6 +856,14 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   // Compute counts efficiently
   const readyAssetsCount = React.useMemo(() => assets.filter(isAssetPrintable).length, [assets])
   const pendingAssetsCount = assets.length - readyAssetsCount
+
+  const categoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { all: assets.length }
+    MAJOR_ASSET_CATEGORIES.forEach((cat) => {
+      counts[cat] = assets.filter((a) => resolveMajorAssetCategory(a.currentCategory || a.category) === cat).length
+    })
+    return counts
+  }, [assets])
 
   const searchedAssets = React.useMemo(() => {
     if (!debouncedSearch.trim()) return assets
@@ -858,10 +890,15 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   }, [assets, debouncedSearch])
 
   const filteredAssets = React.useMemo(() => {
-    if (filterTab === 'ready') return searchedAssets.filter(isAssetPrintable)
-    if (filterTab === 'pending') return searchedAssets.filter((a) => !isAssetPrintable(a))
-    return searchedAssets
-  }, [searchedAssets, filterTab])
+    let list = searchedAssets
+    if (filterTab === 'ready') list = list.filter(isAssetPrintable)
+    else if (filterTab === 'pending') list = list.filter((a) => !isAssetPrintable(a))
+
+    if (categoryFilter !== 'all') {
+      list = list.filter((a) => resolveMajorAssetCategory(a.currentCategory || a.category) === categoryFilter)
+    }
+    return list
+  }, [searchedAssets, filterTab, categoryFilter])
 
   // Pagination slice
   const totalPages = Math.max(1, Math.ceil(filteredAssets.length / pageSize))
@@ -1541,6 +1578,50 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                   {pendingAssetsCount}
                 </span>
               </button>
+            </div>
+
+            {/* Major Categories Filter Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('all')
+                  setCurrentPage(1)
+                }}
+                className={`px-2 py-1 rounded-lg font-semibold transition whitespace-nowrap cursor-pointer ${
+                  categoryFilter === 'all'
+                    ? 'bg-[var(--acc)] text-white shadow-xs font-bold'
+                    : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                }`}
+              >
+                All ({categoryCounts.all})
+              </button>
+              {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+                const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+                const count = categoryCounts[catKey] ?? 0
+                const isActive = categoryFilter === catKey
+                return (
+                  <button
+                    key={catKey}
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter(catKey)
+                      setCurrentPage(1)
+                    }}
+                    className={`px-2 py-1 rounded-lg font-semibold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                      isActive
+                        ? 'bg-[var(--acc)] text-white shadow-xs font-bold'
+                        : 'bg-[var(--surf2)] text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    <span>{cfg.icon}</span>
+                    <span>{cfg.label}</span>
+                    <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-[var(--surf)] text-[var(--ink)]'}`}>
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
 
             {/* 10. Debounced Search Input */}
