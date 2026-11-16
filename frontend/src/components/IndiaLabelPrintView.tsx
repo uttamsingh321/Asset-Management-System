@@ -189,7 +189,15 @@ export const QrCodeSvg = React.memo(function QrCodeSvg({
 })
 
 // The Exact Template Component requested by the user
-export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, scale = 1 }: { asset: Asset; scale?: number }) {
+export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
+  asset,
+  scale = 1,
+  qrContentMode = 'url',
+}: {
+  asset: Asset
+  scale?: number
+  qrContentMode?: 'url' | 'text' | 'json'
+}) {
   // 1. Asset Code
   const assetCode = asset.assetCode || '-'
 
@@ -200,12 +208,25 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
   const assetName = React.useMemo(() => {
     const rawName = asset.name?.trim()
     const rawDesc = asset.currentDescription?.trim()
-    if (rawName && rawName !== asset.assetCode) return rawName
-    if (rawDesc && rawDesc !== asset.assetCode) return rawDesc
-    if (rawName) return rawName
-    if (rawDesc) return rawDesc
+    const code = (asset.assetCode || '').trim()
+
+    // 1. Explicit name if not equal to code
+    if (rawName && rawName !== code) return rawName
+    // 2. Explicit description if not equal to code
+    if (rawDesc && rawDesc !== code) return rawDesc
+    // 3. Explicit model if available and not equal to code
+    if (asset.model && asset.model.trim() && asset.model.trim() !== code) return asset.model.trim()
+    // 4. Current category if not code and not SAP class code like 600000
+    if (asset.currentCategory && asset.currentCategory.trim() && asset.currentCategory.trim() !== code && asset.currentCategory !== '600000') {
+      return asset.currentCategory.trim()
+    }
+    // 5. Category if not code and not generic
+    if (asset.category && asset.category.trim() && asset.category.trim() !== code && asset.category !== 'General Equipment') {
+      return asset.category.trim()
+    }
+
     return 'Equipment Fixed Asset'
-  }, [asset.name, asset.currentDescription, asset.assetCode])
+  }, [asset.name, asset.currentDescription, asset.assetCode, asset.model, asset.currentCategory, asset.category])
   
   // 3. Model: prioritize explicit model filled in asset form, then serial number, then category
   const model = React.useMemo(() => {
@@ -282,14 +303,67 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({ asset, 
     return '-'
   }, [asset])
 
-  // Standard deep-link URL so mobile phone and laptop cameras open asset verification directly
+  // QR Payload: stores and represents 100% of the real asset data in the 2D QR matrix
   const qrNavigablePayload = React.useMemo(() => {
-    if (typeof window !== 'undefined' && window.location) {
-      const origin = window.location.origin
-      return `${origin}/?asset=${encodeURIComponent(asset.assetCode || '2004218')}#asset-details`
+    const origin = typeof window !== 'undefined' && window.location ? window.location.origin : ''
+    const effectiveCompany = asset.company || (asset.building?.includes('D197') ? 'Padget' : 'ismartu')
+
+    if (qrContentMode === 'text') {
+      return [
+        `[MERIDIAN FIXED ASSET]`,
+        `Asset No: ${assetCode}`,
+        `Asset Name: ${assetName}`,
+        `Model: ${model}`,
+        `Department: ${departmentDisplay}`,
+        `Custodian: ${custodianDisplay}`,
+        `Current User: ${currentUserDisplay}`,
+        `Placement Area: ${placementArea}`,
+        `Company: ${effectiveCompany}`,
+      ].join('\n')
     }
-    return asset.assetCode || '2004218'
-  }, [asset.assetCode])
+
+    if (qrContentMode === 'json') {
+      return JSON.stringify({
+        assetNo: assetCode,
+        assetName: assetName,
+        model: model,
+        dept: departmentDisplay,
+        custodian: custodianDisplay,
+        currentUser: currentUserDisplay,
+        placement: placementArea,
+        company: effectiveCompany,
+      })
+    }
+
+    // Default: Smart Navigable Deep-link URL with full asset metadata parameters
+    const params = new URLSearchParams()
+    params.set('asset', assetCode)
+    if (assetName && assetName !== '-') params.set('name', assetName)
+    if (model && model !== '-') params.set('model', model)
+    if (departmentDisplay && departmentDisplay !== '-') params.set('dept', departmentDisplay)
+    if (custodianDisplay && custodianDisplay !== '-') params.set('custodian', custodianDisplay)
+    if (currentUserDisplay && currentUserDisplay !== '-') params.set('user', currentUserDisplay)
+    if (placementArea && placementArea !== '-') params.set('loc', placementArea)
+    if (effectiveCompany) params.set('co', effectiveCompany)
+    if (asset.serialNumber && asset.serialNumber !== assetCode && asset.serialNumber !== 'SN-UNAVAILABLE') {
+      params.set('sn', asset.serialNumber)
+    }
+
+    const base = origin ? `${origin}/` : ''
+    return `${base}?${params.toString()}#asset-details`
+  }, [
+    assetCode,
+    assetName,
+    model,
+    departmentDisplay,
+    custodianDisplay,
+    currentUserDisplay,
+    placementArea,
+    asset.company,
+    asset.building,
+    asset.serialNumber,
+    qrContentMode,
+  ])
 
   // Exactly 7 rows: shows BOTH Real Owner (责任人/Custodian) and Current User (使用人/Current User)
   const rows = [
@@ -695,6 +769,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   const [customHeightMm, setCustomHeightMm] = React.useState<number>(65)
   const [customScalePercent, setCustomScalePercent] = React.useState<number>(100)
   const [showSizeManager, setShowSizeManager] = React.useState<boolean>(false)
+  const [qrContentMode, setQrContentMode] = React.useState<'url' | 'text' | 'json'>('url')
 
   const activePreset = React.useMemo(() => {
     return LABEL_SIZE_PRESETS.find((p) => p.id === selectedPresetId) || LABEL_SIZE_PRESETS[0]
@@ -1690,7 +1765,31 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                       Exact representation that will print on thermal sticker or laser printer
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* QR Payload Content Mode Selector */}
+                    <div className="flex items-center rounded-lg bg-[var(--surf2)] p-0.5 border border-[var(--line)] text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setQrContentMode('url')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                          qrContentMode === 'url' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                        }`}
+                        title="Encodes deep-link URL containing all real asset data query parameters (mobile camera scannable)"
+                      >
+                        🌐 Smart URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQrContentMode('text')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                          qrContentMode === 'text' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                        }`}
+                        title="Encodes multi-line structured text containing all 7 real label fields"
+                      >
+                        📋 Industrial Text
+                      </button>
+                    </div>
+
                     <span className="text-xs text-[var(--acc)] font-mono font-bold">
                       {activeWidthMm}mm × {activeHeightMm}mm
                     </span>
@@ -1999,7 +2098,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                   className="flex flex-col items-center justify-center py-6 bg-[var(--surf2)]/50 rounded-xl p-4 overflow-x-auto relative"
                 >
                   <div className={`transform transition-transform ${isCurrentPrintable ? 'hover:scale-[1.01]' : 'opacity-85'}`}>
-                    <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
+                    <IsmartuAssetLabel asset={currentAsset} scale={activeScale} qrContentMode={qrContentMode} />
                   </div>
 
                   {!isCurrentPrintable && (
@@ -2022,6 +2121,18 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
 
                 {currentAsset && (
                   <div className="flex flex-wrap items-center gap-2">
+                    {onFillAssetData && (
+                      <button
+                        type="button"
+                        onClick={() => onFillAssetData(currentAsset)}
+                        className="btn text-xs sm:text-sm px-3.5 py-2 inline-flex items-center gap-1.5 border border-blue-500/40 bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold rounded-xl cursor-pointer shadow-xs transition"
+                        title="Edit asset name, model, custodian, and floor placement details"
+                      >
+                        <span>✏️</span>
+                        <span>Edit Asset Details</span>
+                      </button>
+                    )}
+
                     {currentEligibility.status === 'already_printed_blocked' && (
                       <button
                         type="button"
@@ -2546,7 +2657,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         {activePrintQueue && activePrintQueue.length > 0 ? (
           activePrintQueue.map((asset) => (
             <div key={asset.id} className="ismartu-print-item">
-              <IsmartuAssetLabel asset={asset} scale={activeScale} />
+              <IsmartuAssetLabel asset={asset} scale={activeScale} qrContentMode={qrContentMode} />
             </div>
           ))
         ) : selectedBulkCount > 0 && selectedBulkCount <= 50 ? (
@@ -2554,12 +2665,12 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             .filter((a) => checkPrintEligibility(a, activeUser, isAssetPrintable(a)).canPrint)
             .map((asset) => (
               <div key={asset.id} className="ismartu-print-item">
-                <IsmartuAssetLabel asset={asset} scale={activeScale} />
+                <IsmartuAssetLabel asset={asset} scale={activeScale} qrContentMode={qrContentMode} />
               </div>
             ))
         ) : selectedBulkCount <= 1 && currentAsset && isCurrentPrintable && currentEligibility.canPrint ? (
           <div className="ismartu-print-item">
-            <IsmartuAssetLabel asset={currentAsset} scale={activeScale} />
+            <IsmartuAssetLabel asset={currentAsset} scale={activeScale} qrContentMode={qrContentMode} />
           </div>
         ) : null}
       </div>

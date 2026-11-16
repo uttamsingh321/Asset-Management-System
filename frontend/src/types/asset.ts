@@ -344,13 +344,16 @@ export function checkAssetDataCompleteness(asset: Asset | undefined | null): Ass
   }
 
   // 3. Asset Name / Description (资产名称)
+  const codeVal = (asset.assetCode || '').trim()
+  const rawName = (asset.name || '').trim()
+  const rawDesc = (asset.currentDescription || '').trim()
   const hasName = Boolean(
-    (asset.currentDescription && asset.currentDescription.trim()) ||
-    (asset.name && asset.name.trim())
+    (rawName && rawName !== codeVal) ||
+    (rawDesc && rawDesc !== codeVal)
   )
   if (!hasName) {
     missingFields.push('Asset Name / Description (资产名称)')
-    reasons.push('Current description or asset name is required.')
+    reasons.push('Real equipment name/description is required (cannot just repeat the asset code).')
   }
 
   // 4. Serial Number / Model (设备型号/序列号)

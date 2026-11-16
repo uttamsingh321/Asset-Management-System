@@ -175,11 +175,15 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       setSerialNumberReason('')
       setCurrentCategory(initialAsset.currentCategory || initialAsset.category || '')
       setPreviousCategory(initialAsset.previousCategory || '')
-      const resolvedName = (initialAsset.name && initialAsset.name !== initialAsset.assetCode)
-        ? initialAsset.name
-        : (initialAsset.currentDescription && initialAsset.currentDescription !== initialAsset.assetCode ? initialAsset.currentDescription : '')
+      const rawInitName = initialAsset.name?.trim() || ''
+      const rawInitDesc = initialAsset.currentDescription?.trim() || ''
+      const initCode = (initialAsset.assetCode || '').trim()
+
+      const resolvedName = (rawInitName && rawInitName !== initCode)
+        ? rawInitName
+        : (rawInitDesc && rawInitDesc !== initCode ? rawInitDesc : '')
       setAssetName(resolvedName)
-      setCurrentDescription(initialAsset.currentDescription || resolvedName || '')
+      setCurrentDescription(initialAsset.currentDescription && initialAsset.currentDescription !== initCode ? initialAsset.currentDescription : resolvedName)
       setPreviousDescription(initialAsset.previousDescription || '')
 
       const isPadget = isPadgetCompany(initialAsset)
@@ -518,6 +522,16 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       newErrors.assetConditionReason = 'Please mention the reason why Asset condition is not available'
     }
 
+    // 5. Asset Name validation (Row 2 of QR Label) - must not be empty or identical to asset code
+    const rawCodeVal = assetCode.trim()
+    const cleanAssetName = assetName.trim()
+    const cleanDesc = currentDescription.trim()
+    if (!cleanAssetName && (!cleanDesc || cleanDesc === rawCodeVal)) {
+      newErrors.assetName = 'Asset name / equipment description is required (Row 2 of QR Label)'
+    } else if (cleanAssetName && cleanAssetName === rawCodeVal) {
+      newErrors.assetName = 'Asset name cannot just repeat the asset code. Please enter the equipment name (e.g. SMT Mounter, Aging Rack)'
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       const firstErrorField = Object.keys(newErrors)[0]
@@ -569,8 +583,29 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       ? `${finalInChargeId} · ${finalInChargeName}`
       : (finalInChargeName || finalInChargeId || submitter.trim() || '')
 
-    const finalAssetName = assetName.trim() || currentDescription.trim() || (initialAsset?.name && initialAsset.name !== initialAsset.assetCode ? initialAsset.name : '') || 'Equipment Fixed Asset'
-    const finalDescription = currentDescription.trim() || assetName.trim() || finalAssetName
+    const effectiveCode = effectiveAssetCode.trim()
+    const rawProvidedName = assetName.trim()
+    const rawProvidedDesc = currentDescription.trim()
+
+    // Ensure finalAssetName is a true descriptive name, NEVER repeating the raw asset code
+    let finalAssetName = rawProvidedName
+    if (!finalAssetName && rawProvidedDesc && rawProvidedDesc !== effectiveCode) {
+      finalAssetName = rawProvidedDesc
+    }
+    if (!finalAssetName && initialAsset?.name && initialAsset.name !== effectiveCode) {
+      finalAssetName = initialAsset.name
+    }
+    if (!finalAssetName && model.trim() && model.trim() !== effectiveCode) {
+      finalAssetName = model.trim()
+    }
+    if (!finalAssetName && currentCategory.trim() && currentCategory.trim() !== effectiveCode && currentCategory.trim() !== '600000') {
+      finalAssetName = currentCategory.trim()
+    }
+    if (!finalAssetName) {
+      finalAssetName = 'Equipment Fixed Asset'
+    }
+
+    const finalDescription = (rawProvidedDesc && rawProvidedDesc !== effectiveCode) ? rawProvidedDesc : finalAssetName
 
     const newAsset: Asset = {
       ...(initialAsset || {}),
@@ -1208,6 +1243,56 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               <p className="text-[11px] text-[var(--mute)]">
                 The highlighted Excel fields are verified. Please complete the missing physical equipment fields below.
               </p>
+            </div>
+
+            {/* Dedicated Asset Name (Row 2 of QR Label) */}
+            <div className="space-y-1.5 p-3.5 rounded-xl border border-blue-500/30 bg-blue-50/40 dark:bg-blue-950/20">
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="field-physical-assetName" style={{ ...labelStyle, marginBottom: 0 }} className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
+                  <span>资产名称 / Equipment & Asset Name</span>
+                  <span className="text-[var(--bad)]">*</span>
+                  {assetName && assetName !== assetCode ? (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      ✓ Pre-filled
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                      ⚠️ Real Name Required
+                    </span>
+                  )}
+                </label>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
+                  Row 2 of QR Label
+                </span>
+              </div>
+              <input
+                id="field-physical-assetName"
+                type="text"
+                value={assetName}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setAssetName(val)
+                  if (!currentDescription || currentDescription === assetName || currentDescription === assetCode) {
+                    setCurrentDescription(val)
+                  }
+                  if (errors.assetName) {
+                    setErrors((prev) => {
+                      const updated = { ...prev }
+                      delete updated.assetName
+                      return updated
+                    })
+                  }
+                }}
+                placeholder="e.g. SMT Mounter Machine, Aging Rack, Dell Latitude 5420 Laptop, Laser Marker"
+                style={{
+                  ...inputStyle,
+                  borderColor: errors.assetName ? 'var(--bad)' : 'rgba(59, 130, 246, 0.4)',
+                  fontWeight: 600,
+                }}
+              />
+              {errors.assetName && (
+                <p className="text-xs text-[var(--bad)] mt-1 font-medium">{errors.assetName}</p>
+              )}
             </div>
 
             {/* Dedicated Equipment Model & Spec (Row 3 of QR Label) */}

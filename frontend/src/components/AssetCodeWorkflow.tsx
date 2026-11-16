@@ -185,7 +185,10 @@ export async function readCodesOrMasterAssetsFromFile(file: File): Promise<(stri
         norm === 'itemname' ||
         cleanName.includes('资产名称') ||
         cleanName.includes('设备名称') ||
-        cleanName.includes('名称')
+        cleanName.includes('名称') ||
+        cleanName.includes('描述') ||
+        cleanName.includes('说明') ||
+        cleanName.includes('品名')
       ) {
         tempMap.description = idx
         score += 2

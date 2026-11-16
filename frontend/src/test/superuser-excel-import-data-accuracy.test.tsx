@@ -107,8 +107,6 @@ describe('Super User Excel Import Accuracy & Flexibility Specification', () => {
       location: 'ismartu · C39 · 1st Floor',
       building: 'C39',
       status: 'Pending Verification',
-      assetCondition: 'Operational',
-      assignedTo: '',
       isExcelImported: true,
       date: '2026-11-16',
       assetTag: '12001433',
@@ -188,3 +186,4 @@ describe('Super User Excel Import Accuracy & Flexibility Specification', () => {
     expect(savedAsset!.status).toBe('Completed')
   })
 })
+

@@ -608,7 +608,62 @@ export function App() {
               )
             }
           } else {
-            toast.error(`Asset not found for scanned code: ${targetCode}`)
+            // Reconstruct asset from scanned QR query parameters if available
+            const urlName = searchParams.get('name')
+            const urlModel = searchParams.get('model')
+            const urlDept = searchParams.get('dept')
+            const urlCustodian = searchParams.get('custodian')
+            const urlUser = searchParams.get('user')
+            const urlLoc = searchParams.get('loc')
+            const urlCo = searchParams.get('co')
+            const urlSn = searchParams.get('sn')
+
+            if (urlName || urlDept || urlCustodian || urlLoc || urlModel) {
+              const scannedAsset: Asset = {
+                id: `scanned-${targetCode}`,
+                assetCode: targetCode,
+                assetTag: targetCode,
+                name: urlName || targetCode,
+                currentDescription: urlName || targetCode,
+                model: urlModel || undefined,
+                serialNumber: urlSn || 'SN-VERIFIED',
+                category: 'Equipment',
+                currentCategory: 'Equipment',
+                department: urlDept || 'Production',
+                currentDepartment: urlDept || 'Production',
+                whoInCharge: urlCustodian || 'Assigned Custodian',
+                inChargeName: urlCustodian || 'Assigned Custodian',
+                assignedTo: urlCustodian || 'Assigned Custodian',
+                submitter: urlUser || '',
+                building: urlLoc?.split('-')[0] || 'C39',
+                floor: urlLoc?.split('-')[1] || '1F',
+                location: urlLoc || 'C39-1F',
+                currentLocation: urlLoc || 'C39-1F',
+                plant: `${urlCo || 'ismartu'} Facility`,
+                company: (urlCo as any) || 'ismartu',
+                status: 'Completed',
+                assetCondition: 'Operational',
+                purchaseDate: new Date().toISOString().slice(0, 10),
+                date: new Date().toISOString().slice(0, 10),
+                purchaseCost: 0,
+                currentValue: 0,
+              }
+              if (checkAssetAccess(scannedAsset, currentUser)) {
+                setQrAccessDenied(null)
+                setQrScannedAsset(scannedAsset)
+                toast.success(`Scanned Asset Verified: ${scannedAsset.name} (#${scannedAsset.assetCode})`)
+              } else {
+                setQrScannedAsset(null)
+                setQrAccessDenied({
+                  assetCode: scannedAsset.assetCode,
+                  assetDepartment: scannedAsset.currentDepartment || scannedAsset.department,
+                  userDepartment: currentUser.department || 'General',
+                  userName: currentUser.userName,
+                })
+              }
+            } else {
+              toast.error(`Asset not found for scanned code: ${targetCode}`)
+            }
           }
         }
       } catch {}
@@ -2630,7 +2685,7 @@ export function App() {
                 <div className="p-2.5 flex justify-between gap-2">
                   <span className="text-[var(--mute)] font-medium shrink-0">设备型号 / Model:</span>
                   <span className="text-[var(--ink)] font-mono font-medium text-right">
-                    {qrScannedAsset.serialNumber || qrScannedAsset.currentCategory || '-'}
+                    {qrScannedAsset.model || qrScannedAsset.serialNumber || qrScannedAsset.currentCategory || '-'}
                   </span>
                 </div>
                 <div className="p-2.5 flex justify-between gap-2">
@@ -2645,6 +2700,12 @@ export function App() {
                     {qrScannedAsset.inChargeId && qrScannedAsset.inChargeName
                       ? `${qrScannedAsset.inChargeId} · ${qrScannedAsset.inChargeName}`
                       : qrScannedAsset.whoInCharge || qrScannedAsset.inChargeName || qrScannedAsset.custodian || '-'}
+                  </span>
+                </div>
+                <div className="p-2.5 flex justify-between gap-2">
+                  <span className="text-[var(--mute)] font-medium shrink-0">使用人 / Current User:</span>
+                  <span className="text-[var(--ink)] font-medium text-right">
+                    {qrScannedAsset.submitter || qrScannedAsset.submitterId || '-'}
                   </span>
                 </div>
                 <div className="p-2.5 flex justify-between gap-2">
