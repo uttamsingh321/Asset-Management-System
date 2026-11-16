@@ -183,4 +183,57 @@ describe('Login Page Layout & Specification', () => {
 
     fetchSpy.mockRestore()
   })
+
+  it('allows newly created Master RBAC user to log in successfully and authenticates credentials', async () => {
+    const handleLoginSuccess = vi.fn()
+    const handleEnterOffline = vi.fn()
+
+    // Simulate user created in RBAC module
+    localStorage.setItem(
+      'meridian_master_rbac_users_store',
+      JSON.stringify([
+        {
+          id: '101',
+          employeeId: '19102709',
+          employeeName: 'Arbind Kumar Singh',
+          email: 'arbind@meridian.com',
+          department: 'Production & SMT',
+          designation: 'SMT Line Operator',
+          status: 'Active',
+          role: 'Employee',
+          password: 'MyCustomPassword123!',
+          createdAt: new Date().toISOString(),
+        },
+      ])
+    )
+
+    render(
+      <LoginPage
+        lang="en"
+        onLoginSuccess={handleLoginSuccess}
+        onEnterOfflineMode={handleEnterOffline}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. USR-ADMIN, SMT-101/i), {
+      target: { value: '19102709' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Enter manual superuser password/i), {
+      target: { value: 'MyCustomPassword123!' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Sign In to Factory System/i }))
+
+    await waitFor(() => {
+      expect(handleLoginSuccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: '19102709',
+          userName: 'Arbind Kumar Singh',
+          department: 'Production & SMT',
+          role: 'Employee',
+        }),
+        expect.any(String)
+      )
+    })
+  })
 })

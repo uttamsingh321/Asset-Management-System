@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import type { UserAccount, PlantDepartment } from '../types/asset'
 import { logAuditEvent, setCurrentUserProfile, type UserProfile } from '../lib/deviceTracker'
+import { masterMappingService } from '../lib/masterMappingService'
 
 const DEPARTMENTS: { key: PlantDepartment; label: string; icon: string; color: string }[] = [
   { key: 'IT', label: 'IT & Systems', icon: '💻', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
@@ -222,6 +223,29 @@ export const UserManagementView: React.FC<Props> = ({ currentUser, onSwitchUser,
 
     const updated = [newUser, ...users]
     persistUsers(updated)
+
+    try {
+      const currentRBAC = masterMappingService.getRBACUsers()
+      if (!currentRBAC.some((u) => u.employeeId.toUpperCase() === uid.toUpperCase())) {
+        masterMappingService.saveRBACUsers([
+          {
+            id: String(Date.now()),
+            employeeId: uid,
+            employeeName: name,
+            email: newEmail,
+            phone: '',
+            department: newDepartment,
+            designation: newRole,
+            status: 'Active',
+            role: newRole,
+            twoFactorEnabled: false,
+            password: pw,
+            createdAt: new Date().toISOString(),
+          },
+          ...currentRBAC,
+        ])
+      }
+    } catch {}
 
     logAuditEvent('ASSET_APPROVAL', {
       actionType: 'USER_CREATE_RBAC',

@@ -21,6 +21,7 @@ import { saveAssetsToStorage, loadAssetsFromStorage } from '@/lib/assetStorage'
 import { DigitalTwinFacility3D } from '@/components/DigitalTwinFacility3D'
 import { ExecutiveBentoGrid3D } from '@/components/ExecutiveBentoGrid3D'
 import { initialAssets } from '@/data/mockAssets'
+import { masterMappingService } from '@/lib/masterMappingService'
 
 // Lazy-load heavy views to keep bundle fast
 const IndiaMaintenanceView = React.lazy(() => import('@/components/IndiaMaintenanceView'))
@@ -540,6 +541,11 @@ export function App() {
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  // Sync RBAC directory between local store and backend SQLite
+  React.useEffect(() => {
+    masterMappingService.syncBackendUsersToLocal().catch(() => {})
   }, [])
 
   const handleNavClick = (key: string, e: React.MouseEvent) => {

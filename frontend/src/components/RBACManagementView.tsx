@@ -161,7 +161,7 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
       if (aList?.length) setAreas(aList)
       if (appList?.length) setApprovals(appList)
 
-      const storedUsers = masterMappingService.getRBACUsers()
+      const storedUsers = await masterMappingService.syncBackendUsersToLocal()
       if (storedUsers?.length) setUsers(storedUsers)
 
       // Initialize selected role permissions
@@ -329,12 +329,12 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
       employeeId: u.employeeId,
       employeeName: u.employeeName,
       email: u.email,
-      phone: u.phone,
+      phone: u.phone || '',
       designation: u.designation,
       status: u.status,
       roleId: u.roleId || 1,
       role: u.role,
-      twoFactorEnabled: u.twoFactorEnabled,
+      twoFactorEnabled: Boolean(u.twoFactorEnabled),
       password: '',
       companyId: u.companyId,
       plantId: u.plantId,
@@ -462,6 +462,7 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
     const newUsers = users.filter((x) => x.id !== u.id)
     setUsers(newUsers)
     masterMappingService.saveRBACUsers(newUsers)
+    fetch(`/api/users/${encodeURIComponent(u.employeeId)}/`, { method: 'DELETE' }).catch(() => {})
     toast.success(`User ${u.employeeName} deleted`)
   }
 
@@ -473,6 +474,11 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
     const newUsers = users.map((x) => (x.id === resetPwdModal.user!.id ? updated : x))
     setUsers(newUsers)
     masterMappingService.saveRBACUsers(newUsers)
+    fetch(`/api/users/${encodeURIComponent(resetPwdModal.user.employeeId)}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: resetPwdModal.newPwd.trim() }),
+    }).catch(() => {})
     toast.success(`Password for ${resetPwdModal.user.employeeName} reset successfully`)
     setResetPwdModal({ isOpen: false, user: null, newPwd: '' })
   }

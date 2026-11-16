@@ -88,13 +88,13 @@ export interface RBACUser {
   employeeId: string
   employeeName: string
   email: string
-  phone: string
+  phone?: string
   department: string
   designation: string
   status: 'Active' | 'Inactive' | 'Locked'
   role: string
   roleId?: number
-  twoFactorEnabled: boolean
+  twoFactorEnabled?: boolean
   companyId?: number
   companyName?: string
   plantId?: number
@@ -740,6 +740,81 @@ export const masterMappingService = {
   saveRBACUsers(users: RBACUser[]) {
     try {
       localStorage.setItem(STORAGE_USERS_RBAC_KEY, JSON.stringify(users))
+
+      // Keep offline cache & general user list in sync
+      const cached = users.map((u) => ({
+        userId: u.employeeId,
+        name: u.employeeName,
+        email: u.email,
+        department: u.department || 'IT',
+        role: u.role || 'Employee',
+        password: u.password,
+        status: u.status,
+        isActive: u.status === 'Active',
+        isSuperuser: u.role === 'Super User' || u.role === 'Admin' || u.employeeId === 'USR-ADMIN',
+      }))
+      localStorage.setItem('meridian_users_cache', JSON.stringify(cached))
+      localStorage.setItem('meridian_rbac_users_v1', JSON.stringify(cached))
+
+      // Asynchronously sync each user to backend SQLite AppUser table
+      users.forEach((u) => {
+        fetch('/api/users/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: u.employeeId,
+            name: u.employeeName,
+            email: u.email,
+            department: u.department || 'IT',
+            role: u.role || 'Employee',
+            password: u.password,
+            status: u.status,
+            isActive: u.status === 'Active',
+            isSuperuser: u.role === 'Super User' || u.role === 'Admin' || u.employeeId === 'USR-ADMIN',
+          }),
+        }).catch(() => {})
+      })
     } catch {}
+  },
+
+  async syncBackendUsersToLocal(): Promise<RBACUser[]> {
+    try {
+      const res = await fetch('/api/users/?include_passwords=1')
+      if (!res.ok) return this.getRBACUsers()
+      const data = await res.json()
+      if (Array.isArray(data.users) && data.users.length > 0) {
+        const current = this.getRBACUsers()
+        const currentIds = new Set(current.map((u) => u.employeeId.toUpperCase()))
+        const merged = [...current]
+
+        data.users.forEach((bu: any) => {
+          const bId = (bu.userId || bu.employeeId || '').trim().toUpperCase()
+          if (bId && !currentIds.has(bId)) {
+            merged.push({
+              id: String(bu.id || Date.now()),
+              employeeId: bu.userId || bu.employeeId,
+              employeeName: bu.name || bu.userName || bId,
+              email: bu.email || '',
+              phone: bu.phone || '',
+              department: bu.department || 'IT',
+              designation: bu.role || 'Employee',
+              status: bu.isActive !== false ? 'Active' : 'Inactive',
+              role: bu.role || 'Employee',
+              twoFactorEnabled: false,
+              password: bu.password || 'Temporary@123',
+              createdAt: bu.createdAt || new Date().toISOString(),
+              failedLoginAttempts: bu.failedLoginAttempts || 0,
+            })
+            currentIds.add(bId)
+          }
+        })
+
+        if (merged.length > current.length) {
+          this.saveRBACUsers(merged)
+        }
+        return merged
+      }
+    } catch {}
+    return this.getRBACUsers()
   },
 }
