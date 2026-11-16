@@ -1698,13 +1698,48 @@ export function App() {
                 {/* 3D Spatial Digital Twin Facility Visualizer */}
                 <div className="mt-3">
                   <DigitalTwinFacility3D
-                    assets={completedAssetsList}
+                    assets={assets}
+                    completedAssets={completedAssetsList}
                     activeBuildingFilter={dashBuildingFilter}
                     onSelectBuilding={(bldg) => {
                       setDashBuildingFilter(bldg as any)
                     }}
                     onOpenAsset={(asset) => {
                       setWorkflowAsset(asset)
+                      setIsAddModalOpen(true)
+                    }}
+                    onNavigate={(hash, assetCode) => {
+                      if (assetCode) {
+                        setDashSearchQuery(assetCode)
+                      }
+                      setCurrentHash(hash)
+                      window.location.hash = '#' + hash
+                    }}
+                    onAddNewAssetOnFloor={(bldg, floor) => {
+                      setWorkflowAsset({
+                        id: `AST-NEW-${Date.now()}`,
+                        assetCode: '',
+                        serialNumber: '',
+                        currentCategory: 'IT Hardware',
+                        currentDescription: '',
+                        company: bldg === 'C39' ? 'IIPL' : 'Padget',
+                        building: bldg as any,
+                        floor: floor,
+                        plant: bldg === 'C39' ? 'C-39 Factory, Noida' : 'Padget Electronics, Noida',
+                        department: 'Production',
+                        currentDepartment: 'Production',
+                        assetCondition: 'Operational - Good',
+                        date: new Date().toISOString().split('T')[0],
+                        name: '',
+                        assetTag: '',
+                        category: 'IT Hardware',
+                        status: 'Pending Verification',
+                        purchaseDate: new Date().toISOString().split('T')[0],
+                        purchaseCost: 0,
+                        currentValue: 0,
+                        assignedTo: '',
+                        location: `${bldg} · ${floor}`,
+                      })
                       setIsAddModalOpen(true)
                     }}
                   />
