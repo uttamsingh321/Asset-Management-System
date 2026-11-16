@@ -18,6 +18,10 @@ import {
   getPrintRecords,
   getReprintRequests,
   isSuperUserRole,
+  isHODRole,
+  isHODOrSuperUser,
+  getAssetPrintStatus,
+  getPrintStatusBadgeProps,
   REPRINT_REASONS,
   type ReprintRequest,
   type ReprintReason,
@@ -675,23 +679,15 @@ const AssetRowItem = React.memo(function AssetRowItem({
         <div className="text-xs font-mono font-bold text-[var(--ink)] flex items-center gap-1.5 truncate">
           <span>{asset.assetCode}</span>
           {isPrintable ? (
-            printCount === 0 ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
-                ✓ Ready
-              </span>
-            ) : isApproved ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30">
-                ✅ Re-print OK
-              </span>
-            ) : isPending ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
-                ⏳ Pending
-              </span>
-            ) : (
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold border border-purple-500/20">
-                🔒 Printed ({printCount}x)
-              </span>
-            )
+            (() => {
+              const pStatus = printCount === 0 ? 'Not Printed' : isApproved ? 'Approved' : isPending ? 'Reprint Pending' : 'Printed'
+              const badge = getPrintStatusBadgeProps(pStatus)
+              return (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold border ${badge.colorClass}`}>
+                  {badge.icon} {badge.label} {pStatus === 'Printed' ? `(${printCount}x)` : ''}
+                </span>
+              )
+            })()
           ) : (
             <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 font-semibold border border-amber-500/20">
               🔒 Incomplete
@@ -734,6 +730,8 @@ function updatePagePrintStyle(widthMm: number, heightMm: number) {
 export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser: propUser }: IndiaLabelPrintViewProps) {
   const activeUser = React.useMemo(() => propUser || getCurrentUserProfile(), [propUser])
   const isSuperUser = React.useMemo(() => isSuperUserRole(activeUser), [activeUser])
+  const isHOD = React.useMemo(() => isHODRole(activeUser), [activeUser])
+  const canApproveReprint = React.useMemo(() => isHODOrSuperUser(activeUser), [activeUser])
 
   // Reactive state for print records & reprint requests
   const [reprintUpdateVersion, setReprintUpdateVersion] = React.useState(0)
@@ -1205,25 +1203,25 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     }
   }
 
-  // Quick Approve Handler (for Super User directly on preview)
+  // Quick Approve Handler (for HOD or Super User directly on preview)
   const handleQuickApprove = (req: ReprintRequest) => {
-    if (!isSuperUser) {
-      toast.error('Unauthorized: Super User authorization required.')
+    if (!canApproveReprint) {
+      toast.error('Unauthorized: HOD or Super User authorization required.')
       return
     }
-    const approved = approveReprintRequest(req.id, activeUser, 'Quick Approved by Super User')
+    const approved = approveReprintRequest(req.id, activeUser, isSuperUser ? 'Approved by Super User' : 'Approved by HOD')
     if (approved) {
-      toast.success(`Approved re-print for ${approved.assetCode}. Normal users can now print 1 time.`)
+      toast.success(`Approved re-print for ${approved.assetCode}. Print button unlocked for exactly 1 print.`)
     }
   }
 
-  // Quick Reject Handler (for Super User directly on preview)
+  // Quick Reject Handler (for HOD or Super User directly on preview)
   const handleQuickReject = (req: ReprintRequest) => {
-    if (!isSuperUser) {
-      toast.error('Unauthorized: Super User authorization required.')
+    if (!canApproveReprint) {
+      toast.error('Unauthorized: HOD or Super User authorization required.')
       return
     }
-    const rejected = rejectReprintRequest(req.id, activeUser, 'Rejected by Super User')
+    const rejected = rejectReprintRequest(req.id, activeUser, isSuperUser ? 'Rejected by Super User' : 'Rejected by HOD')
     if (rejected) {
       toast.info(`Re-print request rejected for ${rejected.assetCode}.`)
     }
@@ -2139,6 +2137,24 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                       </span>
                     </div>
                   )}
+
+                  {/* Print Governance Status Badge */}
+                  {currentAsset && (
+                    <div className="flex items-center justify-between text-xs px-1 pt-1">
+                      <span className="text-[var(--mute)] font-medium">QR Print Governance:</span>
+                      {(() => {
+                        const pStatus = getAssetPrintStatus(currentAsset, currentEligibility.printRecord, currentEligibility.approvedRequest || currentEligibility.pendingRequest)
+                        const badge = getPrintStatusBadgeProps(pStatus)
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${badge.colorClass}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+                            <span>{badge.icon}</span>
+                            <span>{badge.label}</span>
+                          </span>
+                        )
+                      })()}
+                    </div>
+                  )}
                 </>
               )}
 
@@ -2191,18 +2207,18 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                         className="btn p text-sm px-5 py-2.5 inline-flex items-center gap-2 shadow-md cursor-pointer hover:shadow-lg"
                       >
                         <span>📩</span>
-                        <span>Request Re-print from Super User</span>
+                        <span>Request Reprint from HOD</span>
                       </button>
                     )}
 
-                    {currentEligibility.status === 'reprint_pending' && isSuperUser && (
+                    {currentEligibility.status === 'reprint_pending' && canApproveReprint && (
                       <button
                         type="button"
                         onClick={() => handleQuickApprove(currentEligibility.pendingRequest!)}
                         className="btn text-sm px-5 py-2.5 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md cursor-pointer"
                       >
                         <span>✅</span>
-                        <span>Approve Re-print (Super User)</span>
+                        <span>Approve Reprint ({isSuperUser ? 'Super User' : 'HOD'})</span>
                       </button>
                     )}
 
@@ -2482,6 +2498,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold border border-purple-500/30">
                         👑 Super User Mode
                       </span>
+                    ) : isHOD ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30">
+                        👔 HOD Approval Console
+                      </span>
                     ) : (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 font-bold border border-blue-500/30">
                         User View
@@ -2638,8 +2658,8 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                       )}
                     </div>
 
-                    {/* Super User Action Bar for Pending Requests */}
-                    {req.status === 'pending' && isSuperUser && (
+                    {/* HOD / Super User Action Bar for Pending Requests */}
+                    {req.status === 'pending' && canApproveReprint && (
                       <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-[var(--line)]">
                         <input
                           type="text"
@@ -2654,21 +2674,21 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                           <button
                             type="button"
                             onClick={() => {
-                              const note = approvalReviewNotes[req.id] || 'Approved by Super User'
+                              const note = approvalReviewNotes[req.id] || (isSuperUser ? 'Approved by Super User' : 'Approved by HOD')
                               const res = approveReprintRequest(req.id, activeUser, note)
                               if (res) {
-                                toast.success(`Approved re-print for asset ${res.assetCode}.`)
+                                toast.success(`Approved re-print for asset ${res.assetCode}. Print button unlocked for 1 print.`)
                               }
                             }}
                             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1"
                           >
                             <span>✅</span>
-                            <span>Approve Re-print</span>
+                            <span>Approve Reprint</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => {
-                              const note = approvalReviewNotes[req.id] || 'Rejected by Super User'
+                              const note = approvalReviewNotes[req.id] || (isSuperUser ? 'Rejected by Super User' : 'Rejected by HOD')
                               const res = rejectReprintRequest(req.id, activeUser, note)
                               if (res) {
                                 toast.info(`Rejected re-print for asset ${res.assetCode}.`)
@@ -2676,7 +2696,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                             }}
                             className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1"
                           >
-                            <span>❌</span>
+                            <span>✕</span>
                             <span>Reject</span>
                           </button>
                         </div>

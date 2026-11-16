@@ -4,7 +4,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Asset, AuditLog, UserSession, AppUser
+from .models import Asset, AuditLog, UserSession, AppUser, ReprintRequest, ReprintAuditLog
 from .device_detector import parse_device_and_browser, _detect_device_type, _detect_os, _detect_browser
 
 
@@ -558,5 +558,179 @@ class RBACUserManagementTests(TestCase):
             REMOTE_ADDR="192.168.10.45",
         )
         self.assertEqual(success_res.status_code, 200)
+
+    def test_secure_qr_print_control_workflow(self):
+        """
+        Verify the complete secure QR print control and HOD approval workflow:
+        1. Default single-print rule allows 1st print.
+        2. Direct duplicate print by normal user is blocked (403 Forbidden).
+        3. Request reprint without mandatory reason fails (400 Bad Request).
+        4. Request reprint with valid reason succeeds with status 'pending'.
+        5. Normal employee cannot approve reprint (403 Forbidden).
+        6. HOD approves request -> exactly 1 print unlocked.
+        7. Normal user performs reprint -> succeeds, print count = 2.
+        8. Normal user tries 3rd print -> immediately locked again (403 Forbidden).
+        9. Complete audit trail records all print actions, actor, date/time, reason, and approval status.
+        """
+        # Create an asset
+        asset = Asset.objects.create(
+            tag="AST-PRINT-TEST-1",
+            asset_code="5000507",
+            name="Volumetric air tightness test equipment",
+            department="Production",
+            status="Active",
+            print_count=0,
+        )
+
+        # 1. First print: Allowed
+        res_print_1 = self.client.post(
+            reverse('api-record-label-print'),
+            data=json.dumps({
+                "assetCode": "5000507",
+                "assetId": str(asset.id),
+                "userName": "Ramesh Kumar",
+                "userId": "EMP-PRD-01",
+                "role": "Employee",
+                "department": "Production",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_print_1.status_code, 200)
+        self.assertEqual(res_print_1.json()["printCount"], 1)
+        self.assertEqual(res_print_1.json()["status"], "Printed")
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.print_count, 1)
+        self.assertEqual(asset.first_printed_by, "Ramesh Kumar")
+
+        # 2. Second print attempt without permit: Strictly blocked with 403 Forbidden
+        res_print_blocked = self.client.post(
+            reverse('api-record-label-print'),
+            data=json.dumps({
+                "assetCode": "5000507",
+                "assetId": str(asset.id),
+                "userName": "Ramesh Kumar",
+                "userId": "EMP-PRD-01",
+                "role": "Employee",
+                "department": "Production",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_print_blocked.status_code, 403)
+        self.assertEqual(res_print_blocked.json()["status"], "LOCKED")
+        self.assertEqual(res_print_blocked.json()["printCount"], 1)
+
+        # 3. Request reprint without mandatory reason: Returns 400 Bad Request
+        res_req_no_reason = self.client.post(
+            reverse('api-reprint-requests'),
+            data=json.dumps({
+                "assetCode": "5000507",
+                "assetId": str(asset.id),
+                "userName": "Ramesh Kumar",
+                "userId": "EMP-PRD-01",
+                "department": "Production",
+                "reason": "   ",  # Blank reason
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_req_no_reason.status_code, 400)
+        self.assertIn("mandatory reason", res_req_no_reason.json()["error"].lower())
+
+        # 4. Request reprint with valid reason: Successfully created with status 'pending'
+        res_req_valid = self.client.post(
+            reverse('api-reprint-requests'),
+            data=json.dumps({
+                "assetCode": "5000507",
+                "assetId": str(asset.id),
+                "assetName": asset.name,
+                "userName": "Ramesh Kumar",
+                "userId": "EMP-PRD-01",
+                "department": "Production",
+                "reason": "Label Damaged / Scratched",
+                "notes": "Physical sticker tore during maintenance calibration on SMT line 2.",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_req_valid.status_code, 201)
+        req_data = res_req_valid.json()["request"]
+        req_id = req_data["id"]
+        self.assertEqual(req_data["status"], "pending")
+        self.assertEqual(req_data["reason"], "Label Damaged / Scratched")
+
+        # 5. Normal employee tries to approve: Denied (403 Forbidden)
+        res_unauth_approve = self.client.post(
+            reverse('api-reprint-request-action', kwargs={"request_id": req_id}),
+            data=json.dumps({
+                "action": "approve",
+                "userId": "EMP-PRD-02",
+                "userName": "Normal Worker",
+                "role": "Employee",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_unauth_approve.status_code, 403)
+
+        # 6. HOD approves the request
+        res_hod_approve = self.client.post(
+            reverse('api-reprint-request-action', kwargs={"request_id": req_id}),
+            data=json.dumps({
+                "action": "approve",
+                "userId": "HOD-PRD-01",
+                "userName": "Manish Chauhan (HOD)",
+                "role": "Department Head (HOD)",
+                "notes": "Approved replacement label for line 2 calibration.",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_hod_approve.status_code, 200)
+        self.assertEqual(res_hod_approve.json()["request"]["status"], "approved")
+
+        # 7. Normal user prints reprint: Succeeds, print count becomes 2
+        res_reprint = self.client.post(
+            reverse('api-record-label-print'),
+            data=json.dumps({
+                "assetCode": "5000507",
+                "assetId": str(asset.id),
+                "userName": "Ramesh Kumar",
+                "userId": "EMP-PRD-01",
+                "role": "Employee",
+                "department": "Production",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_reprint.status_code, 200)
+        self.assertEqual(res_reprint.json()["printCount"], 2)
+        self.assertTrue(res_reprint.json()["isReprint"])
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.print_count, 2)
+
+        # 8. Permit is consumed: third print attempt is immediately locked again
+        res_print_3_blocked = self.client.post(
+            reverse('api-record-label-print'),
+            data=json.dumps({
+                "assetCode": "5000507",
+                "assetId": str(asset.id),
+                "userName": "Ramesh Kumar",
+                "userId": "EMP-PRD-01",
+                "role": "Employee",
+                "department": "Production",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_print_3_blocked.status_code, 403)
+        self.assertEqual(res_print_3_blocked.json()["status"], "LOCKED")
+
+        # 9. Audit trail verification: Complete history preserved
+        res_history = self.client.get(
+            reverse('api-reprint-history', kwargs={"asset_code": "5000507"})
+        )
+        self.assertEqual(res_history.status_code, 200)
+        history_data = res_history.json()
+        self.assertEqual(history_data["printCount"], 2)
+        self.assertEqual(history_data["firstPrintedBy"], "Ramesh Kumar")
+        self.assertEqual(history_data["lastPrintedBy"], "Ramesh Kumar")
+        self.assertGreaterEqual(len(history_data["history"]), 4)  # first print, blocked attempt, req submitted, approved, reprint, blocked attempt
+
 
 

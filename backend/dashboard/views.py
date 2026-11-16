@@ -8,8 +8,28 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q, Count
 from django.utils import timezone as dj_timezone
 
-from .models import Asset, AuditLog, UserSession, AppUser
+from .models import Asset, AuditLog, UserSession, AppUser, ReprintRequest, ReprintAuditLog
 from .device_detector import parse_device_and_browser
+
+
+def is_hod_or_superuser(user_id: str, role: str) -> bool:
+    """
+    Check if a user is an HOD (Department Head), Plant Manager, or Super User / Admin.
+    """
+    role_lower = (role or "").strip().lower()
+    if any(k in role_lower for k in ["admin", "super user", "superuser", "samfu"]):
+        return True
+    if any(k in role_lower for k in ["hod", "head", "manager"]):
+        return True
+    if user_id:
+        app_user = AppUser.objects.filter(user_id=user_id).first()
+        if app_user:
+            if app_user.is_superuser:
+                return True
+            u_role = (app_user.role or "").lower()
+            if any(k in u_role for k in ["admin", "manager", "hod", "head"]):
+                return True
+    return False
 
 
 def record_audit_log(
@@ -2131,6 +2151,424 @@ def api_transfer_action(request: HttpRequest, transfer_id: str) -> JsonResponse:
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+
+# ==============================================================================
+# SECURE QR PRINT CONTROL & HOD REPRINT WORKFLOW
+# ==============================================================================
+
+@csrf_exempt
+def api_record_label_print(request: HttpRequest) -> JsonResponse:
+    """
+    Enterprise QR Print Control:
+    - Every asset can be printed only once by default.
+    - After first print, Print QR button is locked.
+    - Subsequent prints require an approved, unused HOD Reprint permit.
+    - Direct print without permit returns 403 Forbidden.
+    - Super User retains emergency override clearance (audited).
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    try:
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except Exception:
+        body = {}
+
+    asset_id = str(body.get("asset_id") or body.get("assetId") or "").strip()
+    asset_code = str(body.get("asset_code") or body.get("assetCode") or "").strip()
+    user_id = str(body.get("user_id") or body.get("userId") or "USR-100").strip()
+    user_name = str(body.get("user_name") or body.get("userName") or "User").strip()
+    role = str(body.get("role") or "Employee").strip()
+    department = str(body.get("department") or "Operations").strip()
+
+    if not asset_code and not asset_id:
+        return JsonResponse({"error": "asset_code or asset_id is required."}, status=400)
+
+    # Locate Asset
+    asset = None
+    if asset_code:
+        asset = Asset.objects.filter(Q(asset_code=asset_code) | Q(tag=asset_code)).first()
+    if not asset and asset_id:
+        asset = Asset.objects.filter(id=asset_id).first()
+
+    now = dj_timezone.now()
+    is_super = any(k in role.lower() for k in ["admin", "super user", "superuser", "samfu"])
+
+    # If asset record doesn't exist yet, register it
+    if not asset:
+        asset = Asset.objects.create(
+            tag=asset_code or f"AST-{uuid.uuid4().hex[:6].upper()}",
+            asset_code=asset_code,
+            name=body.get("asset_name") or body.get("name") or f"Asset {asset_code}",
+            department=department,
+            status="Active",
+            print_count=0,
+        )
+
+    # 1. Single-Print Rule: If never printed, allow first print
+    if asset.print_count == 0:
+        asset.print_count = 1
+        asset.first_printed_at = now
+        asset.first_printed_by = user_name
+        asset.last_printed_at = now
+        asset.last_printed_by = user_name
+        asset.last_printed_user_id = user_id
+        asset.save()
+
+        ReprintAuditLog.objects.create(
+            asset_code=asset.asset_code or asset.tag,
+            asset_id=str(asset.id),
+            action="FIRST_PRINT",
+            print_count=1,
+            actor_name=user_name,
+            actor_user_id=user_id,
+            actor_role=role,
+            approval_status="First Print (Single-Print Policy)",
+            timestamp=now,
+            details={"notes": "First successful QR print. Locked automatically for subsequent prints."},
+        )
+
+        record_audit_log(
+            request=request,
+            action="ASSET_UPDATE",
+            user_id=user_id,
+            user_name=user_name,
+            role=role,
+            entity_id=asset.asset_code,
+            details={"print_count": 1, "status": "FIRST_PRINT"}
+        )
+
+        return JsonResponse({
+            "success": True,
+            "status": "Printed",
+            "printCount": 1,
+            "isReprint": False,
+            "reprintStatus": "Printed",
+            "message": "First print authorized and recorded. QR Print button is now locked.",
+        })
+
+    # 2. Subsequent Prints (Re-print): Check for active approved unused HOD permit
+    approved_req = ReprintRequest.objects.filter(
+        Q(asset_code=asset.asset_code) | Q(asset_id=str(asset.id)),
+        status="approved",
+        is_used=False
+    ).order_by("-reviewed_at").first()
+
+    if approved_req:
+        approved_req.is_used = True
+        approved_req.used_at = now
+        approved_req.used_by = user_name
+        approved_req.used_user_id = user_id
+        approved_req.save()
+
+        asset.print_count += 1
+        asset.last_printed_at = now
+        asset.last_printed_by = user_name
+        asset.last_printed_user_id = user_id
+        asset.save()
+
+        ReprintAuditLog.objects.create(
+            asset_code=asset.asset_code or asset.tag,
+            asset_id=str(asset.id),
+            action="REPRINT",
+            print_count=asset.print_count,
+            actor_name=user_name,
+            actor_user_id=user_id,
+            actor_role=role,
+            reason=approved_req.reason,
+            approval_status="Approved",
+            approved_by=approved_req.reviewed_by,
+            timestamp=now,
+            details={
+                "requestId": approved_req.id,
+                "reviewNotes": approved_req.review_notes,
+                "permitConsumed": True,
+            },
+        )
+
+        return JsonResponse({
+            "success": True,
+            "status": "Printed",
+            "printCount": asset.print_count,
+            "isReprint": True,
+            "reprintStatus": "Printed",
+            "message": f"HOD approved re-print executed successfully. Permit consumed. Single-print lock re-engaged.",
+        })
+
+    # 3. Super User Administrative Override (Audited)
+    if is_super:
+        asset.print_count += 1
+        asset.last_printed_at = now
+        asset.last_printed_by = user_name
+        asset.last_printed_user_id = user_id
+        asset.save()
+
+        ReprintAuditLog.objects.create(
+            asset_code=asset.asset_code or asset.tag,
+            asset_id=str(asset.id),
+            action="REPRINT",
+            print_count=asset.print_count,
+            actor_name=user_name,
+            actor_user_id=user_id,
+            actor_role=role,
+            reason="Super User Administrative Override",
+            approval_status="Super User Override",
+            approved_by=user_name,
+            timestamp=now,
+            details={"override": True},
+        )
+
+        return JsonResponse({
+            "success": True,
+            "status": "Printed",
+            "printCount": asset.print_count,
+            "isReprint": True,
+            "reprintStatus": "Printed",
+            "message": "Super User direct print executed and audited.",
+        })
+
+    # 4. Strict Backend Enforcement: Normal users cannot bypass the lock
+    ReprintAuditLog.objects.create(
+        asset_code=asset.asset_code or asset.tag,
+        asset_id=str(asset.id),
+        action="BLOCKED_ATTEMPT",
+        print_count=asset.print_count,
+        actor_name=user_name,
+        actor_user_id=user_id,
+        actor_role=role,
+        reason="Direct print attempt rejected: HOD reprint approval required.",
+        approval_status="Rejected/Blocked",
+        timestamp=now,
+        details={"blocked": True},
+    )
+
+    return JsonResponse({
+        "error": "Reprint locked. Every asset can only be printed once by default. Please submit a 'Request Reprint' with a mandatory reason to your HOD for approval.",
+        "status": "LOCKED",
+        "printCount": asset.print_count,
+        "reprintStatus": asset.get_reprint_status(),
+    }, status=403)
+
+
+@csrf_exempt
+def api_reprint_requests(request: HttpRequest) -> JsonResponse:
+    """
+    Reprint Requests Handler:
+    - POST: Normal user submits request with mandatory reason.
+    - GET: Query pending or historical reprint requests.
+    """
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body.decode("utf-8")) if request.body else {}
+        except Exception:
+            body = {}
+
+        asset_id = str(body.get("asset_id") or body.get("assetId") or "").strip()
+        asset_code = str(body.get("asset_code") or body.get("assetCode") or "").strip()
+        asset_name = str(body.get("asset_name") or body.get("assetName") or "").strip()
+        reason = str(body.get("reason") or "").strip()
+        notes = str(body.get("notes") or "").strip()
+        user_id = str(body.get("user_id") or body.get("userId") or "USR-100").strip()
+        user_name = str(body.get("user_name") or body.get("userName") or "User").strip()
+        department = str(body.get("department") or body.get("user_dept") or "Operations").strip()
+
+        # Mandatory Reason Rule
+        if not reason:
+            return JsonResponse({
+                "error": "A mandatory reason must be provided to submit a reprint request."
+            }, status=400)
+
+        if not asset_code and not asset_id:
+            return JsonResponse({"error": "asset_code or asset_id is required."}, status=400)
+
+        # Check if already pending
+        existing_pending = ReprintRequest.objects.filter(
+            Q(asset_code=asset_code) | Q(asset_id=asset_id),
+            status="pending"
+        ).first()
+
+        if existing_pending:
+            return JsonResponse({
+                "success": True,
+                "message": "A reprint request is already pending HOD approval.",
+                "request": existing_pending.to_dict(),
+            })
+
+        req_id = f"RPT-REQ-{uuid.uuid4().hex[:8].upper()}"
+        req = ReprintRequest.objects.create(
+            id=req_id,
+            asset_id=asset_id or asset_code,
+            asset_code=asset_code,
+            asset_name=asset_name or f"Asset {asset_code}",
+            department=department,
+            requested_by=user_name,
+            requester_user_id=user_id,
+            requester_dept=department,
+            reason=reason,
+            notes=notes,
+            status="pending",
+            requested_at=dj_timezone.now(),
+        )
+
+        ReprintAuditLog.objects.create(
+            asset_code=asset_code,
+            asset_id=asset_id,
+            action="REQUEST_SUBMITTED",
+            actor_name=user_name,
+            actor_user_id=user_id,
+            reason=reason,
+            approval_status="Reprint Pending",
+            timestamp=dj_timezone.now(),
+            details={"requestId": req_id, "notes": notes},
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Reprint request submitted successfully to HOD for approval.",
+            "request": req.to_dict(),
+        }, status=201)
+
+    elif request.method == "GET":
+        asset_code = request.GET.get("asset_code") or request.GET.get("assetCode")
+        status_filter = request.GET.get("status")
+        dept_filter = request.GET.get("department")
+
+        qs = ReprintRequest.objects.all()
+        if asset_code:
+            qs = qs.filter(Q(asset_code=asset_code) | Q(asset_id=asset_code))
+        if status_filter:
+            qs = qs.filter(status__iexact=status_filter)
+        if dept_filter:
+            qs = qs.filter(department__icontains=dept_filter)
+
+        return JsonResponse({
+            "requests": [r.to_dict() for r in qs[:200]]
+        })
+
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@csrf_exempt
+def api_reprint_request_action(request: HttpRequest, request_id: str) -> JsonResponse:
+    """
+    HOD Approval/Rejection Action:
+    - Approve unlocks Print QR button for exactly one print.
+    - Reject records reason and keeps button locked.
+    - Non-HOD users get 403 Forbidden.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    try:
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except Exception:
+        body = {}
+
+    action = str(body.get("action") or "").lower().strip()
+    user_id = str(body.get("user_id") or body.get("userId") or "").strip()
+    user_name = str(body.get("user_name") or body.get("userName") or "HOD").strip()
+    user_role = str(body.get("role") or body.get("user_role") or "HOD").strip()
+    notes = str(body.get("notes") or body.get("reviewNotes") or "").strip()
+
+    if action not in ["approve", "reject"]:
+        return JsonResponse({"error": "Action must be 'approve' or 'reject'."}, status=400)
+
+    # Permission check: Only HOD or Super User can approve/reject
+    if not is_hod_or_superuser(user_id, user_role):
+        return JsonResponse({
+            "error": "Unauthorized. Only the HOD (Department Head) or Super User can approve or reject reprint requests."
+        }, status=403)
+
+    req = ReprintRequest.objects.filter(id=request_id).first()
+    if not req:
+        return JsonResponse({"error": f"Reprint request {request_id} not found."}, status=404)
+
+    now = dj_timezone.now()
+    if action == "approve":
+        req.status = "approved"
+        req.reviewed_by = user_name
+        req.reviewer_user_id = user_id
+        req.reviewed_at = now
+        req.review_notes = notes or "Approved by HOD. 1-time reprint unlocked."
+        req.is_used = False
+        req.save()
+
+        ReprintAuditLog.objects.create(
+            asset_code=req.asset_code,
+            asset_id=req.asset_id,
+            action="APPROVED",
+            actor_name=user_name,
+            actor_user_id=user_id,
+            actor_role=user_role,
+            reason=req.reason,
+            approval_status="Approved",
+            approved_by=user_name,
+            timestamp=now,
+            details={"requestId": req.id, "reviewNotes": req.review_notes},
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Reprint request Approved! Print QR button is now unlocked for one print only.",
+            "request": req.to_dict(),
+        })
+
+    else:
+        req.status = "rejected"
+        req.reviewed_by = user_name
+        req.reviewer_user_id = user_id
+        req.reviewed_at = now
+        req.review_notes = notes or "Rejected by HOD"
+        req.save()
+
+        ReprintAuditLog.objects.create(
+            asset_code=req.asset_code,
+            asset_id=req.asset_id,
+            action="REJECTED",
+            actor_name=user_name,
+            actor_user_id=user_id,
+            actor_role=user_role,
+            reason=req.reason,
+            approval_status="Rejected",
+            approved_by=user_name,
+            timestamp=now,
+            details={"requestId": req.id, "reviewNotes": req.review_notes},
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Reprint request Rejected by HOD.",
+            "request": req.to_dict(),
+        })
+
+
+def api_reprint_history(request: HttpRequest, asset_code: str) -> JsonResponse:
+    """
+    Returns complete audit trail:
+    Print Count, Printed By, Printed Date & Time, Request Reason, Approval Status, Approved By, and Reprint History.
+    """
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    asset = Asset.objects.filter(Q(asset_code=asset_code) | Q(tag=asset_code)).first()
+    logs = ReprintAuditLog.objects.filter(asset_code=asset_code).order_by("-timestamp")
+    active_req = ReprintRequest.objects.filter(asset_code=asset_code).order_by("-requested_at").first()
+
+    status_badge = asset.get_reprint_status() if asset else "Not Printed"
+
+    return JsonResponse({
+        "assetCode": asset_code,
+        "printCount": asset.print_count if asset else 0,
+        "firstPrintedAt": asset.first_printed_at.isoformat() if (asset and asset.first_printed_at) else None,
+        "firstPrintedBy": asset.first_printed_by if asset else "",
+        "lastPrintedAt": asset.last_printed_at.isoformat() if (asset and asset.last_printed_at) else None,
+        "lastPrintedBy": asset.last_printed_by if asset else "",
+        "statusBadge": status_badge,
+        "activeRequest": active_req.to_dict() if active_req else None,
+        "history": [log.to_dict() for log in logs],
+    })
+
 
 
 

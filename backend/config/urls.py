@@ -21,6 +21,10 @@ from dashboard.views import (
     api_stock_count_verify,
     api_transfers,
     api_transfer_action,
+    api_record_label_print,
+    api_reprint_requests,
+    api_reprint_request_action,
+    api_reprint_history,
 )
 
 urlpatterns = [
@@ -29,6 +33,11 @@ urlpatterns = [
     path('api/assets/', api_assets, name='api-assets'),
     path('api/assets/<int:pk>/', api_asset_detail, name='api-asset-detail'),
     path('api/metrics/', api_metrics, name='api-metrics'),
+    # Secure QR Print Control & HOD Reprint Governance endpoints
+    path('api/labels/record-print/', api_record_label_print, name='api-record-label-print'),
+    path('api/labels/reprint-requests/', api_reprint_requests, name='api-reprint-requests'),
+    path('api/labels/reprint-requests/<str:request_id>/action/', api_reprint_request_action, name='api-reprint-request-action'),
+    path('api/labels/reprint-history/<str:asset_code>/', api_reprint_history, name='api-reprint-history'),
     # Comprehensive Audit & Device Tracking endpoints
     path('api/audit/log/', api_audit_log, name='api-audit-log'),
     path('api/audit/logs/', api_audit_logs, name='api-audit-logs'),

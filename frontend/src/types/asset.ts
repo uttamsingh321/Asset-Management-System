@@ -238,6 +238,15 @@ export interface Asset {
   date: string
   updatedAt?: string
 
+  // QR Print Control & Governance
+  printCount?: number
+  firstPrintedAt?: string
+  firstPrintedBy?: string
+  lastPrintedAt?: string
+  lastPrintedBy?: string
+  lastPrintedUserId?: string
+  reprintStatus?: 'Not Printed' | 'Printed' | 'Reprint Pending' | 'Approved' | 'Rejected'
+
   // Compatibility fields for tables/dashboard
   name: string
   assetTag: string

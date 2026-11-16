@@ -33,6 +33,8 @@ export const REPRINT_REASONS: ReprintReason[] = [
   'Other Justification',
 ]
 
+export type PrintStatusBadge = 'Not Printed' | 'Printed' | 'Reprint Pending' | 'Approved' | 'Rejected'
+
 export interface AssetPrintRecord {
   assetId: string
   assetCode: string
@@ -71,6 +73,7 @@ export interface PrintEligibility {
   isReprintPending: boolean
   isReprintBlocked: boolean
   isSuperUser: boolean
+  isHOD: boolean
   printCount: number
   status:
     | 'ready_first_print'
@@ -97,6 +100,24 @@ export function isSuperUserRole(user?: UserProfile | null): boolean {
     user.role === 'Super User' ||
     user.userId?.toUpperCase() === 'USR-ADMIN'
   )
+}
+
+/** Check if user is an HOD (Department Head) or Plant Manager */
+export function isHODRole(user?: UserProfile | null): boolean {
+  if (!user) return false
+  const roleLower = (user.role || '').toLowerCase()
+  return (
+    roleLower.includes('hod') ||
+    roleLower.includes('head') ||
+    roleLower.includes('manager') ||
+    roleLower === 'plant manager' ||
+    Boolean((user as any).isHOD)
+  )
+}
+
+/** Check if user is either HOD or Super User (both have approval authority) */
+export function isHODOrSuperUser(user?: UserProfile | null): boolean {
+  return isSuperUserRole(user) || isHODRole(user)
 }
 
 /** Retrieve all asset print count records from storage */
@@ -215,6 +236,22 @@ export function recordAssetPrint(
     saveReprintRequests(updatedRequests)
   }
 
+  // Asynchronous background call to backend REST enforcement endpoint
+  try {
+    fetch('/api/labels/record-print/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        asset_id: assetId,
+        asset_code: assetCode,
+        user_id: userId,
+        user_name: userName,
+        role: user?.role || 'Employee',
+        department: user?.department || 'Operations',
+      }),
+    }).catch(() => {})
+  } catch {}
+
   // Record audit trail event
   logAuditEvent(
     'LABEL_PRINT',
@@ -234,7 +271,8 @@ export function recordAssetPrint(
 }
 
 /**
- * Normal user submits a request to the Super User to re-print an asset label.
+ * Normal user submits a request to the HOD / Super User to re-print an asset label.
+ * A mandatory reason is strictly enforced.
  */
 export function createReprintRequest(params: {
   assetId: string
@@ -244,6 +282,10 @@ export function createReprintRequest(params: {
   reason: ReprintReason | string
   notes?: string
 }): ReprintRequest {
+  if (!params.reason || !params.reason.trim()) {
+    throw new Error('A mandatory reason is required to submit a reprint request.')
+  }
+
   const now = new Date().toISOString()
   const requests = getReprintRequests()
 
@@ -265,6 +307,24 @@ export function createReprintRequest(params: {
   // Prepend to requests list
   saveReprintRequests([newRequest, ...requests])
 
+  // Sync to backend endpoint asynchronously
+  try {
+    fetch('/api/labels/reprint-requests/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        asset_id: params.assetId,
+        asset_code: params.assetCode,
+        asset_name: params.assetName,
+        reason: params.reason,
+        notes: params.notes,
+        user_id: params.requester.userId,
+        user_name: params.requester.userName,
+        department: params.requester.department,
+      }),
+    }).catch(() => {})
+  } catch {}
+
   // Log audit event
   logAuditEvent(
     'LABEL_REPRINT_REQUEST',
@@ -284,7 +344,7 @@ export function createReprintRequest(params: {
 }
 
 /**
- * Super User approves a pending reprint request, granting 1-time reprint authorization.
+ * HOD or Super User approves a pending reprint request, granting 1-time reprint authorization.
  */
 export function approveReprintRequest(
   requestId: string,
@@ -300,10 +360,10 @@ export function approveReprintRequest(
       target = {
         ...req,
         status: 'approved',
-        reviewedBy: reviewer.userName || 'Super User',
-        reviewerUserId: reviewer.userId || 'USR-ADMIN',
+        reviewedBy: reviewer.userName || (isSuperUserRole(reviewer) ? 'Super User' : 'HOD'),
+        reviewerUserId: reviewer.userId || 'USR-HOD',
         reviewedAt: now,
-        reviewNotes: reviewNotes?.trim() || 'Approved by Super User',
+        reviewNotes: reviewNotes?.trim() || 'Approved by HOD. 1-time reprint unlocked.',
         isUsed: false,
       }
       return target
@@ -314,6 +374,21 @@ export function approveReprintRequest(
   if (!target) return null
 
   saveReprintRequests(updatedRequests)
+
+  // Sync to backend REST action endpoint
+  try {
+    fetch(`/api/labels/reprint-requests/${requestId}/action/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'approve',
+        user_id: reviewer.userId,
+        user_name: reviewer.userName,
+        role: reviewer.role || 'HOD',
+        notes: reviewNotes,
+      }),
+    }).catch(() => {})
+  } catch {}
 
   // Log audit event
   logAuditEvent(
@@ -333,7 +408,7 @@ export function approveReprintRequest(
 }
 
 /**
- * Super User rejects a pending reprint request.
+ * HOD or Super User rejects a pending reprint request.
  */
 export function rejectReprintRequest(
   requestId: string,
@@ -349,10 +424,10 @@ export function rejectReprintRequest(
       target = {
         ...req,
         status: 'rejected',
-        reviewedBy: reviewer.userName || 'Super User',
-        reviewerUserId: reviewer.userId || 'USR-ADMIN',
+        reviewedBy: reviewer.userName || (isSuperUserRole(reviewer) ? 'Super User' : 'HOD'),
+        reviewerUserId: reviewer.userId || 'USR-HOD',
         reviewedAt: now,
-        reviewNotes: reviewNotes?.trim() || 'Rejected by Super User',
+        reviewNotes: reviewNotes?.trim() || 'Rejected by HOD',
       }
       return target
     }
@@ -362,6 +437,21 @@ export function rejectReprintRequest(
   if (!target) return null
 
   saveReprintRequests(updatedRequests)
+
+  // Sync to backend REST action endpoint
+  try {
+    fetch(`/api/labels/reprint-requests/${requestId}/action/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'reject',
+        user_id: reviewer.userId,
+        user_name: reviewer.userName,
+        role: reviewer.role || 'HOD',
+        notes: reviewNotes,
+      }),
+    }).catch(() => {})
+  } catch {}
 
   // Log audit event
   logAuditEvent(
@@ -389,6 +479,8 @@ export function checkPrintEligibility(
   isDataComplete: boolean = true
 ): PrintEligibility {
   const isSuperUser = isSuperUserRole(user)
+  const isHOD = isHODRole(user)
+  const isGovernanceAuthorized = isSuperUser || isHOD
 
   // 1. Incomplete asset data is an absolute blocker for all roles
   if (!isDataComplete) {
@@ -399,6 +491,7 @@ export function checkPrintEligibility(
       isReprintPending: false,
       isReprintBlocked: false,
       isSuperUser,
+      isHOD,
       printCount: 0,
       status: 'data_incomplete',
       title: 'QR Print Locked: Complete Data First',
@@ -408,7 +501,7 @@ export function checkPrintEligibility(
 
   // 2. Fetch print record
   const printRecord = getAssetPrintRecord(asset.id, asset.assetCode)
-  const printCount = printRecord?.printCount || 0
+  const printCount = printRecord?.printCount ?? asset.printCount ?? 0
 
   // 3. First-time print: Never printed before
   if (printCount === 0) {
@@ -419,6 +512,7 @@ export function checkPrintEligibility(
       isReprintPending: false,
       isReprintBlocked: false,
       isSuperUser,
+      isHOD,
       printCount: 0,
       status: 'ready_first_print',
       title: `Print Label (${asset.assetCode})`,
@@ -437,10 +531,11 @@ export function checkPrintEligibility(
       isReprintPending: false,
       isReprintBlocked: false,
       isSuperUser,
+      isHOD,
       printCount,
       status: 'reprint_approved',
       title: `Print Approved Re-print (${asset.assetCode})`,
-      message: `Re-print approved by Super User (${approvedRequest.reviewedBy || 'Admin'}). Single-use permit valid.`,
+      message: `Re-print approved by HOD (${approvedRequest.reviewedBy || 'HOD'}). Single-use permit valid.`,
       approvedRequest,
       printRecord: printRecord || undefined,
     }
@@ -449,18 +544,19 @@ export function checkPrintEligibility(
   // 5. Check if there is an active pending reprint request
   const pendingRequest = getPendingReprintRequest(asset.id, asset.assetCode)
   if (pendingRequest) {
-    if (isSuperUser) {
+    if (isGovernanceAuthorized) {
       return {
         canPrint: true,
         isFirstPrint: false,
         isReprintApproved: false,
         isReprintPending: true,
         isReprintBlocked: false,
-        isSuperUser: true,
+        isSuperUser,
+        isHOD,
         printCount,
         status: 'superuser_override',
         title: `Authorize & Print Re-print (${asset.assetCode})`,
-        message: `Pending request from ${pendingRequest.requestedBy}. Super User clearance allows immediate review or printing.`,
+        message: `Pending request from ${pendingRequest.requestedBy}. HOD / Super User clearance allows immediate review or printing.`,
         pendingRequest,
         printRecord: printRecord || undefined,
       }
@@ -473,10 +569,11 @@ export function checkPrintEligibility(
       isReprintPending: true,
       isReprintBlocked: true,
       isSuperUser: false,
+      isHOD: false,
       printCount,
       status: 'reprint_pending',
-      title: 'Re-print Request Pending Super User Approval',
-      message: `Re-print request submitted by ${pendingRequest.requestedBy} on ${new Date(pendingRequest.requestedAt).toLocaleDateString()}. Awaiting Super User approval.`,
+      title: 'Re-print Request Pending HOD Approval',
+      message: `Re-print request submitted by ${pendingRequest.requestedBy} on ${new Date(pendingRequest.requestedAt).toLocaleDateString()}. Awaiting HOD approval.`,
       pendingRequest,
       printRecord: printRecord || undefined,
     }
@@ -491,6 +588,7 @@ export function checkPrintEligibility(
       isReprintPending: false,
       isReprintBlocked: false,
       isSuperUser: true,
+      isHOD,
       printCount,
       status: 'superuser_override',
       title: `👑 Super User Override: Print (${asset.assetCode})`,
@@ -506,10 +604,87 @@ export function checkPrintEligibility(
     isReprintPending: false,
     isReprintBlocked: true,
     isSuperUser: false,
+    isHOD,
     printCount,
     status: 'already_printed_blocked',
     title: `🔒 Re-print Locked (${asset.assetCode})`,
-    message: `Rule: Single-print policy enforced. This label was already printed (${printCount} time${printCount > 1 ? 's' : ''}). Re-printing requires Super User approval.`,
+    message: `Rule: Single-print policy enforced. This label was already printed (${printCount} time${printCount > 1 ? 's' : ''}). Re-printing requires HOD approval.`,
     printRecord: printRecord || undefined,
   }
 }
+
+/** Retrieve the most recent reprint request for an asset */
+export function getLatestReprintRequest(assetId: string, assetCode?: string): ReprintRequest | null {
+  const all = getReprintRequests()
+  return all.find((r) => r.assetId === assetId || (assetCode && r.assetCode === assetCode)) || null
+}
+
+/**
+ * Returns current QR print governance badge status:
+ * 'Not Printed' | 'Printed' | 'Reprint Pending' | 'Approved' | 'Rejected'
+ */
+export function getAssetPrintStatus(
+  asset: Asset,
+  record?: AssetPrintRecord | null,
+  activeRequest?: ReprintRequest | null
+): PrintStatusBadge {
+  const req = activeRequest !== undefined ? activeRequest : getLatestReprintRequest(asset.id, asset.assetCode)
+  if (req) {
+    if (req.status === 'pending') return 'Reprint Pending'
+    if (req.status === 'approved' && !req.isUsed) return 'Approved'
+    if (req.status === 'rejected') return 'Rejected'
+  }
+
+  const printRecord = record !== undefined ? record : getAssetPrintRecord(asset.id, asset.assetCode)
+  const printCount = printRecord?.printCount ?? asset.printCount ?? 0
+
+  if (printCount === 0) {
+    return 'Not Printed'
+  }
+
+  return 'Printed'
+}
+
+/**
+ * Visual styling props for the 5 QR print status badges
+ */
+export function getPrintStatusBadgeProps(status: PrintStatusBadge) {
+  switch (status) {
+    case 'Not Printed':
+      return {
+        label: 'Not Printed',
+        colorClass: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+        icon: '⚪',
+        dotClass: 'bg-slate-400',
+      }
+    case 'Printed':
+      return {
+        label: 'Printed',
+        colorClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+        icon: '🔒',
+        dotClass: 'bg-blue-500',
+      }
+    case 'Reprint Pending':
+      return {
+        label: 'Reprint Pending',
+        colorClass: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+        icon: '⏳',
+        dotClass: 'bg-amber-500 animate-pulse',
+      }
+    case 'Approved':
+      return {
+        label: 'Approved',
+        colorClass: 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
+        icon: '🔓',
+        dotClass: 'bg-purple-500 animate-pulse',
+      }
+    case 'Rejected':
+      return {
+        label: 'Rejected',
+        colorClass: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+        icon: '✕',
+        dotClass: 'bg-rose-500',
+      }
+  }
+}
+

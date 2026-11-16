@@ -31,6 +31,15 @@ import { DigitalTwinFacility3D } from '@/components/DigitalTwinFacility3D'
 import { ExecutiveBentoGrid3D } from '@/components/ExecutiveBentoGrid3D'
 import { initialAssets } from '@/data/mockAssets'
 import { masterMappingService } from '@/lib/masterMappingService'
+import {
+  getAssetPrintStatus,
+  getPrintStatusBadgeProps,
+  getAssetPrintRecord,
+  getLatestReprintRequest,
+  createReprintRequest,
+  REPRINT_REASONS,
+  type ReprintReason,
+} from '@/lib/labelReprintService'
 
 // Lazy-load heavy views to keep bundle fast
 const IndiaMaintenanceView = React.lazy(() => import('@/components/IndiaMaintenanceView'))
@@ -173,6 +182,17 @@ export function App() {
   const [dashSearchQuery, setDashSearchQuery] = React.useState<string>('')
   const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string; code: string } | null>(null)
   const [qrScannedAsset, setQrScannedAsset] = React.useState<Asset | null>(null)
+  const [reprintModalAsset, setReprintModalAsset] = React.useState<Asset | null>(null)
+  const [reprintReason, setReprintReason] = React.useState<ReprintReason>('Label Damaged / Scratched')
+  const [reprintNotes, setReprintNotes] = React.useState('')
+  const [reprintSubmitting, setReprintSubmitting] = React.useState(false)
+  const [, setReprintUpdateVersion] = React.useState(0)
+
+  React.useEffect(() => {
+    const onReprintUpdate = () => setReprintUpdateVersion((v) => v + 1)
+    window.addEventListener('meridian_reprint_updated', onReprintUpdate)
+    return () => window.removeEventListener('meridian_reprint_updated', onReprintUpdate)
+  }, [])
   const [qrAccessDenied, setQrAccessDenied] = React.useState<{
     assetCode: string
     assetDepartment: string
@@ -2065,6 +2085,15 @@ export function App() {
                                   <div className="flex items-center justify-end gap-1">
                                     <button
                                       type="button"
+                                      onClick={() => setQrScannedAsset(asset)}
+                                      className="p-1 rounded text-[var(--mute)] hover:text-[var(--acc)] hover:bg-[var(--surf2)] transition cursor-pointer"
+                                      title={`View Details & Print Status for ${asset.assetCode}`}
+                                      aria-label={`View Details & Print Status for ${asset.assetCode}`}
+                                    >
+                                      👁️
+                                    </button>
+                                    <button
+                                      type="button"
                                       onClick={() => {
                                         try {
                                           sessionStorage.setItem('meridian_print_asset_id', asset.id)
@@ -2660,13 +2689,29 @@ export function App() {
 
             {/* Modal Body: Verified Specifications */}
             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Asset Code Hero Box */}
+              {/* Asset Code Hero Box with QR Print Status Badge */}
               <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
                 <div>
                   <div className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400">资产编号 / Asset No.</div>
                   <div className="text-lg font-black text-[var(--ink)] font-mono">{qrScannedAsset.assetCode}</div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex items-center gap-2">
+                  {(() => {
+                    const printRec = getAssetPrintRecord(qrScannedAsset.id, qrScannedAsset.assetCode)
+                    const latestReq = getLatestReprintRequest(qrScannedAsset.id, qrScannedAsset.assetCode)
+                    const pStatus = getAssetPrintStatus(qrScannedAsset, printRec, latestReq)
+                    const badge = getPrintStatusBadgeProps(pStatus)
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-xs ${badge.colorClass}`}
+                        title={`QR Print Status: ${pStatus}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+                        <span>{badge.icon}</span>
+                        <span>{badge.label}</span>
+                      </span>
+                    )
+                  })()}
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     {qrScannedAsset.status || 'Active'}
@@ -2722,6 +2767,175 @@ export function App() {
                 </div>
               </div>
 
+              {/* QR Print Control & Complete Audit Trail Section */}
+              {(() => {
+                const printRec = getAssetPrintRecord(qrScannedAsset.id, qrScannedAsset.assetCode)
+                const latestReq = getLatestReprintRequest(qrScannedAsset.id, qrScannedAsset.assetCode)
+                const pStatus = getAssetPrintStatus(qrScannedAsset, printRec, latestReq)
+                const count = printRec?.printCount ?? qrScannedAsset.printCount ?? 0
+                const badge = getPrintStatusBadgeProps(pStatus)
+
+                return (
+                  <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surf2)]/70 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🏷️</span>
+                        <div>
+                          <div className="text-xs font-bold text-[var(--ink)]">QR Print Control & Audit Governance</div>
+                          <div className="text-[10px] text-[var(--mute)]">Single-Print rule: 1 default print, locked thereafter.</div>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${badge.colorClass}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+                        <span>{badge.icon}</span>
+                        <span>{badge.label}</span>
+                      </span>
+                    </div>
+
+                    {/* Audit Summary Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                        <div className="text-[10px] uppercase font-bold text-[var(--mute)]">Print Count</div>
+                        <div className="text-base font-black text-[var(--ink)] font-mono">{count}</div>
+                        <div className="text-[10px] text-[var(--mute)] mt-0.5">
+                          {count === 0 ? 'Never printed' : count === 1 ? 'Initial print completed' : `Re-printed ${count - 1} time${count > 2 ? 's' : ''}`}
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-[var(--surf)] border border-[var(--line)]">
+                        <div className="text-[10px] uppercase font-bold text-[var(--mute)]">Printed By & Date</div>
+                        <div className="font-semibold text-[var(--ink)] truncate">
+                          {printRec?.lastPrintedBy || (count > 0 ? 'Authorized User' : 'Not Printed')}
+                        </div>
+                        <div className="text-[10px] font-mono text-[var(--mute)] truncate mt-0.5">
+                          {printRec?.lastPrintedAt ? new Date(printRec.lastPrintedAt).toLocaleString() : '-'}
+                        </div>
+                      </div>
+
+                      {latestReq && (
+                        <div className="col-span-2 p-2.5 rounded-lg bg-[var(--surf)] border border-[var(--line)] space-y-1.5">
+                          <div className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 flex items-center justify-between">
+                            <span>Reprint Request Audit Record</span>
+                            <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 font-bold">
+                              {latestReq.id}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-[var(--ink)]">
+                            <span className="text-[var(--mute)]">Request Reason: </span>
+                            <span className="font-bold">{latestReq.reason}</span>
+                          </div>
+                          {latestReq.notes && (
+                            <div className="text-[10px] italic text-[var(--mute)]">
+                              "{latestReq.notes}"
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-[10px] pt-1 border-t border-[var(--line)] text-[var(--mute)]">
+                            <span>Requested by: <b className="text-[var(--ink)]">{latestReq.requestedBy}</b> ({new Date(latestReq.requestedAt).toLocaleDateString()})</span>
+                            <span className={`font-bold uppercase px-1.5 py-0.2 rounded ${
+                              latestReq.status === 'approved'
+                                ? 'bg-emerald-500/15 text-emerald-600'
+                                : latestReq.status === 'rejected'
+                                ? 'bg-rose-500/15 text-rose-600'
+                                : 'bg-amber-500/15 text-amber-600'
+                            }`}>
+                              {latestReq.status} {latestReq.reviewedBy ? `by ${latestReq.reviewedBy}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Bar inside Audit Box */}
+                    <div className="pt-1 flex items-center justify-between gap-2">
+                      {pStatus === 'Not Printed' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              sessionStorage.setItem('meridian_print_asset_id', qrScannedAsset.id)
+                            } catch {}
+                            setQrScannedAsset(null)
+                            window.location.hash = '#labels'
+                          }}
+                          className="w-full py-1.5 px-3 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white cursor-pointer transition shadow-xs text-center flex items-center justify-center gap-1.5"
+                        >
+                          <span>🖨️</span>
+                          <span>Print QR Label (First Print Authorized)</span>
+                        </button>
+                      )}
+
+                      {pStatus === 'Printed' && (
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-[var(--mute)] flex items-center gap-1">
+                            <span>🔒</span>
+                            <span>Button locked. Need another label?</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReprintModalAsset(qrScannedAsset)
+                              setReprintReason('Label Damaged / Scratched')
+                              setReprintNotes('')
+                            }}
+                            className="py-1.5 px-3.5 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-xs transition shrink-0 flex items-center gap-1"
+                          >
+                            <span>📩</span>
+                            <span>Request Reprint</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {pStatus === 'Reprint Pending' && (
+                        <div className="w-full p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-center text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                          <span>Reprint Request Pending HOD Approval</span>
+                        </div>
+                      )}
+
+                      {pStatus === 'Approved' && (
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                            <span>🔓</span>
+                            <span>HOD Approved (1 print unlocked)</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                sessionStorage.setItem('meridian_print_asset_id', qrScannedAsset.id)
+                              } catch {}
+                              setQrScannedAsset(null)
+                              window.location.hash = '#labels'
+                            }}
+                            className="py-1.5 px-3.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs transition shrink-0 flex items-center gap-1"
+                          >
+                            <span>🖨️</span>
+                            <span>Print Approved Reprint</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {pStatus === 'Rejected' && (
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-rose-600 font-medium">Reprint request was rejected by HOD.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReprintModalAsset(qrScannedAsset)
+                              setReprintReason('Label Damaged / Scratched')
+                              setReprintNotes('')
+                            }}
+                            className="py-1 px-2.5 text-xs font-bold rounded-lg bg-[var(--surf2)] hover:bg-[var(--line)] border border-[var(--line)] text-[var(--ink)] cursor-pointer transition shrink-0"
+                          >
+                            New Request
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Action Buttons */}
               <div className="pt-2 flex items-center gap-2">
                 <button
@@ -2750,6 +2964,114 @@ export function App() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request Reprint Modal Dialog (Mandatory Reason Enforced) */}
+      {reprintModalAsset && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Request Reprint Modal"
+        >
+          <div className="card p-6 max-w-md w-full space-y-4 border border-[var(--line)] shadow-2xl bg-[var(--surf)]">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📩</span>
+                <div>
+                  <h3 className="font-bold text-sm text-[var(--ink)]">Request QR Label Reprint</h3>
+                  <p className="text-[11px] text-[var(--mute)]">Asset: {reprintModalAsset.assetCode} ({reprintModalAsset.name})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReprintModalAsset(null)}
+                className="w-7 h-7 rounded-lg hover:bg-[var(--surf2)] text-[var(--mute)] flex items-center justify-center cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!reprintReason || !reprintReason.trim()) {
+                  toast.error('A mandatory reason must be provided to request a reprint.')
+                  return
+                }
+                setReprintSubmitting(true)
+                try {
+                  createReprintRequest({
+                    assetId: reprintModalAsset.id,
+                    assetCode: reprintModalAsset.assetCode,
+                    assetName: reprintModalAsset.name,
+                    requester: currentUser,
+                    reason: reprintReason,
+                    notes: reprintNotes,
+                  })
+                  toast.success(`Reprint request submitted to HOD for approval!`)
+                  setReprintModalAsset(null)
+                  setReprintNotes('')
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to submit reprint request.')
+                } finally {
+                  setReprintSubmitting(false)
+                }
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-[var(--ink)] mb-1">
+                  Reason for Reprint <span className="text-red-500">* (Mandatory)</span>
+                </label>
+                <select
+                  value={reprintReason}
+                  onChange={(e) => setReprintReason(e.target.value as ReprintReason)}
+                  required
+                  className="w-full p-2 rounded-lg border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] font-medium outline-none focus:border-[var(--acc)]"
+                >
+                  {REPRINT_REASONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-[var(--mute)] mb-1">
+                  Justification / Operational Notes (Optional)
+                </label>
+                <textarea
+                  value={reprintNotes}
+                  onChange={(e) => setReprintNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Explain why a new sticker is required (e.g. damaged during line maintenance)..."
+                  className="w-full p-2 rounded-lg border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] outline-none focus:border-[var(--acc)] resize-none"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 text-[11px] text-blue-700 dark:text-blue-300">
+                ℹ️ <b>Governance Workflow:</b> Your request will be sent to the HOD for approval. Once approved, the Print QR button will unlock for exactly 1 print.
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[var(--line)]">
+                <button
+                  type="button"
+                  onClick={() => setReprintModalAsset(null)}
+                  className="px-3.5 py-1.5 rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surf2)] transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reprintSubmitting}
+                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  {reprintSubmitting ? 'Submitting...' : 'Submit to HOD'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

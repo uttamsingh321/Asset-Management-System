@@ -64,6 +64,14 @@ class Asset(models.Model):
     asset_code_photo = models.TextField(blank=True)
     id_card_picture = models.TextField(blank=True)
 
+    # QR Label Print Control & Governance
+    print_count = models.IntegerField(default=0)
+    first_printed_at = models.DateTimeField(null=True, blank=True)
+    first_printed_by = models.CharField(max_length=128, blank=True)
+    last_printed_at = models.DateTimeField(null=True, blank=True)
+    last_printed_by = models.CharField(max_length=128, blank=True)
+    last_printed_user_id = models.CharField(max_length=64, blank=True)
+
     # Metadata
     metadata_date = models.DateField(null=True, blank=True)
 
@@ -122,8 +130,39 @@ class Asset(models.Model):
             "currentValue": float(self.current_value),
             "assignedTo": self.assigned_to or self.submitter,
             "location": self.location or self.current_location,
+            "printCount": getattr(self, "print_count", 0),
+            "firstPrintedAt": self.first_printed_at.isoformat() if getattr(self, "first_printed_at", None) else None,
+            "firstPrintedBy": getattr(self, "first_printed_by", ""),
+            "lastPrintedAt": self.last_printed_at.isoformat() if getattr(self, "last_printed_at", None) else None,
+            "lastPrintedBy": getattr(self, "last_printed_by", ""),
+            "reprintStatus": self.get_reprint_status(),
             "updatedAt": self.updated_at.isoformat() if self.updated_at else "",
         }
+
+    def get_reprint_status(self) -> str:
+        """
+        Computes the current QR print governance badge status:
+        'Not Printed' | 'Printed' | 'Reprint Pending' | 'Approved' | 'Rejected'
+        """
+        # Check reprint request status first
+        try:
+            req = ReprintRequest.objects.filter(
+                models.Q(asset_code=self.asset_code) | models.Q(asset_id=str(self.id))
+            ).order_by("-requested_at").first()
+            if req:
+                if req.status == "pending":
+                    return "Reprint Pending"
+                if req.status == "approved" and not req.is_used:
+                    return "Approved"
+                if req.status == "rejected":
+                    return "Rejected"
+        except Exception:
+            pass
+
+        count = getattr(self, "print_count", 0)
+        if count == 0:
+            return "Not Printed"
+        return "Printed"
 
 
 class AuditLogQuerySet(models.QuerySet):
@@ -368,5 +407,123 @@ class AppUser(models.Model):
         if include_password:
             data["password"] = self.password
         return data
+
+
+class ReprintRequest(models.Model):
+    """
+    Enterprise QR Print Control Workflow:
+    Normal users must submit a request with mandatory reason for duplicate printing.
+    HOD reviews and approves/rejects.
+    Approval grants exactly ONE print authorization.
+    """
+    STATUS_CHOICES = [
+        ("pending", "Reprint Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+
+    id = models.CharField(max_length=64, primary_key=True)
+    asset_id = models.CharField(max_length=64, db_index=True)
+    asset_code = models.CharField(max_length=64, db_index=True)
+    asset_name = models.CharField(max_length=255, blank=True)
+    department = models.CharField(max_length=128, blank=True)
+    requested_by = models.CharField(max_length=128)
+    requester_user_id = models.CharField(max_length=64, db_index=True)
+    requester_dept = models.CharField(max_length=128, blank=True)
+    reason = models.CharField(max_length=255)
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="pending", db_index=True)
+    requested_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    reviewed_by = models.CharField(max_length=128, blank=True)
+    reviewer_user_id = models.CharField(max_length=64, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True)
+
+    is_used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
+    used_by = models.CharField(max_length=128, blank=True)
+    used_user_id = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+        verbose_name = "Reprint Request"
+        verbose_name_plural = "Reprint Requests"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "assetId": self.asset_id,
+            "assetCode": self.asset_code,
+            "assetName": self.asset_name,
+            "department": self.department,
+            "requestedBy": self.requested_by,
+            "requesterUserId": self.requester_user_id,
+            "requesterDept": self.requester_dept,
+            "reason": self.reason,
+            "notes": self.notes,
+            "status": self.status,
+            "requestedAt": self.requested_at.isoformat() if self.requested_at else None,
+            "reviewedBy": self.reviewed_by,
+            "reviewerUserId": self.reviewer_user_id,
+            "reviewedAt": self.reviewed_at.isoformat() if self.reviewed_at else None,
+            "reviewNotes": self.review_notes,
+            "isUsed": self.is_used,
+            "usedAt": self.used_at.isoformat() if self.used_at else None,
+            "usedBy": self.used_by,
+            "usedUserId": self.used_user_id,
+        }
+
+
+class ReprintAuditLog(models.Model):
+    """
+    Complete audit trail for QR printing:
+    Print Count, Printed By, Printed Date & Time, Request Reason, Approval Status, Approved By.
+    """
+    ACTION_CHOICES = [
+        ("FIRST_PRINT", "First Print"),
+        ("REPRINT", "Re-print Executed"),
+        ("REQUEST_SUBMITTED", "Reprint Request Submitted"),
+        ("APPROVED", "Reprint Approved by HOD"),
+        ("REJECTED", "Reprint Rejected by HOD"),
+        ("BLOCKED_ATTEMPT", "Unauthorized Print Blocked"),
+    ]
+
+    asset_code = models.CharField(max_length=64, db_index=True)
+    asset_id = models.CharField(max_length=64, blank=True)
+    action = models.CharField(max_length=64, choices=ACTION_CHOICES, db_index=True)
+    print_count = models.IntegerField(default=0)
+    actor_name = models.CharField(max_length=128)
+    actor_user_id = models.CharField(max_length=64, db_index=True)
+    actor_role = models.CharField(max_length=64, blank=True)
+    reason = models.CharField(max_length=255, blank=True)
+    approval_status = models.CharField(max_length=32, blank=True)
+    approved_by = models.CharField(max_length=128, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    details = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = "Reprint Audit Log"
+        verbose_name_plural = "Reprint Audit Logs"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "assetCode": self.asset_code,
+            "assetId": self.asset_id,
+            "action": self.action,
+            "printCount": self.print_count,
+            "printedBy": self.actor_name,
+            "printedUserId": self.actor_user_id,
+            "actorRole": self.actor_role,
+            "printedDateTime": self.timestamp.isoformat() if self.timestamp else None,
+            "requestReason": self.reason,
+            "approvalStatus": self.approval_status,
+            "approvedBy": self.approved_by,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "details": self.details,
+        }
+
 
 
