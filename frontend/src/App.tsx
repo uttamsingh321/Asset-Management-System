@@ -21,7 +21,8 @@ import {
   saveAssetsToStorage,
   loadAssetsFromStorage,
   fetchBackendAssets,
-  fetchBackendAssetCount,
+  fetchBackendAssetsSummary,
+  fetchBackendUpdatedAssets,
   pushAssetsToBackend,
   purgeBackendAssets,
 } from '@/lib/assetStorage'
@@ -368,6 +369,7 @@ export function App() {
   // Hydrate full dataset from IndexedDB and sync with central Django backend
   React.useEffect(() => {
     let isMounted = true
+    let lastKnownSummary = { count: 0, completedCount: -1, lastUpdated: '' }
 
     const syncWithBackendAndLocal = async () => {
       try {
@@ -390,16 +392,29 @@ export function App() {
           setAssets((prev) => {
             // Deduplicate and merge backend assets
             const existingMap = new Map(prev.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
+            let changesFound = false
             for (const ba of backendAssets) {
-              existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
+              const key = String(ba.assetCode || ba.assetTag || ba.id).toLowerCase()
+              const prevItem = existingMap.get(key)
+              if (!prevItem || prevItem.status !== ba.status || prevItem.whoInCharge !== ba.whoInCharge || prevItem.currentDepartment !== ba.currentDepartment) {
+                changesFound = true
+              }
+              existingMap.set(key, ba)
             }
             const merged = Array.from(existingMap.values())
-            if (merged.length !== prev.length || backendAssets.length > prev.length) {
+            if (changesFound || merged.length !== prev.length || backendAssets.length > prev.length) {
               void saveAssetsToStorage(merged)
               return sanitizeAssetList(merged)
             }
             return prev
           })
+
+          // Update initial known summary
+          lastKnownSummary = {
+            count: backendAssets.length,
+            completedCount: backendAssets.filter((a) => a.status === 'Completed' || a.status === 'Active').length,
+            lastUpdated: backendAssets[0]?.updatedAt || '',
+          }
 
           // If local client has more assets than backend (e.g. freshly imported locally), sync difference to cloud
           if (localStored && localStored.length > backendAssets.length) {
@@ -416,33 +431,84 @@ export function App() {
 
     void syncWithBackendAndLocal()
 
-    // 3. Periodic background sync: lightweight ping every 15 seconds; only downloads full data if count changes
+    // 3. Periodic background sync: lightweight ping every 5 seconds (~100 bytes)
+    // Only downloads updated data if total count, completed count, or last updated timestamp changes
+    const performPeriodicSync = async () => {
+      try {
+        const summary = await fetchBackendAssetsSummary()
+        if (!isMounted || !summary) return
+
+        const needsSync =
+          lastKnownSummary.completedCount === -1 ||
+          summary.count !== lastKnownSummary.count ||
+          summary.completedCount !== lastKnownSummary.completedCount ||
+          (Boolean(summary.lastUpdated) && summary.lastUpdated !== lastKnownSummary.lastUpdated)
+
+        if (needsSync) {
+          const prevTimestamp = lastKnownSummary.lastUpdated
+          lastKnownSummary = summary
+
+          // Fetch only updated assets if delta timestamp exists; otherwise fetch full
+          const updatedAssets = prevTimestamp
+            ? await fetchBackendUpdatedAssets(prevTimestamp)
+            : []
+
+          const assetsToApply = updatedAssets.length > 0 ? updatedAssets : await fetchBackendAssets()
+          if (!isMounted || !assetsToApply || assetsToApply.length === 0) return
+
+          setAssets((current) => {
+            const existingMap = new Map(current.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
+            for (const ba of assetsToApply) {
+              existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
+            }
+            const merged = Array.from(existingMap.values())
+            void saveAssetsToStorage(merged)
+            return sanitizeAssetList(merged)
+          })
+        }
+      } catch {
+        // Silent ping error
+      }
+    }
+
     const syncInterval = setInterval(() => {
-      fetchBackendAssetCount().then((count) => {
-        if (!isMounted || count === null) return
-        setAssets((prev) => {
-          if (count > prev.length) {
-            fetchBackendAssets().then((backendAssets) => {
-              if (!isMounted || !backendAssets || backendAssets.length === 0) return
-              setAssets((current) => {
-                const existingMap = new Map(current.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
-                for (const ba of backendAssets) {
-                  existingMap.set(String(ba.assetCode || ba.assetTag || ba.id).toLowerCase(), ba)
-                }
-                const merged = Array.from(existingMap.values())
-                void saveAssetsToStorage(merged)
-                return sanitizeAssetList(merged)
-              })
-            }).catch(() => {})
-          }
-          return prev
-        })
-      }).catch(() => {})
-    }, 15000)
+      void performPeriodicSync()
+    }, 5000)
 
     return () => {
       isMounted = false
       clearInterval(syncInterval)
+    }
+  }, [])
+
+  // Cross-tab instantaneous synchronization via BroadcastChannel
+  React.useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+    let channel: BroadcastChannel | null = null
+    try {
+      channel = new BroadcastChannel('meridian_asset_sync')
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'ASSET_SAVED' && event.data?.asset) {
+          const updatedAsset = event.data.asset as Asset
+          setAssets((prev) => {
+            const key = String(updatedAsset.assetCode || updatedAsset.assetTag || updatedAsset.id).toLowerCase()
+            const updated = prev.map((a) => {
+              if (String(a.assetCode || a.assetTag || a.id).toLowerCase() === key) {
+                return updatedAsset
+              }
+              return a
+            })
+            void saveAssetsToStorage(updated)
+            return sanitizeAssetList(updated)
+          })
+        }
+      }
+    } catch {}
+
+    return () => {
+      try {
+        channel?.close()
+      } catch {}
     }
   }, [])
 
@@ -681,6 +747,15 @@ export function App() {
   }
 
   const handleSaveAsset = (newAsset: Asset) => {
+    // Instantaneous cross-tab notification
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('meridian_asset_sync')
+        bc.postMessage({ type: 'ASSET_SAVED', asset: newAsset })
+        bc.close()
+      }
+    } catch {}
+
     if (workflowAsset) {
       let updatedCount = 0
       setAssets((prev) =>

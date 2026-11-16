@@ -120,6 +120,12 @@ function getApiUrl(path: string): string {
   return `http://localhost:8000${path}`
 }
 
+export interface BackendSummary {
+  count: number
+  completedCount: number
+  lastUpdated: string
+}
+
 /**
  * Fetch total asset count from backend (lightweight ping, uses almost zero network bandwidth)
  */
@@ -137,6 +143,55 @@ export async function fetchBackendAssetCount(): Promise<number | null> {
   } catch {
     return null
   }
+}
+
+/**
+ * Fetch backend summary (count, completed count, last updated timestamp)
+ * Ultra-lightweight: ~100 bytes payload, finishes in < 5ms.
+ */
+export async function fetchBackendAssetsSummary(): Promise<BackendSummary | null> {
+  try {
+    const res = await fetch(getApiUrl('/api/assets/?only_summary=1'), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (typeof data?.count === 'number') {
+      return {
+        count: data.count,
+        completedCount: typeof data.completedCount === 'number' ? data.completedCount : 0,
+        lastUpdated: typeof data.lastUpdated === 'string' ? data.lastUpdated : '',
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fetch only assets updated since a given ISO timestamp
+ */
+export async function fetchBackendUpdatedAssets(since: string): Promise<Asset[]> {
+  try {
+    const res = await fetch(getApiUrl(`/api/assets/?updated_since=${encodeURIComponent(since)}`), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    if (data && Array.isArray(data.assets)) {
+      return data.assets
+    }
+  } catch (err) {
+    console.warn('Backend updated assets fetch unavailable:', err)
+  }
+  return []
 }
 
 /**

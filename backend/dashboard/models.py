@@ -111,6 +111,7 @@ class Asset(models.Model):
             "currentValue": float(self.current_value),
             "assignedTo": self.assigned_to or self.submitter,
             "location": self.location or self.current_location,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else "",
         }
 
 

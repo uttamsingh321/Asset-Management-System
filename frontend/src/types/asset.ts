@@ -147,6 +147,7 @@ export interface TransferRequestItem {
   newCustodianId?: string
   reason: string
   date: string
+  updatedAt?: string
   requesterId: string
   requesterName: string
   requesterDept: string
@@ -235,6 +236,7 @@ export interface Asset {
 
   // Metadata
   date: string
+  updatedAt?: string
 
   // Compatibility fields for tables/dashboard
   name: string

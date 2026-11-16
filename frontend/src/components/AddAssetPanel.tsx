@@ -1511,17 +1511,18 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                   id="field-currentDepartment"
                   aria-label="Belong to which dept"
                   type="text"
-                  readOnly
+                  readOnly={Boolean(initialAsset)}
                   value={currentDepartment}
+                  onChange={(e) => setCurrentDepartment(e.target.value)}
                   placeholder="e.g. SMT Operations, Quality Control, Production & SMT, IT, Maintenance"
                   style={{
                     ...inputStyle,
-                    backgroundColor: 'var(--surf2)',
-                    cursor: 'not-allowed',
+                    backgroundColor: initialAsset ? 'var(--surf2)' : undefined,
+                    cursor: initialAsset ? 'not-allowed' : undefined,
                     color: 'var(--ink)',
-                    opacity: 0.9,
+                    opacity: initialAsset ? 0.9 : 1,
                   }}
-                  title="Main Owner Department (Auto-filled & Non-editable)"
+                  title={initialAsset ? "Main Owner Department (Auto-filled & Non-editable)" : "Main Owner Department"}
                 />
               </div>
 
@@ -1539,34 +1540,36 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     <input
                       id="field-inChargeId"
                       type="text"
-                      readOnly
+                      readOnly={Boolean(initialAsset)}
                       value={inChargeId}
+                      onChange={(e) => setInChargeId(e.target.value)}
                       placeholder="Emp ID: e.g. EMP-102 or MANISH5533"
                       style={{
                         ...inputStyle,
-                        backgroundColor: 'var(--surf2)',
-                        cursor: 'not-allowed',
+                        backgroundColor: initialAsset ? 'var(--surf2)' : undefined,
+                        cursor: initialAsset ? 'not-allowed' : undefined,
                         color: 'var(--ink)',
-                        opacity: 0.9,
+                        opacity: initialAsset ? 0.9 : 1,
                       }}
-                      title="Custodian Employee ID (Auto-filled & Non-editable)"
+                      title={initialAsset ? "Custodian Employee ID (Auto-filled & Non-editable)" : "Custodian Employee ID"}
                     />
                   </div>
                   <div>
                     <input
                       id="field-inChargeName"
                       type="text"
-                      readOnly
+                      readOnly={Boolean(initialAsset)}
                       value={inChargeName}
+                      onChange={(e) => setInChargeName(e.target.value)}
                       placeholder="Full Name: e.g. Rajesh Kumar"
                       style={{
                         ...inputStyle,
-                        backgroundColor: 'var(--surf2)',
-                        cursor: 'not-allowed',
+                        backgroundColor: initialAsset ? 'var(--surf2)' : undefined,
+                        cursor: initialAsset ? 'not-allowed' : undefined,
                         color: 'var(--ink)',
-                        opacity: 0.9,
+                        opacity: initialAsset ? 0.9 : 1,
                       }}
-                      title="Custodian Name (Auto-filled & Non-editable)"
+                      title={initialAsset ? "Custodian Name (Auto-filled & Non-editable)" : "Custodian Name"}
                     />
                   </div>
                 </div>

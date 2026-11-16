@@ -90,12 +90,34 @@ def api_assets(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
         if request.GET.get("only_count") == "1":
             return JsonResponse({"count": Asset.objects.count()})
+
+        if request.GET.get("only_summary") == "1" or request.GET.get("summary") == "1":
+            total_count = Asset.objects.count()
+            completed_count = Asset.objects.filter(Q(status__iexact="Completed") | Q(status__iexact="Active")).count()
+            latest_asset = Asset.objects.order_by("-updated_at").first()
+            last_updated = latest_asset.updated_at.isoformat() if (latest_asset and latest_asset.updated_at) else ""
+            return JsonResponse({
+                "count": total_count,
+                "completedCount": completed_count,
+                "lastUpdated": last_updated,
+            })
+
         dept = request.GET.get("department")
         limit_param = request.GET.get("limit")
         include_photos = request.GET.get("include_photos") == "1"
+        updated_since = request.GET.get("updated_since")
+
         qs = Asset.objects.all().order_by("-created_at")
         if not include_photos:
             qs = qs.defer("asset_photo", "asset_code_photo", "id_card_picture")
+        if updated_since:
+            try:
+                from datetime import datetime
+                clean_str = updated_since.replace("Z", "+00:00")
+                since_dt = datetime.fromisoformat(clean_str)
+                qs = qs.filter(updated_at__gte=since_dt)
+            except Exception:
+                pass
         if dept and dept != "All":
             qs = qs.filter(Q(current_department__icontains=dept) | Q(department__icontains=dept))
         if limit_param and limit_param.isdigit():
@@ -123,87 +145,201 @@ def api_assets(request: HttpRequest) -> JsonResponse:
                 role = request.META.get('HTTP_X_USER_ROLE', 'Administrator')
                 session_id = request.META.get('HTTP_X_SESSION_ID', '')
 
-                existing_tags = set(Asset.objects.values_list('tag', flat=True))
+                # Gather incoming tags
+                incoming_tags = []
+                for item in items:
+                    if isinstance(item, dict):
+                        t = str(item.get("assetCode") or item.get("assetTag") or item.get("tag") or "").strip()
+                        if t:
+                            incoming_tags.append(t)
+
+                # Query existing assets for upsert
+                existing_map = {}
+                if incoming_tags:
+                    existing_qs = Asset.objects.filter(Q(tag__in=incoming_tags) | Q(asset_code__in=incoming_tags))
+                    for a in existing_qs:
+                        if a.tag:
+                            existing_map[a.tag.strip().lower()] = a
+                        if a.asset_code:
+                            existing_map[a.asset_code.strip().lower()] = a
+
                 new_objects = []
+                updated_count = 0
+                seen_tags_this_batch = set()
+
                 for idx, item in enumerate(items):
                     if not isinstance(item, dict):
                         continue
                     tag = str(item.get("assetCode") or item.get("assetTag") or item.get("tag") or "").strip()
                     if not tag:
                         tag = f"AST-IMP-{idx+1}-{int(time.time())}"
-                    if tag in existing_tags:
+
+                    tag_lower = tag.lower()
+                    if tag_lower in seen_tags_this_batch:
                         continue
-                    existing_tags.add(tag)
+                    seen_tags_this_batch.add(tag_lower)
 
-                    name = str(item.get("currentDescription") or item.get("name") or tag)[:255]
-                    category = str(item.get("currentCategory") or item.get("category") or "Equipment")[:64]
-                    dept = str(item.get("currentDepartment") or item.get("department") or "Production")[:128]
-                    company = str(item.get("company") or "ismartu")[:64]
-                    plant = str(item.get("plant") or "Noida Central Plant")[:128]
-                    building = str(item.get("building") or "C39")[:128]
-                    floor = str(item.get("floor") or "1st Floor")[:64]
-                    loc = str(item.get("currentLocation") or item.get("location") or "C-39 Factory Noida")[:255]
-                    status = str(item.get("status") or "Pending Verification")[:32]
-                    try:
-                        cost = float(item.get("purchaseCost") or 0.0)
-                    except:
-                        cost = 0.0
-                    try:
-                        val = float(item.get("currentValue") or cost)
-                    except:
-                        val = 0.0
-                    serial = str(item.get("serialNumber") or "")[:128]
+                    if tag_lower in existing_map:
+                        # Existing asset: update fields
+                        ea = existing_map[tag_lower]
+                        if item.get("status"):
+                            ea.status = str(item["status"])[:32]
+                        if item.get("currentDepartment") or item.get("department"):
+                            dept = str(item.get("currentDepartment") or item.get("department"))[:128]
+                            ea.current_department = dept
+                            ea.department = dept
+                        if item.get("currentCategory") or item.get("category"):
+                            cat = str(item.get("currentCategory") or item.get("category"))[:64]
+                            ea.current_category = cat
+                            ea.category = cat
+                        if item.get("currentDescription") or item.get("name"):
+                            desc = str(item.get("currentDescription") or item.get("name"))[:255]
+                            ea.current_description = desc
+                            ea.name = desc
+                        if item.get("building"):
+                            ea.building = str(item["building"])[:128]
+                        if item.get("floor"):
+                            ea.floor = str(item["floor"])[:64]
+                        if item.get("company"):
+                            ea.company = str(item["company"])[:64]
+                        if item.get("plant"):
+                            ea.plant = str(item["plant"])[:128]
+                        if item.get("currentLocation") or item.get("location"):
+                            loc = str(item.get("currentLocation") or item.get("location"))[:255]
+                            ea.current_location = loc
+                            ea.location = loc
+                        if item.get("serialNumber") is not None:
+                            ea.serial_number = str(item.get("serialNumber", ""))[:128]
+                        if item.get("assetCondition") is not None:
+                            ea.asset_condition = str(item.get("assetCondition", ""))[:128]
+                        if item.get("movementReason") is not None:
+                            ea.movement_reason = str(item.get("movementReason", ""))[:255]
+                        if item.get("remarks") is not None:
+                            ea.remarks = str(item.get("remarks", ""))
+                        if item.get("submitter") is not None:
+                            ea.submitter = str(item.get("submitter", ""))[:128]
+                        if item.get("submitterId") is not None or item.get("submitter_id") is not None:
+                            ea.submitter_id = str(item.get("submitterId") or item.get("submitter_id") or "")[:64]
+                        if item.get("submitterDepartment") is not None or item.get("submitter_department") is not None:
+                            ea.submitter_department = str(item.get("submitterDepartment") or item.get("submitter_department") or "")[:128]
+                        if item.get("inChargeId") is not None:
+                            ea.in_charge_id = str(item.get("inChargeId", ""))[:64]
+                        if item.get("inChargeName") is not None:
+                            ea.in_charge_name = str(item.get("inChargeName", ""))[:128]
+                        if item.get("assignedTo") is not None:
+                            ea.assigned_to = str(item.get("assignedTo", ""))[:128]
+                        if item.get("assetPhoto"):
+                            ea.asset_photo = item["assetPhoto"]
+                        if item.get("assetCodePhoto"):
+                            ea.asset_code_photo = item["assetCodePhoto"]
+                        if item.get("idCardPicture"):
+                            ea.id_card_picture = item["idCardPicture"]
+                        if item.get("purchaseCost") is not None:
+                            try:
+                                ea.purchase_cost = float(item["purchaseCost"])
+                            except Exception:
+                                pass
+                        if item.get("currentValue") is not None:
+                            try:
+                                ea.current_value = float(item["currentValue"])
+                            except Exception:
+                                pass
+                        ea.save()
+                        updated_count += 1
+                    else:
+                        # Create new asset
+                        name = str(item.get("currentDescription") or item.get("name") or tag)[:255]
+                        category = str(item.get("currentCategory") or item.get("category") or "Equipment")[:64]
+                        dept = str(item.get("currentDepartment") or item.get("department") or "Production")[:128]
+                        company = str(item.get("company") or "ismartu")[:64]
+                        plant = str(item.get("plant") or "Noida Central Plant")[:128]
+                        building = str(item.get("building") or "C39")[:128]
+                        floor = str(item.get("floor") or "1st Floor")[:64]
+                        loc = str(item.get("currentLocation") or item.get("location") or "C-39 Factory Noida")[:255]
+                        status = str(item.get("status") or "Pending Verification")[:32]
+                        try:
+                            cost = float(item.get("purchaseCost") or 0.0)
+                        except Exception:
+                            cost = 0.0
+                        try:
+                            val = float(item.get("currentValue") or cost)
+                        except Exception:
+                            val = 0.0
+                        serial = str(item.get("serialNumber") or "")[:128]
 
-                    new_objects.append(
-                        Asset(
-                            tag=tag,
-                            asset_code=tag,
-                            name=name,
-                            category=category,
-                            current_category=category,
-                            current_description=name,
-                            department=dept,
-                            current_department=dept,
-                            status=status,
-                            company=company,
-                            plant=plant,
-                            building=building,
-                            floor=floor,
-                            location=loc,
-                            current_location=loc,
-                            serial_number=serial,
-                            purchase_cost=cost,
-                            current_value=val,
-                            assigned_to=str(item.get("assignedTo", ""))[:128],
-                            submitter=str(item.get("submitter", ""))[:128],
-                            submitter_id=str(item.get("submitterId", ""))[:64],
-                            submitter_department=str(item.get("submitterDepartment", ""))[:128],
-                            in_charge_id=str(item.get("inChargeId", ""))[:64],
-                            in_charge_name=str(item.get("inChargeName", ""))[:128],
-                            asset_condition=str(item.get("assetCondition", ""))[:128],
+                        new_objects.append(
+                            Asset(
+                                tag=tag,
+                                asset_code=tag,
+                                name=name,
+                                category=category,
+                                current_category=category,
+                                current_description=name,
+                                department=dept,
+                                current_department=dept,
+                                status=status,
+                                company=company,
+                                plant=plant,
+                                building=building,
+                                floor=floor,
+                                location=loc,
+                                current_location=loc,
+                                serial_number=serial,
+                                purchase_cost=cost,
+                                current_value=val,
+                                assigned_to=str(item.get("assignedTo", ""))[:128],
+                                submitter=str(item.get("submitter", ""))[:128],
+                                submitter_id=str(item.get("submitterId", "") or item.get("submitter_id", ""))[:64],
+                                submitter_department=str(item.get("submitterDepartment", "") or item.get("submitter_department", ""))[:128],
+                                in_charge_id=str(item.get("inChargeId", ""))[:64],
+                                in_charge_name=str(item.get("inChargeName", ""))[:128],
+                                asset_condition=str(item.get("assetCondition", ""))[:128],
+                                movement_reason=str(item.get("movementReason", ""))[:255],
+                                remarks=str(item.get("remarks", "")),
+                                asset_photo=str(item.get("assetPhoto", "")),
+                                asset_code_photo=str(item.get("assetCodePhoto", "")),
+                                id_card_picture=str(item.get("idCardPicture", "")),
+                            )
                         )
-                    )
 
                 if new_objects:
                     Asset.objects.bulk_create(new_objects, batch_size=2000, ignore_conflicts=True)
 
-                record_audit_log(
-                    request=request,
-                    action="ASSET_IMPORT",
-                    user_id=user_id,
-                    user_name=user_name,
-                    role=role,
-                    session_id=session_id,
-                    entity_type="Asset",
-                    entity_id="BULK-IMPORT",
-                    details={
-                        "importedCount": len(new_objects),
-                        "totalSubmitted": len(items),
-                        "firstCode": new_objects[0].asset_code if new_objects else "",
-                        "lastCode": new_objects[-1].asset_code if new_objects else "",
-                    }
-                )
-                return JsonResponse({"success": True, "created": len(new_objects), "total": Asset.objects.count()}, status=201)
+                if len(new_objects) > 0:
+                    record_audit_log(
+                        request=request,
+                        action="ASSET_IMPORT",
+                        user_id=user_id,
+                        user_name=user_name,
+                        role=role,
+                        session_id=session_id,
+                        entity_type="Asset",
+                        entity_id="BULK-IMPORT",
+                        details={
+                            "importedCount": len(new_objects),
+                            "updatedCount": updated_count,
+                            "totalSubmitted": len(items),
+                            "firstCode": new_objects[0].asset_code if new_objects else "",
+                            "lastCode": new_objects[-1].asset_code if new_objects else "",
+                        }
+                    )
+                elif updated_count > 0:
+                    record_audit_log(
+                        request=request,
+                        action="ASSET_UPDATE",
+                        user_id=user_id,
+                        user_name=user_name,
+                        role=role,
+                        session_id=session_id,
+                        entity_type="Asset",
+                        entity_id=items[0].get("assetCode") or items[0].get("assetTag") or "BATCH-UPDATE",
+                        details={
+                            "updatedCount": updated_count,
+                            "totalSubmitted": len(items),
+                        }
+                    )
+
+                return JsonResponse({"success": True, "created": len(new_objects), "updated": updated_count, "total": Asset.objects.count()}, status=201)
 
             # Single item creation
             data = raw_body

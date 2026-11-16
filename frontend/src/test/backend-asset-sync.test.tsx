@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AssetCodeWorkflow } from '../components/AssetCodeWorkflow'
-import { pushAssetsToBackend, fetchBackendAssets } from '../lib/assetStorage'
+import { pushAssetsToBackend, fetchBackendAssets, fetchBackendAssetsSummary, fetchBackendUpdatedAssets } from '../lib/assetStorage'
 import type { Asset } from '../types/asset'
 
 describe('Central Asset Synchronization & Global Queue Visibility Specification', () => {
@@ -114,5 +114,44 @@ describe('Central Asset Synchronization & Global Queue Visibility Specification'
     fireEvent.click(screen.getByRole('button', { name: 'All Depts' }))
     expect(screen.getByText('CODE-FIN-02')).toBeInTheDocument()
     expect(screen.getByText('CODE-IT-03')).toBeInTheDocument()
+  })
+
+  it('fetchBackendAssetsSummary retrieves lightweight stats without downloading full dataset', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ count: 15636, completedCount: 42, lastUpdated: '2026-11-16T10:00:00Z' }),
+    } as Response)
+
+    const summary = await fetchBackendAssetsSummary()
+    expect(summary).not.toBeNull()
+    expect(summary?.count).toBe(15636)
+    expect(summary?.completedCount).toBe(42)
+    expect(summary?.lastUpdated).toBe('2026-11-16T10:00:00Z')
+  })
+
+  it('fetchBackendUpdatedAssets retrieves only delta assets updated since timestamp', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        assets: [
+          {
+            id: '31249',
+            assetCode: '2005941',
+            status: 'Completed',
+            currentDepartment: 'IT & Infrastructure',
+            inChargeName: 'Uttam Singh',
+          },
+        ],
+      }),
+    } as Response)
+
+    const delta = await fetchBackendUpdatedAssets('2026-11-16T10:00:00Z')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('updated_since=2026-11-16T10%3A00%3A00Z'),
+      expect.any(Object)
+    )
+    expect(delta).toHaveLength(1)
+    expect(delta[0].assetCode).toBe('2005941')
+    expect(delta[0].status).toBe('Completed')
   })
 })
