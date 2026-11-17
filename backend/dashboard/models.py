@@ -87,7 +87,7 @@ class Asset(models.Model):
     def __str__(self):
         return f"{self.tag or self.asset_code} - {self.name}"
 
-    def to_dict(self, include_photos: bool = True):
+    def to_dict(self, include_photos: bool = True, reprint_map: dict = None):
         is_padget = bool(
             (self.company and any(k in self.company.lower() for k in ["padget", "9500", "5030"])) or
             (self.plant and any(k in str(self.plant).upper() for k in ["9502", "9503", "9504", "9505", "9506", "SECTOR 63"])) or
@@ -141,16 +141,27 @@ class Asset(models.Model):
             "firstPrintedBy": getattr(self, "first_printed_by", ""),
             "lastPrintedAt": self.last_printed_at.isoformat() if getattr(self, "last_printed_at", None) else None,
             "lastPrintedBy": getattr(self, "last_printed_by", ""),
-            "reprintStatus": self.get_reprint_status(),
+            "reprintStatus": self.get_reprint_status(reprint_map=reprint_map),
             "updatedAt": self.updated_at.isoformat() if self.updated_at else "",
         }
 
-    def get_reprint_status(self) -> str:
+    def get_reprint_status(self, reprint_map: dict = None) -> str:
         """
         Computes the current QR print governance badge status:
         'Not Printed' | 'Printed' | 'Reprint Pending' | 'Approved' | 'Rejected'
         """
-        # Check reprint request status first
+        count = getattr(self, "print_count", 0)
+        if reprint_map is not None:
+            status = reprint_map.get(self.asset_code) or reprint_map.get(str(self.id))
+            if status:
+                return status
+            return "Printed" if count > 0 else "Not Printed"
+
+        # Fast path: unprinted asset with 0 print count is always "Not Printed"
+        if count == 0:
+            return "Not Printed"
+
+        # Check reprint request status for single printed asset
         try:
             req = ReprintRequest.objects.filter(
                 models.Q(asset_code=self.asset_code) | models.Q(asset_id=str(self.id))
@@ -165,9 +176,6 @@ class Asset(models.Model):
         except Exception:
             pass
 
-        count = getattr(self, "print_count", 0)
-        if count == 0:
-            return "Not Printed"
         return "Printed"
 
 

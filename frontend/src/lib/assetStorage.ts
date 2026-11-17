@@ -195,21 +195,60 @@ export async function fetchBackendUpdatedAssets(since: string): Promise<Asset[]>
 }
 
 /**
- * Fetch master asset registry from central Django backend
+ * Fetch master asset registry from central Django backend in progressive, fast chunks
  */
-export async function fetchBackendAssets(): Promise<Asset[]> {
+export async function fetchBackendAssets(
+  onChunk?: (chunk: Asset[], loaded: number, total: number) => void
+): Promise<Asset[]> {
   try {
-    const res = await fetch(getApiUrl('/api/assets/'), {
+    // 1. Fetch first chunk (up to 1000 items) immediately for sub-second UI rendering
+    const firstRes = await fetch(getApiUrl('/api/assets/?offset=0&limit=1000'), {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
       },
     })
-    if (!res.ok) return []
-    const data = await res.json()
-    if (data && Array.isArray(data.assets)) {
-      return data.assets
+    if (!firstRes.ok) return []
+    const firstData = await firstRes.json()
+    const allAssets: Asset[] = Array.isArray(firstData.assets) ? firstData.assets : []
+    const totalCount = typeof firstData.count === 'number' ? firstData.count : allAssets.length
+
+    if (onChunk && allAssets.length > 0) {
+      onChunk(allAssets, allAssets.length, totalCount)
     }
+
+    // 2. Progressively fetch remaining chunks in the background without blocking the UI
+    if (totalCount > allAssets.length) {
+      const CHUNK = 2500
+      for (let offset = allAssets.length; offset < totalCount; offset += CHUNK) {
+        try {
+          const chunkRes = await fetch(getApiUrl(`/api/assets/?offset=${offset}&limit=${CHUNK}`), {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            },
+          })
+          if (chunkRes.ok) {
+            const chunkData = await chunkRes.json()
+            if (Array.isArray(chunkData.assets) && chunkData.assets.length > 0) {
+              allAssets.push(...chunkData.assets)
+              if (onChunk) {
+                onChunk(chunkData.assets, allAssets.length, totalCount)
+              }
+            } else {
+              break
+            }
+          } else {
+            break
+          }
+        } catch (err) {
+          console.warn(`Progressive asset chunk at offset ${offset} failed:`, err)
+          break
+        }
+      }
+    }
+
+    return allAssets
   } catch (err) {
     console.warn('Backend assets fetch unavailable:', err)
   }

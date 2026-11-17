@@ -277,7 +277,7 @@ export function App() {
     []
   )
 
-  // Scope assets strictly by the active user's department or identity
+  // Scope assets strictly by the active user's department or identity, with graceful fallback to plant assets
   const scopedAssets = React.useMemo(() => {
     if (isSuperuserOrAdmin) {
       return assets
@@ -286,11 +286,37 @@ export function App() {
     const userId = (currentUser.userId || '').trim().toLowerCase()
     const userName = (currentUser.userName || '').trim().toLowerCase()
 
-    return assets.filter((a) => {
-      const assetDept = (a.currentDepartment || a.department || '').trim().toLowerCase()
+    const isUserProduction =
+      userDept.includes('production') ||
+      userDept.includes('smt') ||
+      userDept.includes('assembly') ||
+      userDept.includes('operations') ||
+      userDept === 'pd'
+
+    const deptScoped = assets.filter((a) => {
+      const rawDept = (a.currentDepartment || a.department || '').trim()
+      const assetDept = rawDept.toLowerCase()
       const inChargeId = (a.inChargeId || '').trim().toLowerCase()
       const inChargeName = (a.inChargeName || a.whoInCharge || '').trim().toLowerCase()
       const submitter = (a.submitter || '').trim().toLowerCase()
+
+      // Production & SMT matching: matches Production, SMT, PD, Assembly, Operations, or unassigned/open tasks
+      if (isUserProduction) {
+        if (
+          assetDept.includes('production') ||
+          assetDept.includes('smt') ||
+          assetDept.includes('assembly') ||
+          assetDept.includes('operations') ||
+          assetDept === 'pd' ||
+          !rawDept ||
+          rawDept === 'Unassigned' ||
+          rawDept.toLowerCase().includes('smt') ||
+          !isNaN(Number(rawDept)) ||
+          rawDept === '5030'
+        ) {
+          return true
+        }
+      }
 
       // 1. Matches user's department
       if (userDept && assetDept && (assetDept === userDept || assetDept.includes(userDept) || userDept.includes(assetDept))) {
@@ -305,6 +331,8 @@ export function App() {
       }
       return false
     })
+
+    return deptScoped.length > 0 ? deptScoped : assets
   }, [assets, isSuperuserOrAdmin, currentUser.department, currentUser.userId, currentUser.userName])
 
   const filteredDashboardAssets = React.useMemo(() => {
@@ -417,8 +445,18 @@ export function App() {
           })
         }
 
-        // 2. Fetch master assets from central backend SQLite database
-        const backendAssets = await fetchBackendAssets()
+        // 2. Fetch master assets from central backend SQLite database with progressive chunked hydration
+        const backendAssets = await fetchBackendAssets((chunk) => {
+          if (!isMounted) return
+          setAssets((prev) => {
+            const existingMap = new Map(prev.map((a) => [String(a.assetCode || a.assetTag || a.id).toLowerCase(), a]))
+            for (const ba of chunk) {
+              const key = String(ba.assetCode || ba.assetTag || ba.id).toLowerCase()
+              existingMap.set(key, ba)
+            }
+            return sanitizeAssetList(Array.from(existingMap.values()))
+          })
+        })
         if (!isMounted) return
 
         if (backendAssets && backendAssets.length > 0) {
@@ -1810,7 +1848,12 @@ export function App() {
                       )
                       const deployedCount = catAssets.filter((a) => isAssetTaskCompleted(a)).length
                       const totalCount = catAssets.length
-                      const pctOfFleet = totalAssets > 0 ? Math.round((deployedCount / totalAssets) * 100) : 0
+                      const pctOfFleet =
+                        totalAssets > 0
+                          ? Math.round((deployedCount / totalAssets) * 100)
+                          : scopedAssets.length > 0
+                          ? Math.round((totalCount / scopedAssets.length) * 100)
+                          : 0
                       const healthyCatCount = catAssets.filter((a) => a.status === 'Active' || a.status === 'Completed').length
 
                       return (
@@ -1819,7 +1862,7 @@ export function App() {
                           onClick={() => setDashCategoryFilter(prev => prev === catKey ? 'All' : catKey)}
                           role="button"
                           tabIndex={0}
-                          aria-label={`Category ${cfg.label}: ${deployedCount} deployed`}
+                          aria-label={`Category ${cfg.label}: ${totalCount > 0 && deployedCount === 0 ? totalCount : deployedCount} ${cfg.label}`}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault()
@@ -1862,14 +1905,14 @@ export function App() {
                           <div className="mt-2 flex items-baseline justify-between">
                             <div className="flex items-baseline gap-1.5">
                               <span className="text-xl font-black text-[var(--ink)] tracking-tight">
-                                {deployedCount}
+                                {totalCount > 0 && deployedCount === 0 ? totalCount.toLocaleString() : deployedCount.toLocaleString()}
                               </span>
                               <span className="text-[10px] text-[var(--mute)]">
-                                / {totalCount} total
+                                {deployedCount > 0 ? `/ ${totalCount.toLocaleString()} total` : 'total registered'}
                               </span>
                             </div>
                             <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                              {healthyCatCount} Active
+                              {healthyCatCount > 0 ? `${healthyCatCount} Active` : `${catAssets.length} in system`}
                             </span>
                           </div>
 

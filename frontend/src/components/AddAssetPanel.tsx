@@ -752,6 +752,14 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
       {/* Dimmed backdrop */}
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 transition-opacity"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          zIndex: 9999,
+        }}
         onClick={handleClose}
         aria-hidden="true"
       />
@@ -762,10 +770,22 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-asset-title"
-        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-[560px] bg-[var(--surf)] border-l border-[var(--line)] shadow-2xl flex flex-col transform transition-transform duration-300 ease-out"
+        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-[580px] bg-[var(--surf)] border-l border-[var(--line)] shadow-2xl flex flex-col transform transition-transform duration-300 ease-out"
         style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          maxWidth: '580px',
+          zIndex: 10000,
+          background: 'var(--surf, #ffffff)',
+          borderLeft: '1px solid var(--line, #e2e8f0)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.18)',
           fontFamily: 'Figtree, system-ui, sans-serif',
-          color: 'var(--ink)',
+          color: 'var(--ink, #0f172a)',
         }}
       >
         {/* Header */}
@@ -1136,7 +1156,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     type="text"
                     value={currentCategory}
                     onChange={(e) => setCurrentCategory(e.target.value)}
-                    placeholder="e.g. Fixed Assets, Accessories, Tools, Fixtures"
+                    placeholder="e.g. Laptops & Compute, Fixed Assets, Tools"
                     style={inputStyle}
                   />
                 </div>

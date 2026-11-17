@@ -140,11 +140,31 @@ def api_assets(request: HttpRequest) -> JsonResponse:
                 pass
         if dept and dept != "All":
             qs = qs.filter(Q(current_department__icontains=dept) | Q(department__icontains=dept))
+        offset_param = request.GET.get("offset")
+        offset = 0
+        if offset_param and offset_param.isdigit():
+            offset = int(offset_param)
+
+        total_matching_count = qs.count()
+
         if limit_param and limit_param.isdigit():
             limit = int(limit_param)
             if limit > 0:
-                qs = qs[:limit]
-        return JsonResponse({"assets": [a.to_dict(include_photos=include_photos) for a in qs], "count": Asset.objects.count()})
+                qs = qs[offset:offset + limit]
+        elif offset > 0:
+            qs = qs[offset:]
+
+        # Build bulk in-memory reprint map to avoid N+1 queries across thousands of records
+        reprint_map = {}
+        for req in ReprintRequest.objects.filter(is_used=False).order_by("-requested_at"):
+            val = "Reprint Pending" if req.status == "pending" else ("Approved" if req.status == "approved" else "Rejected")
+            if req.asset_code and req.asset_code not in reprint_map:
+                reprint_map[req.asset_code] = val
+            if req.asset_id and req.asset_id not in reprint_map:
+                reprint_map[req.asset_id] = val
+
+        serialized_assets = [a.to_dict(include_photos=include_photos, reprint_map=reprint_map) for a in qs]
+        return JsonResponse({"assets": serialized_assets, "count": Asset.objects.count()})
 
     elif request.method == "POST":
         try:

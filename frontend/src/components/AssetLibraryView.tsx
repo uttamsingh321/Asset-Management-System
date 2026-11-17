@@ -79,6 +79,17 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     return assets.filter((a) => !isAssetTaskCompleted(a)).length
   }, [assets])
 
+  // View mode toggle for gallery: defaults to 'completed' if completed units exist, else 'all'
+  const [galleryViewMode, setGalleryViewMode] = React.useState<'all' | 'completed' | 'pending'>(
+    completedAssets.length > 0 ? 'completed' : 'all'
+  )
+
+  const baseAssets = React.useMemo(() => {
+    if (galleryViewMode === 'completed') return completedAssets
+    if (galleryViewMode === 'pending') return assets.filter((a) => !isAssetTaskCompleted(a))
+    return assets
+  }, [galleryViewMode, assets, completedAssets])
+
   // Compute category stats
   const categoryStats = React.useMemo(() => {
     const map = new Map<string, { typesCount: number; assetsCount: number }>()
@@ -244,9 +255,9 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     }
   }
 
-  // Filtered Assets for Gallery (Only completed units)
+  // Filtered Assets for Gallery
   const filteredAssets = React.useMemo(() => {
-    return completedAssets.filter((asset) => {
+    return baseAssets.filter((asset) => {
       const matchesCategory = !filterCategory || (asset.currentCategory || asset.category) === filterCategory
       if (!matchesCategory) return false
 
@@ -256,14 +267,16 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
         asset.assetCode.toLowerCase().includes(q) ||
         asset.serialNumber.toLowerCase().includes(q) ||
         asset.currentDescription.toLowerCase().includes(q) ||
+        (asset.name || '').toLowerCase().includes(q) ||
         (asset.currentCategory || '').toLowerCase().includes(q) ||
         (asset.plant || '').toLowerCase().includes(q) ||
         (asset.currentLocation || '').toLowerCase().includes(q) ||
         (asset.currentDepartment || '').toLowerCase().includes(q) ||
+        (asset.department || '').toLowerCase().includes(q) ||
         (asset.submitter || '').toLowerCase().includes(q)
       )
     })
-  }, [completedAssets, filterCategory, gallerySearch])
+  }, [baseAssets, filterCategory, gallerySearch])
 
   // Paged Assets
   const totalGalleryPages = Math.max(1, Math.ceil(filteredAssets.length / GALLERY_PAGE_SIZE))
@@ -469,7 +482,13 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
           <div className="kpis">
             <div className="card k">
               <div className="l">Total assets</div>
-              <div className="v">{completedAssets.length.toLocaleString()}</div>
+              <div className="v">
+                {galleryViewMode === 'completed'
+                  ? completedAssets.length.toLocaleString()
+                  : galleryViewMode === 'pending'
+                  ? pendingTaskCount.toLocaleString()
+                  : assets.length.toLocaleString()}
+              </div>
               <div className="d">
                 {pendingTaskCount > 0 ? (
                   <span className="text-amber-500 font-semibold">{pendingTaskCount} codes pending in Task Queue</span>
@@ -507,6 +526,52 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
               </div>
               <div className="d">Disposal value $0</div>
             </div>
+          </div>
+
+          {/* View Mode Toggle: Verified Fleet vs All Registered Assets vs Pending Tasks */}
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-[var(--surf2)] rounded-xl border border-[var(--line)]">
+            <button
+              type="button"
+              onClick={() => {
+                setGalleryViewMode('completed')
+                setGalleryPage(1)
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                galleryViewMode === 'completed'
+                  ? 'bg-[var(--surf)] text-[var(--ink)] shadow-xs'
+                  : 'text-[var(--mute)] hover:text-[var(--ink)]'
+              }`}
+            >
+              Verified Deployed Fleet ({completedAssets.length.toLocaleString()})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGalleryViewMode('all')
+                setGalleryPage(1)
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                galleryViewMode === 'all'
+                  ? 'bg-[var(--surf)] text-[var(--ink)] shadow-xs'
+                  : 'text-[var(--mute)] hover:text-[var(--ink)]'
+              }`}
+            >
+              All Registered Assets ({assets.length.toLocaleString()})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGalleryViewMode('pending')
+                setGalleryPage(1)
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                galleryViewMode === 'pending'
+                  ? 'bg-[var(--surf)] text-[var(--ink)] shadow-xs'
+                  : 'text-[var(--mute)] hover:text-[var(--ink)]'
+              }`}
+            >
+              Pending Verification ({pendingTaskCount.toLocaleString()})
+            </button>
           </div>
 
           {/* Search, Filter Bar and Pagination */}
@@ -667,14 +732,16 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                           <span className="font-bold text-xs text-[var(--acc)]">{asset.assetCode}</span>
                           <span
                             className={`pill ${
-                              asset.status === 'Active'
-                                ? 'ok'
-                                : asset.status === 'Maintenance'
-                                ? 'w'
-                                : 'text-[var(--mute)]'
+                              isAssetTaskCompleted(asset)
+                                ? asset.status === 'Active'
+                                  ? 'ok'
+                                  : asset.status === 'Maintenance'
+                                  ? 'w'
+                                  : 'text-[var(--mute)]'
+                                : 'w'
                             }`}
                           >
-                            {asset.status || 'Active'}
+                            {isAssetTaskCompleted(asset) ? (asset.status || 'Active') : 'Pending Verification'}
                           </span>
                         </div>
                         <div className="font-semibold text-xs line-clamp-1 text-[var(--ink)]">
@@ -683,6 +750,13 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
                         <div className="text-[11px] text-[var(--mute)]">
                           SN: {asset.serialNumber || 'N/A'}
                         </div>
+                        {!isAssetTaskCompleted(asset) && (
+                          <div className="pt-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                              ⏳ Pending Data Entry
+                            </span>
+                          </div>
+                        )}
                         <div className="text-[11px] text-[var(--mute)]">
                           Loc: {asset.plant} {asset.building ? `· ${asset.building}` : ''}{' '}
                           {asset.currentLocation ? `· ${asset.currentLocation}` : ''}
