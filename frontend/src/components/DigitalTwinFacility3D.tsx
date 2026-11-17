@@ -1,6 +1,130 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { Asset } from '@/types/asset'
 
+// ── Full-screen asset detail modal shown when user clicks any asset node ──────
+interface AssetDetailModalProps {
+  asset: Asset
+  onClose: () => void
+  onOpenEdit?: (asset: Asset) => void
+  onNavigate?: (hash: string, assetCode?: string) => void
+}
+const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClose, onOpenEdit, onNavigate }) => {
+  const isOk = asset.status === 'Completed' || asset.status === 'Active' || asset.status === 'In Use'
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative w-full max-w-lg rounded-2xl border border-blue-500/40 bg-slate-950 shadow-2xl text-white overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-800 bg-gradient-to-r from-blue-950 to-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-xl font-bold shadow-lg">
+              📦
+            </div>
+            <div>
+              <div className="font-mono font-bold text-blue-400 text-sm">Unit #{asset.assetCode}</div>
+              <div className="text-white font-semibold text-sm truncate max-w-[260px]">
+                {asset.currentDescription || asset.name || 'Unnamed Equipment'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white transition text-lg font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-3 text-sm">
+          {/* Status badge */}
+          <div className="flex flex-wrap gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+              isOk ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+            }`}>
+              ● {asset.status || 'Active'}
+            </span>
+            {asset.currentCategory && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold border border-slate-700 bg-slate-800 text-slate-300">
+                {asset.currentCategory}
+              </span>
+            )}
+          </div>
+
+          {/* Data Grid */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+            <div><span className="text-slate-400">Building</span><div className="text-white font-semibold mt-0.5">{asset.building || 'C39'}</div></div>
+            <div><span className="text-slate-400">Floor</span><div className="text-white font-semibold mt-0.5">{asset.floor || 'Ground Floor'}</div></div>
+            <div><span className="text-slate-400">Company</span><div className="text-white font-semibold mt-0.5">{asset.company || 'IIPL'}</div></div>
+            <div><span className="text-slate-400">Plant</span><div className="text-white font-semibold mt-0.5">{asset.plant || '—'}</div></div>
+            <div><span className="text-slate-400">Department</span><div className="text-white font-semibold mt-0.5">{asset.currentDepartment || asset.department || '—'}</div></div>
+            <div><span className="text-slate-400">Custodian</span><div className="text-white font-semibold mt-0.5">{asset.whoInCharge || asset.inChargeName || '—'}</div></div>
+            <div><span className="text-slate-400">Current User</span><div className="text-white font-semibold mt-0.5">{asset.submitter || asset.assignedTo || '—'}</div></div>
+            <div><span className="text-slate-400">Serial No.</span><div className="font-mono text-white font-semibold mt-0.5">{asset.serialNumber || '—'}</div></div>
+            {asset.purchaseCost ? (
+              <div><span className="text-slate-400">Purchase Cost</span><div className="text-white font-semibold mt-0.5">₹{Number(asset.purchaseCost).toLocaleString('en-IN')}</div></div>
+            ) : null}
+            {asset.purchaseDate ? (
+              <div><span className="text-slate-400">Purchase Date</span><div className="text-white font-semibold mt-0.5">{asset.purchaseDate}</div></div>
+            ) : null}
+            {(asset as any).capitalizationDate ? (
+              <div><span className="text-slate-400">Cap Date</span><div className="text-white font-semibold mt-0.5">{(asset as any).capitalizationDate}</div></div>
+            ) : null}
+            {asset.costCenter ? (
+              <div><span className="text-slate-400">Cost Center</span><div className="font-mono text-white font-semibold mt-0.5">{asset.costCenter}</div></div>
+            ) : null}
+          </div>
+
+          {asset.assetCondition && (
+            <div className="text-xs"><span className="text-slate-400">Condition: </span><span className="text-white">{asset.assetCondition}</span></div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-t border-slate-800 bg-slate-900/50">
+          {onOpenEdit && (
+            <button
+              type="button"
+              onClick={() => { onOpenEdit(asset); onClose() }}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer transition shadow-md flex items-center gap-1.5"
+            >
+              <span>✏️</span><span>View & Edit Full Details</span>
+            </button>
+          )}
+          {onNavigate && (
+            <>
+              <button
+                type="button"
+                onClick={() => { onNavigate('labels', asset.assetCode); onClose() }}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold cursor-pointer transition flex items-center gap-1.5"
+              >
+                <span>🖨️</span><span>Print QR Label</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { onNavigate('transfers', asset.assetCode); onClose() }}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold cursor-pointer transition flex items-center gap-1.5"
+              >
+                <span>🔄</span><span>Transfer</span>
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-2 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold cursor-pointer transition ml-auto"
+          >
+            ✕ Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export interface DigitalTwinFacility3DProps {
   assets: Asset[]
   completedAssets?: Asset[]
@@ -101,6 +225,9 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
   const [assetScope, setAssetScope] = useState<AssetScope>('all')
   const [activeFloorIndex, setActiveFloorIndex] = useState<number>(1) // default to 1st Floor / SMT
   const [activeNode, setActiveNode] = useState<Asset | null>(null)
+  const [detailAsset, setDetailAsset] = useState<Asset | null>(null) // full-screen detail modal
+  const [ledgerSearch, setLedgerSearch] = useState('')              // search within floor ledger
+  const [ledgerStatusFilter, setLedgerStatusFilter] = useState<'all' | 'completed' | 'pending'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showFloorLedger, setShowFloorLedger] = useState(false)
   const [autoRotate, setAutoRotate] = useState(false)
@@ -868,8 +995,10 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                           e.stopPropagation()
                           setActiveFloorIndex(fIdx)
                           setActiveNode(asset)
+                          setDetailAsset(asset)  // open full detail modal immediately
                         }}
                         className="relative flex items-center justify-center group/node cursor-pointer transition-transform"
+                        title={`${asset.assetCode} — Click to inspect`}
                         style={{
                           transform: `translateZ(${isSelectedNode ? '28px' : '18px'}) scale(${isSelectedNode ? 1.3 : 1})`,
                         }}
@@ -974,6 +1103,15 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
 
             {/* Workable Operations Action Hub */}
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Primary: open full data modal */}
+              <button
+                type="button"
+                onClick={() => setDetailAsset(activeNode)}
+                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer transition shadow-md flex items-center gap-1.5"
+              >
+                <span>👁️</span>
+                <span>View Full Data</span>
+              </button>
               {onOpenAsset && (
                 <button
                   type="button"
@@ -981,10 +1119,10 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                     onOpenAsset(activeNode)
                     setActiveNode(null)
                   }}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer transition shadow-md flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold cursor-pointer transition shadow-md flex items-center gap-1.5"
                 >
                   <span>✏️</span>
-                  <span>View Details & Edit</span>
+                  <span>Edit</span>
                 </button>
               )}
 
@@ -1088,94 +1226,209 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
         </div>
       </div>
 
-      {/* Expandable Floor Equipment Ledger Table */}
-      {showFloorLedger && (
-        <div className="relative z-10 mt-4 rounded-xl border border-[var(--line)] bg-[var(--surf2)] p-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-bold text-[var(--ink)]">
-                Equipment Ledger: {selectedBuilding.name} — {activeFloor.name}
-              </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold">
-                {activeFloorAssets.length} Units Deployed
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowFloorLedger(false)}
-              className="text-xs text-[var(--mute)] hover:text-[var(--ink)] font-bold cursor-pointer"
-            >
-              ✕ Close Ledger
-            </button>
-          </div>
+      {/* Full-screen Asset Detail Modal */}
+      {detailAsset && (
+        <AssetDetailModal
+          asset={detailAsset}
+          onClose={() => setDetailAsset(null)}
+          onOpenEdit={onOpenAsset ? (a) => { onOpenAsset(a); setDetailAsset(null) } : undefined}
+          onNavigate={onNavigate ? (hash, code) => { onNavigate(hash, code); setDetailAsset(null) } : undefined}
+        />
+      )}
 
-          <div className="mt-3 overflow-x-auto max-h-60 overflow-y-auto">
-            {activeFloorAssets.length === 0 ? (
-              <div className="py-8 text-center text-xs text-[var(--mute)]">
-                No equipment currently deployed on {activeFloor.name}. Click "+ Deploy on this Floor" to add machines.
+      {/* Expandable Floor Equipment Ledger Table */}
+      {showFloorLedger && (() => {
+        // Apply ledger search + status filter
+        const ledgerFiltered = activeFloorAssets.filter((a) => {
+          const matchSearch =
+            !ledgerSearch.trim() ||
+            (a.assetCode || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+            (a.currentDescription || a.name || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+            (a.whoInCharge || a.inChargeName || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+            (a.currentDepartment || a.department || '').toLowerCase().includes(ledgerSearch.toLowerCase())
+          const isOk = a.status === 'Completed' || a.status === 'Active' || a.status === 'In Use'
+          const matchStatus =
+            ledgerStatusFilter === 'all' ||
+            (ledgerStatusFilter === 'completed' && isOk) ||
+            (ledgerStatusFilter === 'pending' && !isOk)
+          return matchSearch && matchStatus
+        })
+
+        return (
+          <div className="relative z-10 mt-4 rounded-xl border border-[var(--line)] bg-[var(--surf2)] overflow-hidden shadow-xl">
+            {/* Ledger Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-[var(--line)] bg-[var(--surf)]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-[var(--ink)]">
+                  📋 Equipment Ledger — {selectedBuilding.name} · {activeFloor.name}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-500/20">
+                  {ledgerFiltered.length} / {activeFloorAssets.length} Units
+                </span>
               </div>
-            ) : (
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-[var(--line)] text-[11px] font-bold text-[var(--mute)] uppercase">
-                    <th className="py-2 px-3">Asset Code</th>
-                    <th className="py-2 px-3">Equipment Name</th>
-                    <th className="py-2 px-3">Department</th>
-                    <th className="py-2 px-3">Custodian</th>
-                    <th className="py-2 px-3">Status</th>
-                    <th className="py-2 px-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)] font-medium">
-                  {activeFloorAssets.slice(0, 50).map((asset) => (
-                    <tr
-                      key={asset.id || asset.assetCode}
-                      className="hover:bg-[var(--surf)] transition-colors cursor-pointer"
-                      onClick={() => setActiveNode(asset)}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Search within ledger */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    placeholder="Search code, name, custodian..."
+                    className="text-xs py-1.5 pl-7 pr-6 rounded-lg border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] focus:outline-none focus:border-blue-500 w-48 transition"
+                  />
+                  <span className="absolute left-2 top-1.5 text-[var(--mute)] text-xs">🔍</span>
+                  {ledgerSearch && (
+                    <button type="button" onClick={() => setLedgerSearch('')} className="absolute right-1.5 top-1.5 text-[var(--mute)] hover:text-[var(--ink)] text-xs cursor-pointer">×</button>
+                  )}
+                </div>
+                {/* Status filter */}
+                <div className="flex items-center rounded-lg bg-[var(--surf2)] border border-[var(--line)] text-xs overflow-hidden">
+                  {(['all', 'completed', 'pending'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setLedgerStatusFilter(s)}
+                      className={`px-2.5 py-1.5 font-semibold capitalize transition cursor-pointer ${
+                        ledgerStatusFilter === s
+                          ? s === 'completed' ? 'bg-emerald-600 text-white' : s === 'pending' ? 'bg-amber-600 text-white' : 'bg-blue-600 text-white'
+                          : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                      }`}
                     >
-                      <td className="py-2 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">
-                        {asset.assetCode}
-                      </td>
-                      <td className="py-2 px-3 text-[var(--ink)]">
-                        {asset.currentDescription || asset.name}
-                      </td>
-                      <td className="py-2 px-3 text-[var(--mute)]">
-                        {asset.department || 'Production'}
-                      </td>
-                      <td className="py-2 px-3 text-[var(--mute)]">
-                        {asset.whoInCharge || asset.inChargeName || '—'}
-                      </td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            asset.status === 'Completed' || asset.status === 'Active'
-                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                          }`}
-                        >
-                          {asset.status || 'Active'}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (onOpenAsset) onOpenAsset(asset)
-                          }}
-                          className="px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px]"
-                        >
-                          Inspect
-                        </button>
-                      </td>
-                    </tr>
+                      {s === 'all' ? `All (${activeFloorAssets.length})` : s === 'completed' ? `✅ Done` : `⏳ Pending`}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowFloorLedger(false); setLedgerSearch(''); setLedgerStatusFilter('all') }}
+                  className="text-xs text-[var(--mute)] hover:text-[var(--ink)] font-bold cursor-pointer px-2 py-1.5 rounded hover:bg-[var(--surf2)] transition"
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-y-auto max-h-[420px] overflow-x-auto scrollbar-thin">
+              {ledgerFiltered.length === 0 ? (
+                <div className="py-10 text-center text-xs text-[var(--mute)]">
+                  {activeFloorAssets.length === 0
+                    ? `No equipment deployed on ${activeFloor.name}. Click "+ Deploy on this Floor" to register machines.`
+                    : 'No assets match the current search / filter. Try clearing the search or switching the filter.'}
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse table-fixed">
+                  <colgroup>
+                    <col className="w-[12%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[8%]" />
+                  </colgroup>
+                  <thead className="sticky top-0 z-10 bg-[var(--surf2)] border-b border-[var(--line)] shadow-xs">
+                    <tr className="text-[10px] font-bold text-[var(--mute)] uppercase tracking-wider">
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Asset Code</th>
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Equipment Name</th>
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Category</th>
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Department</th>
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Custodian</th>
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Company</th>
+                      <th className="py-2 px-3 bg-[var(--surf2)]">Status</th>
+                      <th className="py-2 px-3 text-right bg-[var(--surf2)]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--line)]">
+                    {ledgerFiltered.map((asset) => {
+                      const isOk = asset.status === 'Completed' || asset.status === 'Active' || asset.status === 'In Use'
+                      return (
+                        <tr
+                          key={asset.id || asset.assetCode}
+                          className="hover:bg-[var(--surf)] transition-colors cursor-pointer group"
+                          onClick={() => setDetailAsset(asset)}
+                          title={`Click to inspect: ${asset.assetCode}`}
+                        >
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400 group-hover:underline truncate">
+                            {asset.assetCode}
+                          </td>
+                          <td className="py-2.5 px-3 text-[var(--ink)] truncate font-medium">
+                            {asset.currentDescription || asset.name || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-[var(--mute)] truncate">
+                            {asset.currentCategory || asset.category || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-[var(--mute)] truncate">
+                            {asset.currentDepartment || asset.department || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-[var(--mute)] truncate">
+                            {asset.whoInCharge || asset.inChargeName || asset.submitter || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-[var(--mute)] truncate">
+                            {asset.company || 'IIPL'}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isOk
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {asset.status || 'Active'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setDetailAsset(asset) }}
+                                className="p-1 rounded text-[var(--mute)] hover:text-blue-600 hover:bg-blue-500/10 transition cursor-pointer"
+                                title="Inspect full details"
+                              >
+                                👁️
+                              </button>
+                              {onOpenAsset && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onOpenAsset(asset) }}
+                                  className="p-1 rounded text-[var(--mute)] hover:text-emerald-600 hover:bg-emerald-500/10 transition cursor-pointer"
+                                  title="Open edit form"
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                              {onNavigate && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onNavigate('labels', asset.assetCode) }}
+                                  className="p-1 rounded text-[var(--mute)] hover:text-purple-600 hover:bg-purple-500/10 transition cursor-pointer"
+                                  title="Print QR label"
+                                >
+                                  🖨️
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Ledger Footer Summary */}
+            {ledgerFiltered.length > 0 && (
+              <div className="px-4 py-2.5 border-t border-[var(--line)] bg-[var(--surf)] flex flex-wrap items-center gap-4 text-xs text-[var(--mute)]">
+                <span>Showing <strong className="text-[var(--ink)]">{ledgerFiltered.length}</strong> of <strong className="text-[var(--ink)]">{activeFloorAssets.length}</strong> units on {activeFloor.name}</span>
+                <span>✅ Deployed: <strong className="text-emerald-600">{activeFloorAssets.filter(a => a.status === 'Completed' || a.status === 'Active' || a.status === 'In Use').length}</strong></span>
+                <span>⏳ Pending: <strong className="text-amber-600">{activeFloorAssets.filter(a => a.status !== 'Completed' && a.status !== 'Active' && a.status !== 'In Use').length}</strong></span>
+                <span className="ml-auto text-[10px]">💡 Click any row to see full asset data</span>
+              </div>
             )}
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
