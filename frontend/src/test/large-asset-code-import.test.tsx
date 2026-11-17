@@ -63,20 +63,24 @@ describe('Massive Asset Code Import Specification (100 to 100k+ codes)', () => {
       />
     )
 
-    // 2. Paste 150 codes into textarea
+    // 2. Select mandatory category and paste 150 codes into textarea
+    fireEvent.click(screen.getByRole('button', { name: 'Select Category Fixed Assets' }))
+
     const textarea = screen.getByLabelText('Paste asset codes')
     fireEvent.change(textarea, { target: { value: codes150 } })
 
     // Live detection badge shows "150 codes ready to import"
     expect(screen.getByText(/150 codes ready to import/i)).toBeInTheDocument()
 
-    // 3. Click import
+    // 3. Click import and confirm modal
     fireEvent.click(screen.getByRole('button', { name: /Import pasted codes/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Confirm & Import/i }))
     expect(onImportCodes).toHaveBeenCalledTimes(1)
     const importedArg = onImportCodes.mock.calls[0][0]
     expect(importedArg).toHaveLength(150)
     expect(importedArg[0]).toBe('AST000001')
     expect(importedArg[149]).toBe('AST000150')
+    expect(onImportCodes.mock.calls[0][1]).toBe('Fixed Assets')
 
     // 4. Rerender with 150 imported assets and verify pagination (page 1 has 50 items, Next button works)
     const mockAssets: Asset[] = importedArg.map((code: string) => ({

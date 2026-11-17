@@ -1156,7 +1156,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     type="text"
                     value={currentCategory}
                     onChange={(e) => setCurrentCategory(e.target.value)}
-                    placeholder="e.g. Laptops & Compute, Fixed Assets, Tools"
+                    placeholder="e.g. Fixed Assets, Accessories, Tools, Fixtures"
                     style={inputStyle}
                   />
                 </div>

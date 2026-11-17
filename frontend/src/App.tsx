@@ -978,9 +978,10 @@ export function App() {
     )
   }
 
-  const handleImportAssetCodes = (codesOrAssets: (string | Partial<Asset>)[]) => {
+  const handleImportAssetCodes = (codesOrAssets: (string | Partial<Asset>)[], targetCategory?: string) => {
     const importedAt = new Date().toISOString().slice(0, 10)
     const importedCodes: Asset[] = codesOrAssets.map((item, idx) => {
+      const assignedCat = targetCategory || (typeof item !== 'string' ? item.currentCategory || item.category : undefined) || 'Fixed Assets'
       if (typeof item === 'string') {
         const code = item
         const uniqueId = `imported-${code}-${idx + 1}-${Date.now().toString(36)}`
@@ -988,7 +989,7 @@ export function App() {
           id: uniqueId,
           assetCode: code,
           serialNumber: '',
-          currentCategory: 'Equipment',
+          currentCategory: assignedCat,
           currentDescription: '',
           plant: 'Noida Central Plant',
           building: 'C39',
@@ -997,7 +998,7 @@ export function App() {
           date: importedAt,
           name: code,
           assetTag: code,
-          category: 'Equipment',
+          category: assignedCat,
           department: '',
           currentDepartment: '',
           status: 'Pending Verification',
@@ -1019,15 +1020,16 @@ export function App() {
       const resolvedFloor = item.floor || '1st Floor'
       const resolvedDept = item.department || item.currentDepartment || item.costCenter || ''
       const whoInCharge = item.whoInCharge || (item.inChargeName ? `${item.inChargeId ? item.inChargeId + ' · ' : ''}${item.inChargeName}` : '')
+      const finalCategory = targetCategory || item.currentCategory || item.category || 'Fixed Assets'
 
       return {
         id: uniqueId,
         assetCode: code,
         model: item.model || '',
         serialNumber: item.serialNumber || '',
-        currentCategory: item.currentCategory || item.category || 'Equipment',
-        category: item.category || item.currentCategory || 'Equipment',
-        assetClass: item.assetClass || item.currentCategory || '',
+        currentCategory: finalCategory,
+        category: finalCategory,
+        assetClass: item.assetClass || finalCategory,
         currentDescription: item.currentDescription || item.name || code,
         name: item.name || item.currentDescription || code,
         company: resolvedCompany,

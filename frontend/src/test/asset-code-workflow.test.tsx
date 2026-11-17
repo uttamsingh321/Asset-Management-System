@@ -43,9 +43,15 @@ describe('Asset code workflow', () => {
       <AssetCodeWorkflow assets={[]} user={admin} onImportCodes={onImportCodes} onAssign={onAssign} onSelectAsset={onSelectAsset} />
     )
 
+    // Select mandatory category
+    fireEvent.click(screen.getByRole('button', { name: 'Select Category Fixed Assets' }))
+
     fireEvent.change(screen.getByLabelText('Paste asset codes'), { target: { value: 'AST000001\nAST000002' } })
     fireEvent.click(screen.getByRole('button', { name: 'Import pasted codes' }))
-    expect(onImportCodes).toHaveBeenCalledWith(['AST000001', 'AST000002'])
+
+    // Confirm in dialog
+    fireEvent.click(screen.getByRole('button', { name: /Confirm & Import/i }))
+    expect(onImportCodes).toHaveBeenCalledWith(['AST000001', 'AST000002'], 'Fixed Assets')
 
     const unassigned = makeAsset()
     rerender(

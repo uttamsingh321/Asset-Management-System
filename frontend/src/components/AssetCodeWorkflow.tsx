@@ -7,6 +7,7 @@ import {
   MAJOR_ASSET_CATEGORIES,
   MAJOR_ASSET_CATEGORIES_CONFIG,
   resolveMajorAssetCategory,
+  type MajorAssetCategory,
 } from '@/types/asset'
 import { toast } from 'sonner'
 import { pushAssetsToBackend, fetchBackendAssets } from '@/lib/assetStorage'
@@ -31,11 +32,12 @@ const DEPARTMENTS = [
 interface AssetCodeWorkflowProps {
   assets: Asset[]
   user: UserProfile
-  onImportCodes: (codes: (string | Partial<Asset>)[]) => void
+  onImportCodes: (codes: (string | Partial<Asset>)[], targetCategory?: string) => void
   onAssign: (assetId: string, department: string) => void
   onSelectAsset: (asset: Asset) => void
   onClearAllTasks?: () => void
   onRefreshFromBackend?: () => Promise<void>
+  defaultImportCategory?: MajorAssetCategory | null
 }
 
 const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -527,6 +529,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   onSelectAsset,
   onClearAllTasks,
   onRefreshFromBackend,
+  defaultImportCategory,
 }) => {
   const isAdmin =
     user.role === 'Administrator' ||
@@ -536,6 +539,25 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   const isFinance = user.role === 'Finance' || user.department === 'Finance'
   const canUpload = isAdmin || isFinance
   const userDepartment = user.department || 'IT'
+
+  // Mandatory Asset Category Selection state (Fixed Assets, Accessories, Tools, Fixtures)
+  const [selectedImportCategory, setSelectedImportCategory] = React.useState<MajorAssetCategory | null>(
+    defaultImportCategory || null
+  )
+
+  // Staged import awaiting user confirmation
+  interface ImportValidationSummary {
+    fileName: string
+    totalParsed: number
+    uniqueValidItems: (string | Partial<Asset>)[]
+    duplicatesInFile: number
+    duplicatesInSystem: number
+    errors: string[]
+    previewItems: (string | Partial<Asset>)[]
+    category: MajorAssetCategory
+  }
+
+  const [pendingConfirmation, setPendingConfirmation] = React.useState<ImportValidationSummary | null>(null)
 
   const [activeTab, setActiveTab] = React.useState<'tasks' | 'import'>('tasks')
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'pending' | 'completed'>('all')
@@ -722,53 +744,137 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   }, [pastedCodes])
 
   const importCodes = async (file?: File) => {
+    // 1. Mandatory category check
+    if (!selectedImportCategory) {
+      toast.error('Please select an Asset Category before importing.')
+      return
+    }
+
+    // 2. File format validation (if file provided)
+    if (file) {
+      const validExtensions = ['.xlsx', '.xls', '.csv']
+      const lowerName = file.name.toLowerCase()
+      const hasValidExt = validExtensions.some((ext) => lowerName.endsWith(ext))
+      if (!hasValidExt) {
+        toast.error(`Invalid file format "${file.name}". Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.`)
+        return
+      }
+    }
+
     setIsImporting(true)
-    setImportProgressMessage('Parsing asset codes...')
+    setImportProgressMessage('Validating asset file & codes...')
 
     try {
-      const items: (string | Partial<Asset>)[] = file
+      const rawItems: (string | Partial<Asset>)[] = file
         ? await readCodesOrMasterAssetsFromFile(file)
         : parsePastedAssetCodes(pastedCodes)
 
-      if (items.length === 0) {
-        toast.info('No valid asset codes or master records found to import.')
+      if (rawItems.length === 0) {
+        toast.error('Validation failed: No valid asset codes found in the provided source.')
         setIsImporting(false)
         return
       }
 
-      if (items.length > 2000) {
-        setImportProgressMessage(`Checking ${items.length.toLocaleString()} records for duplicates...`)
-        await new Promise((resolve) => setTimeout(resolve, 5))
-      }
+      const errors: string[] = []
+      const getCode = (item: string | Partial<Asset>) =>
+        (typeof item === 'string' ? item : item.assetCode || item.assetTag || '').trim()
 
-      const getCode = (item: string | Partial<Asset>) => (typeof item === 'string' ? item : item.assetCode || '')
-      const knownCodes = new Set(assets.map((asset) => asset.assetCode.toLowerCase()))
-      const newItems = items.filter((item) => {
+      // 3. Required fields check (Asset Code non-empty)
+      let emptyCount = 0
+      const validItemsWithCode: (string | Partial<Asset>)[] = []
+      for (const item of rawItems) {
         const c = getCode(item)
-        return c && !knownCodes.has(c.toLowerCase())
-      })
+        if (!c) {
+          emptyCount++
+        } else {
+          validItemsWithCode.push(item)
+        }
+      }
+      if (emptyCount > 0) {
+        errors.push(`${emptyCount} record(s) omitted due to missing or empty Asset Code.`)
+      }
 
-      if (newItems.length === 0) {
-        toast.info(`All ${items.length.toLocaleString()} codes/records already exist in the system.`)
+      // 4. Duplicate validation within batch
+      const seenInBatch = new Set<string>()
+      let duplicatesInFile = 0
+      const dedupedBatch: (string | Partial<Asset>)[] = []
+      for (const item of validItemsWithCode) {
+        const cLower = getCode(item).toLowerCase()
+        if (seenInBatch.has(cLower)) {
+          duplicatesInFile++
+        } else {
+          seenInBatch.add(cLower)
+          dedupedBatch.push(item)
+        }
+      }
+      if (duplicatesInFile > 0) {
+        errors.push(`${duplicatesInFile.toLocaleString()} internal duplicate code(s) detected and deduplicated.`)
+      }
+
+      // 5. Duplicate validation against existing assets in system
+      const knownCodes = new Set(assets.map((asset) => (asset.assetCode || asset.assetTag || '').trim().toLowerCase()))
+      let duplicatesInSystem = 0
+      const uniqueNewItems: (string | Partial<Asset>)[] = []
+      for (const item of dedupedBatch) {
+        const cLower = getCode(item).toLowerCase()
+        if (knownCodes.has(cLower)) {
+          duplicatesInSystem++
+        } else {
+          uniqueNewItems.push(item)
+        }
+      }
+      if (duplicatesInSystem > 0) {
+        errors.push(`${duplicatesInSystem.toLocaleString()} code(s) already exist in the system and will be skipped.`)
+      }
+
+      if (uniqueNewItems.length === 0) {
+        toast.error(`Validation Failed: All ${rawItems.length.toLocaleString()} codes already exist in the system. User corrects and re-uploads.`)
         setIsImporting(false)
         return
       }
 
-      if (newItems.length > 2000) {
-        setImportProgressMessage(`Adding ${newItems.length.toLocaleString()} records to task queue...`)
-        await new Promise((resolve) => setTimeout(resolve, 5))
-      }
-
-      onImportCodes(newItems)
-      setPastedCodes('')
-      toast.success(`${newItems.length.toLocaleString()} asset${newItems.length === 1 ? '' : 's'} imported and added to task queue`)
-      setActiveTab('tasks')
+      // 6. Stage for Confirmation Dialog
+      setPendingConfirmation({
+        fileName: file ? file.name : 'Pasted Asset Codes (Batch)',
+        totalParsed: rawItems.length,
+        uniqueValidItems: uniqueNewItems,
+        duplicatesInFile,
+        duplicatesInSystem,
+        errors,
+        previewItems: uniqueNewItems.slice(0, 5),
+        category: selectedImportCategory,
+      })
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to import asset records')
+      toast.error(err?.message || 'Failed to validate asset records.')
     } finally {
       setIsImporting(false)
       setImportProgressMessage('')
     }
+  }
+
+  // Execute confirmed import
+  const executeConfirmedImport = () => {
+    if (!pendingConfirmation) return
+    const { uniqueValidItems, category } = pendingConfirmation
+
+    // Ensure objects have category assigned; strings are passed with target category
+    const enrichedItems: (string | Partial<Asset>)[] = uniqueValidItems.map((item) => {
+      if (typeof item === 'string') {
+        return item
+      }
+      return {
+        ...item,
+        category,
+        currentCategory: category,
+        status: item.status || 'Pending Verification',
+      }
+    })
+
+    onImportCodes(enrichedItems, category)
+    setPastedCodes('')
+    setPendingConfirmation(null)
+    toast.success(`Successfully imported ${enrichedItems.length.toLocaleString()} asset codes under category "${category}"!`)
+    setActiveTab('tasks')
   }
 
   // Completion percentage
@@ -882,15 +988,29 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
               <div>
                 <h2 className="text-sm font-bold text-[var(--ink)]">Import Excel Master Sheet / Asset Codes</h2>
                 <p className="text-xs text-[var(--mute)]">
-                  Upload SAP/ERP Excel files (.xlsx, .xls) to auto-fetch Company code, Asset Class, Tag, Description, Cap date, Cost center & Location directly into the queue.
+                  Select a mandatory asset category, then upload SAP/ERP Excel files (.xlsx, .xls) or paste asset codes.
                 </p>
               </div>
-              <label className="btn p text-xs cursor-pointer flex items-center gap-1.5 shadow-xs">
+              <label
+                className={`btn p text-xs flex items-center gap-1.5 shadow-xs transition ${
+                  !selectedImportCategory
+                    ? 'opacity-40 cursor-not-allowed bg-slate-400'
+                    : 'cursor-pointer'
+                }`}
+                title={!selectedImportCategory ? 'Please select an Asset Category before importing.' : 'Import Excel (.xlsx)'}
+                onClick={(e) => {
+                  if (!selectedImportCategory) {
+                    e.preventDefault()
+                    toast.error('Please select an Asset Category before importing.')
+                  }
+                }}
+              >
                 <span>📊</span>
                 <span className="font-bold">Import Excel (.xlsx)</span>
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
+                  disabled={!selectedImportCategory}
                   aria-label="Import asset code spreadsheet"
                   className="hidden"
                   onChange={(event) => {
@@ -900,6 +1020,94 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                   }}
                 />
               </label>
+            </div>
+
+            {/* Step 1: Mandatory Asset Category Selection */}
+            <div className="space-y-2.5 p-4 rounded-xl border border-[var(--line)] bg-[var(--surf2)]/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-[var(--acc)] text-white text-xs font-black flex items-center justify-center">
+                    1
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-bold text-[var(--ink)] flex items-center gap-1.5">
+                      <span>Select Asset Category</span>
+                      <span className="text-rose-500 font-extrabold">* (Mandatory)</span>
+                      <span className="text-[10px] text-[var(--mute)]">四大资产类别必选</span>
+                    </h3>
+                    <p className="text-[11px] text-[var(--mute)]">
+                      Every imported record will be automatically assigned to this Asset Category.
+                    </p>
+                  </div>
+                </div>
+                {selectedImportCategory ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 self-start sm:self-auto">
+                    <span>✓ Selected:</span>
+                    <span>{selectedImportCategory}</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20 self-start sm:self-auto">
+                    <span>⚠️ Selection Required</span>
+                  </span>
+                )}
+              </div>
+
+              {/* 4 Category Selection Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+                  const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+                  const isSelected = selectedImportCategory === catKey
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      aria-label={`Select Category ${cfg.label}`}
+                      data-testid={`category-select-${catKey}`}
+                      onClick={() => setSelectedImportCategory(catKey)}
+                      aria-pressed={isSelected}
+                      className={`p-3 rounded-xl border text-left transition-all duration-200 cursor-pointer flex items-start gap-2.5 select-none ${
+                        isSelected
+                          ? 'ring-2 ring-[var(--acc)] bg-[var(--acc)]/10 border-[var(--acc)] shadow-sm'
+                          : 'bg-[var(--surf)] border-[var(--line)] hover:border-[var(--acc)]/40 hover:bg-[var(--surf2)]'
+                      }`}
+                    >
+                      <span className="text-2xl p-1 rounded-lg bg-[var(--surf2)] border border-[var(--line)]">
+                        {cfg.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[var(--ink)]">{cfg.label}</span>
+                          {isSelected && (
+                            <span className="w-2 h-2 rounded-full bg-[var(--acc)] ring-2 ring-[var(--acc)]/30" />
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[var(--mute)] font-medium mt-0.5">
+                          {cfg.chineseLabel}
+                        </div>
+                        <div className="text-[9px] text-[var(--mute)] truncate mt-1" title={cfg.description}>
+                          {cfg.description}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Message when category is not yet selected */}
+              {!selectedImportCategory && (
+                <div
+                  role="alert"
+                  className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center gap-2"
+                >
+                  <span className="text-base">⚠️</span>
+                  <span className="font-semibold">
+                    Please select an Asset Category before importing.
+                  </span>
+                  <span className="text-[11px] text-[var(--mute)]">
+                    Import buttons remain disabled until category is chosen.
+                  </span>
+                </div>
+              )}
             </div>
 
             <textarea
@@ -925,20 +1133,166 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                 {isImporting && (
                   <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium">
                     <span className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
-                    <span>{importProgressMessage || 'Importing asset codes...'}</span>
+                    <span>{importProgressMessage || 'Validating asset codes...'}</span>
                   </span>
                 )}
               </div>
               <button
                 type="button"
-                className="btn p text-xs flex items-center gap-1.5"
-                onClick={() => void importCodes()}
-                disabled={!pastedCodes.trim() || isImporting}
+                className={`btn p text-xs flex items-center gap-1.5 ${
+                  !selectedImportCategory ? 'opacity-40 cursor-not-allowed' : ''
+                }`}
+                onClick={() => {
+                  if (!selectedImportCategory) {
+                    toast.error('Please select an Asset Category before importing.')
+                    return
+                  }
+                  void importCodes()
+                }}
+                disabled={!selectedImportCategory || !pastedCodes.trim() || isImporting}
+                title={!selectedImportCategory ? 'Please select an Asset Category before importing.' : undefined}
               >
-                <span>{isImporting ? '⏳ Importing...' : 'Import pasted codes'}</span>
+                <span>{isImporting ? '⏳ Validating...' : 'Import pasted codes'}</span>
               </button>
             </div>
           </section>
+
+          {/* Step 4: Import Confirmation Screen Modal */}
+          {pendingConfirmation && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirm-import-title"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+            >
+              <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in duration-200">
+                {/* Header */}
+                <div className="flex items-start justify-between border-b border-[var(--line)] pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📋</span>
+                      <h3 id="confirm-import-title" className="text-base font-bold text-[var(--ink)]">
+                        Confirm Asset Code Import
+                      </h3>
+                    </div>
+                    <p className="text-xs text-[var(--mute)] mt-0.5">
+                      Review validation summary before adding records to enterprise database.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingConfirmation(null)}
+                    className="w-7 h-7 rounded-lg text-[var(--mute)] hover:bg-[var(--surf2)] hover:text-[var(--ink)] flex items-center justify-center text-sm transition"
+                    aria-label="Close dialog"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Selected Category Highlight Banner */}
+                <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-500/10 space-y-1">
+                  <div className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🏷️ Mandatory Target Category</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-extrabold text-[var(--ink)] flex items-center gap-2">
+                      <span>{MAJOR_ASSET_CATEGORIES_CONFIG[pendingConfirmation.category].icon}</span>
+                      <span>{pendingConfirmation.category}</span>
+                      <span className="text-xs font-normal text-[var(--mute)]">
+                        ({MAJOR_ASSET_CATEGORIES_CONFIG[pendingConfirmation.category].chineseLabel})
+                      </span>
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 border border-emerald-500/30">
+                      Auto-Assign on Import ✓
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--mute)] mt-1">
+                    Every imported record will be automatically assigned to <b>{pendingConfirmation.category}</b> across all dashboards, filters, and QR generators.
+                  </p>
+                </div>
+
+                {/* Validation & Summary Metrics */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-[var(--surf2)] border border-[var(--line)]">
+                    <div className="text-[10px] text-[var(--mute)] uppercase font-semibold">Source / File Name</div>
+                    <div className="font-bold text-[var(--ink)] truncate mt-0.5" title={pendingConfirmation.fileName}>
+                      📄 {pendingConfirmation.fileName}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[var(--surf2)] border border-[var(--line)]">
+                    <div className="text-[10px] text-[var(--mute)] uppercase font-semibold">Total Records to Import</div>
+                    <div className="font-bold text-emerald-600 text-sm mt-0.5">
+                      ✨ {pendingConfirmation.uniqueValidItems.length.toLocaleString()} records
+                    </div>
+                  </div>
+                </div>
+
+                {/* Validation Breakdown Notices */}
+                {pendingConfirmation.errors.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs space-y-1">
+                    <div className="font-bold flex items-center gap-1">
+                      <span>ℹ️ Validation Notes:</span>
+                    </div>
+                    <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                      {pendingConfirmation.errors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Sample Records Preview */}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-bold text-[var(--ink)] flex items-center justify-between">
+                    <span>Sample Records Preview (First {Math.min(5, pendingConfirmation.previewItems.length)})</span>
+                    <span className="text-[10px] text-[var(--mute)]">Target: Pending Task Queue</span>
+                  </div>
+                  <div className="border border-[var(--line)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[var(--surf2)] text-[var(--mute)] border-b border-[var(--line)] text-[10px] uppercase">
+                        <tr>
+                          <th className="py-1 px-2.5">Code</th>
+                          <th className="py-1 px-2.5">Description</th>
+                          <th className="py-1 px-2.5">Assigned Category</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--line)] font-mono text-[11px]">
+                        {pendingConfirmation.previewItems.map((item, idx) => {
+                          const code = typeof item === 'string' ? item : item.assetCode || 'N/A'
+                          const desc = typeof item === 'string' ? code : item.currentDescription || item.name || code
+                          return (
+                            <tr key={idx} className="hover:bg-[var(--surf2)]/40">
+                              <td className="py-1.5 px-2.5 font-bold text-[var(--acc)]">{code}</td>
+                              <td className="py-1.5 px-2.5 text-[var(--ink)] font-sans truncate max-w-[180px]">{desc}</td>
+                              <td className="py-1.5 px-2.5 text-blue-600 font-sans">{pendingConfirmation.category}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
+                  <button
+                    type="button"
+                    onClick={() => setPendingConfirmation(null)}
+                    className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] hover:bg-[var(--surf2)] text-[var(--ink)] transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeConfirmedImport}
+                    className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[var(--acc)] hover:opacity-90 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>✓ Confirm & Import ({pendingConfirmation.uniqueValidItems.length.toLocaleString()})</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Department assignment section is hidden from visual UI for streamlined workflow: codes are open for all department members to claim directly */}
           {unassignedAssets.length > 0 && (
