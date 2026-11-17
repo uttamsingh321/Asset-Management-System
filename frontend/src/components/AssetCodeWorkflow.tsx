@@ -925,7 +925,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
               <span>{isSyncingCloud ? (syncProgress || 'Syncing...') : `Sync to Server (${assets.length})`}</span>
             </button>
           )}
-          {totalCodes > 0 && onClearAllTasks && (
+          {isAdmin && totalCodes > 0 && onClearAllTasks && (
             <button
               type="button"
               onClick={() => {
@@ -1590,15 +1590,15 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         </div>
 
         {/* Tasks Table / List */}
-        <div className="overflow-x-auto overflow-y-auto max-h-[540px] md:max-h-[calc(100vh-380px)] min-h-[320px] rounded-lg border border-[var(--line)]/60 relative scrollbar-thin">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-[var(--surf)] shadow-xs">
-              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Asset Code</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Department</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Data Status</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Location & Custodian</th>
-                <th className="py-2.5 px-3 text-right bg-[var(--surf)]">Action</th>
+        <div className="overflow-x-auto rounded-xl border border-[var(--line)] relative bg-[var(--surf)] shadow-2xs">
+          <table className="w-full text-left text-xs border-collapse table-auto min-w-[760px]">
+            <thead className="bg-[var(--surf2)]/70 border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="py-3 px-3.5 w-[30%]">Asset Code</th>
+                <th className="py-3 px-3 w-[16%]">Department</th>
+                <th className="py-3 px-3 w-[20%]">Data Status</th>
+                <th className="py-3 px-3 w-[20%]">Location & Custodian</th>
+                <th className="py-3 px-3.5 w-[14%] text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
@@ -1619,7 +1619,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                       className="hover:bg-[var(--surf2)]/50 transition-colors"
                     >
                       {/* Asset Code */}
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3.5">
                         <div className="flex items-center gap-1.5 font-mono font-bold text-sm text-[var(--ink)]">
                           <span>🏷️</span>
                           <span>{asset.assetCode}</span>
@@ -1682,7 +1682,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                       </td>
 
                       {/* Action */}
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-3 px-3.5 text-right">
                         <button
                           type="button"
                           className="btn p text-xs py-1.5 px-3 flex items-center gap-1 ml-auto cursor-pointer"
