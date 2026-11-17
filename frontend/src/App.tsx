@@ -1704,15 +1704,16 @@ export function App() {
             </div>
 
             {/* Active Factory Badge */}
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surf2)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)]">
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surf2)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-2xs hover:border-[var(--acc)]/40 transition-colors">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
               <span>🏭</span>
-              <span className="truncate max-w-[180px]">{activeFactory}</span>
+              <span className="truncate max-w-[200px]">{activeFactory}</span>
             </div>
 
             <span style={{ flex: 1 }} />
 
             <button
-              className="ai"
+              className="ai px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white font-semibold text-xs shadow-sm hover:shadow-md hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2"
               id="ai-btn"
               onClick={() => {
                 toast.info('Ask Meridian AI activated', {
@@ -1720,7 +1721,7 @@ export function App() {
                 })
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                 <path d="m12 2 2.2 6.3L21 10l-6.8 1.7L12 18l-2.2-6.3L3 10l6.8-1.7L12 2Z" />
               </svg>
               <span>Ask Meridian</span>
@@ -3080,125 +3081,266 @@ export function App() {
       {/* User Login Profile Switcher Modal */}
       {isProfileModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
+          onClick={() => setIsProfileModalOpen(false)}
         >
-          <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">👤</span>
-                <h3 className="text-sm font-bold text-[var(--ink)]">User Session Profile</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsProfileModalOpen(false)}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--mute)] hover:bg-[var(--surf2)] transition"
-              >
-                ✕
-              </button>
-            </div>
+          <div
+            className="relative bg-white dark:bg-[#0c1324] border border-slate-200/90 dark:border-slate-800/90 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden transition-all duration-200 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Precision Accent Gradient */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400" />
 
-            <form onSubmit={handleUpdateProfile} className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-[var(--ink)] block mb-1">
-                  Logged In Name *
-                </label>
-                <input
-                  type="text"
-                  value={tempUserName}
-                  onChange={(e) => setTempUserName(e.target.value)}
-                  placeholder="e.g. Uttam Singh"
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
-                  required
-                />
-              </div>
+            <div className="p-6 space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800/80 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold text-base flex items-center justify-center shadow-md shadow-blue-500/20">
+                      {userInitials || 'US'}
+                    </div>
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0c1324]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                      <span>User Session Profile</span>
+                      {currentUser.isSuperuser && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          Superuser
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Active terminal credentials & RBAC configuration
+                    </p>
+                  </div>
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold text-[var(--ink)] block mb-1">
-                  User ID
-                </label>
-                <input
-                  type="text"
-                  value={tempUserId}
-                  onChange={(e) => setTempUserId(e.target.value)}
-                  placeholder="e.g. USR-101"
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[var(--ink)] block mb-1">Role</label>
-                <select
-                  value={tempUserRole}
-                  onChange={(e) => setTempUserRole(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-[var(--line)] bg-[var(--surf2)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--acc)]"
-                >
-                  <option value="Administrator">Administrator</option>
-                  <option value="Asset Manager">Asset Manager</option>
-                  <option value="Compliance Auditor">Compliance Auditor</option>
-                  <option value="IT Technician">IT Technician</option>
-                  <option value="Department Head">Department Head</option>
-                  <option value="Employee">Employee</option>
-                </select>
-              </div>
-
-              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsProfileModalOpen(false)}
-                  className="btn flex-1"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  aria-label="Close dialog"
                 >
-                  Cancel
-                </button>
-                <button type="submit" className="btn p flex-1">
-                  Save & Switch
+                  ✕
                 </button>
               </div>
 
-              {isSuperuserOrAdmin && (
-                <div className="pt-2 border-t border-[var(--line)] space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileModalOpen(false)
-                      setCurrentHash('master-mapping')
-                      window.location.hash = '#master-mapping'
-                    }}
-                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <span>🏢</span>
-                    <span>Master Mapping (Hierarchy Foundation)</span>
-                  </button>
+              {/* Active Session Snapshot */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between text-xs">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Identity</span>
+                  <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <span>{currentUser.userName}</span>
+                    <span className="font-mono text-[11px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      {currentUser.userId}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Plant Location</span>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
+                    🏭 {activeFactory}
+                  </div>
+                </div>
+              </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileModalOpen(false)
-                      setCurrentHash('rbac')
-                      window.location.hash = '#rbac'
-                    }}
-                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <span>🛡️</span>
-                    <span>User & RBAC Administration</span>
-                  </button>
+              {/* Edit Session Profile Form */}
+              <form onSubmit={handleUpdateProfile} className="space-y-3.5">
+                {/* 1. Logged In Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span>Logged In Name *</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Displayed on audits & signatures</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={tempUserName}
+                      onChange={(e) => setTempUserName(e.target.value)}
+                      placeholder="e.g. Uttam Singh"
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 transition-all font-medium"
+                      required
+                    />
+                    <span className="absolute left-3 top-2.5 text-slate-400 text-xs">👤</span>
+                  </div>
+                </div>
 
+                {/* 2. User ID */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span>User ID</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Employee / Operator Code</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={tempUserId}
+                      onChange={(e) => setTempUserId(e.target.value)}
+                      placeholder="e.g. USR-ADMIN, SMT-101"
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 transition-all font-mono font-medium"
+                    />
+                    <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🆔</span>
+                  </div>
+                </div>
+
+                {/* 3. Role & Department Grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                      Role
+                    </label>
+                    <select
+                      value={tempUserRole}
+                      onChange={(e) => setTempUserRole(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 transition-all font-medium cursor-pointer"
+                    >
+                      <option value="Administrator">Administrator</option>
+                      <option value="Asset Manager">Asset Manager</option>
+                      <option value="Compliance Auditor">Compliance Auditor</option>
+                      <option value="IT Technician">IT Technician</option>
+                      <option value="Department Head">Department Head</option>
+                      <option value="Employee">Employee</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                      Department
+                    </label>
+                    <select
+                      value={tempUserDepartment}
+                      onChange={(e) => setTempUserDepartment(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 transition-all font-medium cursor-pointer"
+                    >
+                      <option value="IT">IT & Infrastructure</option>
+                      <option value="Production">Production & SMT</option>
+                      <option value="Quality">Quality Control</option>
+                      <option value="Maintenance">Maintenance & Tooling</option>
+                      <option value="Warehouse">Warehouse & Logistics</option>
+                      <option value="Finance">Finance & Accounts</option>
+                      <option value="HR">HR & Admin</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2.5 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsProfileModalOpen(false)
-                      setCurrentHash('security')
-                      window.location.hash = '#security'
-                    }}
-                    className="w-full text-center py-2 px-3 text-xs font-semibold rounded-lg border border-purple-500/30 text-purple-600 bg-purple-500/5 hover:bg-purple-500/10 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    onClick={() => setIsProfileModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition active:scale-[0.98] cursor-pointer"
                   >
-                    <span>🔒</span>
-                    <span>Superuser Security & IP Audit</span>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition shadow-md hover:shadow-lg shadow-blue-500/25 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>✓</span>
+                    <span>Save & Switch</span>
                   </button>
                 </div>
-              )}
-            </form>
+
+                {/* Superuser Quick Governance Navigation */}
+                {isSuperuserOrAdmin && (
+                  <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <span>🛡️</span>
+                        <span>Superuser Governance Consoles</span>
+                      </span>
+                      <span className="text-blue-500">Fast Access</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileModalOpen(false)
+                          setCurrentHash('master-mapping')
+                          window.location.hash = '#master-mapping'
+                        }}
+                        className="group w-full p-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-blue-500/5 hover:border-blue-500/40 transition-all cursor-pointer flex items-center justify-between text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">
+                            🏢
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              Master Mapping (Hierarchy Foundation)
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Facility hierarchy, company plants & cost centers
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-slate-400 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all text-xs font-bold">
+                          ➔
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileModalOpen(false)
+                          setCurrentHash('rbac')
+                          window.location.hash = '#rbac'
+                        }}
+                        className="group w-full p-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-indigo-500/5 hover:border-indigo-500/40 transition-all cursor-pointer flex items-center justify-between text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                            🛡️
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                              User & RBAC Administration
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Directory permissions, password management & role policies
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-slate-400 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all text-xs font-bold">
+                          ➔
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileModalOpen(false)
+                          setCurrentHash('security')
+                          window.location.hash = '#security'
+                        }}
+                        className="group w-full p-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-amber-500/5 hover:border-amber-500/40 transition-all cursor-pointer flex items-center justify-between text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs">
+                            🔒
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                              Superuser Security & IP Audit
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Immutable client telemetry, failed logins & lockout control
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-slate-400 group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all text-xs font-bold">
+                          ➔
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </form>
+            </div>
           </div>
         </div>
       )}

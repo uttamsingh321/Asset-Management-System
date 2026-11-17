@@ -44,49 +44,49 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
   }, [assets])
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
       {/* Bento Card 1: Active Fleet & Capital Valuation */}
-      <div className="group relative overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-white via-slate-50 to-blue-50/40 dark:from-[#111827] dark:via-[#0F172A] dark:to-[#0B0F17] p-3 sm:p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-500/40">
-        <div className="pointer-events-none absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-blue-500/10 blur-xl group-hover:bg-blue-500/20 transition-colors" />
+      <div className="group relative overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-gradient-to-br from-white via-slate-50/80 to-blue-50/40 dark:from-[#101726] dark:via-[#0F172A] dark:to-[#090D16] p-3.5 sm:p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/50">
+        <div className="pointer-events-none absolute -right-6 -bottom-6 h-28 w-28 rounded-full bg-blue-500/10 blur-xl group-hover:bg-blue-500/20 transition-all duration-300" />
         
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Total Fleet Size
           </span>
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs shadow-2xs">
+          <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs shadow-2xs group-hover:scale-105 transition-transform">
             🏢
           </div>
         </div>
 
-        <div className="mt-2 flex items-baseline gap-2">
+        <div className="mt-2.5 flex items-baseline gap-2">
           <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
             {totalAssets}
           </span>
-          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-            <span>●</span> Live In-Service
+          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live In-Service
           </span>
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="mt-2 flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400">
           <span>Enterprise Capital:</span>
           <span className="font-bold font-mono text-slate-900 dark:text-slate-200">{totalValueINR}</span>
         </div>
       </div>
 
       {/* Bento Card 2: Operational Health & OEE */}
-      <div className="group relative overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-white via-slate-50 to-emerald-50/40 dark:from-[#111827] dark:via-[#0F172A] dark:to-[#0B0F17] p-3 sm:p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-500/40">
-        <div className="pointer-events-none absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-colors" />
+      <div className="group relative overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-gradient-to-br from-white via-slate-50/80 to-emerald-50/40 dark:from-[#101726] dark:via-[#0F172A] dark:to-[#090D16] p-3.5 sm:p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/50">
+        <div className="pointer-events-none absolute -right-6 -bottom-6 h-28 w-28 rounded-full bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-all duration-300" />
 
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Fleet Health Index
           </span>
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs shadow-2xs">
+          <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-600/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs shadow-2xs group-hover:scale-105 transition-transform">
             ⚡
           </div>
         </div>
 
-        <div className="mt-2 flex items-center justify-between">
+        <div className="mt-2.5 flex items-center justify-between">
           <div>
             <div className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
               {healthPercent}%
@@ -122,7 +122,7 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
           </div>
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px]">
+        <div className="mt-2 flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px]">
           <span className="text-slate-500 dark:text-slate-400">
             {reservedCount > 0 ? `${reservedCount} res · ` : ''}{retiredCount > 0 ? `${retiredCount} ret · ` : ''}Service Due:
           </span>
@@ -133,20 +133,20 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
       </div>
 
       {/* Bento Card 3: Facility Spatial Deployment (C39, D197, D198, D199) */}
-      <div className="group relative overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-white via-slate-50 to-purple-50/40 dark:from-[#111827] dark:via-[#0F172A] dark:to-[#0B0F17] p-3 sm:p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-purple-500/40">
-        <div className="pointer-events-none absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-purple-500/10 blur-xl group-hover:bg-purple-500/20 transition-colors" />
+      <div className="group relative overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-gradient-to-br from-white via-slate-50/80 to-purple-50/40 dark:from-[#101726] dark:via-[#0F172A] dark:to-[#090D16] p-3.5 sm:p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-500/50">
+        <div className="pointer-events-none absolute -right-6 -bottom-6 h-28 w-28 rounded-full bg-purple-500/10 blur-xl group-hover:bg-purple-500/20 transition-all duration-300" />
 
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Building Distribution
           </span>
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-600/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-xs shadow-2xs">
+          <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-purple-600/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-xs shadow-2xs group-hover:scale-105 transition-transform">
             📍
           </div>
         </div>
 
         {/* 3D Vertical Bar Matrix */}
-        <div className="mt-2 grid grid-cols-4 gap-1.5 text-center items-end h-8">
+        <div className="mt-2.5 grid grid-cols-4 gap-1.5 text-center items-end h-8">
           {(
             [
               { id: 'C39', count: buildingBreakdown.C39, color: 'bg-blue-500' },
@@ -177,31 +177,31 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
           })}
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400">
+        <div className="mt-2 flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400">
           <span>IIPL (C39): <b>{buildingBreakdown.C39}</b></span>
           <span>Padget: <b>{buildingBreakdown.D197 + buildingBreakdown.D198 + buildingBreakdown.D199}</b></span>
         </div>
       </div>
 
       {/* Bento Card 4: Quick Launch & Queue Action Hub */}
-      <div className="group relative overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-white via-slate-50 to-amber-50/40 dark:from-[#111827] dark:via-[#0F172A] dark:to-[#0B0F17] p-3 sm:p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-amber-500/40 flex flex-col justify-between">
-        <div className="pointer-events-none absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-amber-500/10 blur-xl group-hover:bg-amber-500/20 transition-colors" />
+      <div className="group relative overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-gradient-to-br from-white via-slate-50/80 to-amber-50/40 dark:from-[#101726] dark:via-[#0F172A] dark:to-[#090D16] p-3.5 sm:p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:border-amber-500/50 flex flex-col justify-between">
+        <div className="pointer-events-none absolute -right-6 -bottom-6 h-28 w-28 rounded-full bg-amber-500/10 blur-xl group-hover:bg-amber-500/20 transition-all duration-300" />
 
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Quick Operations
           </span>
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-600/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs shadow-2xs">
+          <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-600/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs shadow-2xs group-hover:scale-105 transition-transform">
             ⚡
           </div>
         </div>
 
         {/* Action Buttons Grid */}
-        <div className="my-2 grid grid-cols-2 gap-1.5 text-[11px]">
+        <div className="my-2.5 grid grid-cols-2 gap-1.5 text-[11px]">
           <button
             type="button"
             onClick={onAddAsset}
-            className="flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold hover:opacity-90 transition cursor-pointer shadow-2xs text-center"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold hover:opacity-90 active:scale-[0.98] transition cursor-pointer shadow-xs text-center"
           >
             <span>+</span>
             <span>Add Asset</span>
@@ -210,10 +210,10 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('tasks')}
-            className={`flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg border font-bold transition cursor-pointer text-center ${
+            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl border font-bold active:scale-[0.98] transition cursor-pointer text-center ${
               pendingTaskCount > 0
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
-                : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
+                : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
             <span>📋</span>
@@ -223,7 +223,7 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('transfer')}
-            className="flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold transition cursor-pointer text-center"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold active:scale-[0.98] transition cursor-pointer text-center"
           >
             <span>⇄</span>
             <span>Transfer</span>
@@ -232,16 +232,19 @@ export const ExecutiveBentoGrid3D: React.FC<ExecutiveBentoGrid3DProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('labels')}
-            className="flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold transition cursor-pointer text-center"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold active:scale-[0.98] transition cursor-pointer text-center"
           >
             <span>🏷️</span>
             <span>Print QR</span>
           </button>
         </div>
 
-        <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400">
           <span>Active Status:</span>
-          <span className="font-bold text-emerald-600 dark:text-emerald-400">All Systems Nominal</span>
+          <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            All Systems Nominal
+          </span>
         </div>
       </div>
     </div>
