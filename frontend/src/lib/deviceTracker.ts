@@ -37,6 +37,8 @@ export type AuditAction =
   | 'LABEL_REPRINT_REQUEST'
   | 'LABEL_REPRINT_APPROVE'
   | 'LABEL_REPRINT_REJECT'
+  | 'PASSWORD_RESET_REQUEST'
+  | 'PASSWORD_RESET_COMPLETE'
 
 export interface UserProfile {
   userId: string

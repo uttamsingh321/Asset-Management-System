@@ -8,7 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q, Count
 from django.utils import timezone as dj_timezone
 
-from .models import Asset, AuditLog, UserSession, AppUser, ReprintRequest, ReprintAuditLog
+from .models import Asset, AuditLog, UserSession, AppUser, ReprintRequest, ReprintAuditLog, PasswordResetRequest
 from .device_detector import parse_device_and_browser
 
 
@@ -2588,6 +2588,222 @@ def api_reprint_history(request: HttpRequest, asset_code: str) -> JsonResponse:
         "activeRequest": active_req.to_dict() if active_req else None,
         "history": [log.to_dict() for log in logs],
     })
+
+
+@csrf_exempt
+def api_password_reset_request(request: HttpRequest) -> JsonResponse:
+    """
+    Public endpoint for employees to submit a Password Reset Request.
+    Super User is notified with the employee's name, user_id, department, plant, and timestamp.
+    """
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body.decode("utf-8")) if request.body else {}
+        except Exception:
+            body = {}
+
+        raw_user_id = str(body.get("userId") or body.get("user_id") or "").strip()
+        plant = str(body.get("plant") or body.get("factory") or "Noida Plant (SMT Line & Assembly)").strip()
+        notes = str(body.get("notes") or body.get("reason") or "Employee requested password reset").strip()
+
+        if not raw_user_id:
+            return JsonResponse({"error": "User ID / Employee ID is required."}, status=400)
+
+        clean_user_id = raw_user_id.upper()
+
+        # Reject self-reset for superuser
+        if clean_user_id in ["USR-ADMIN", "SUPERUSER", "ADMIN"]:
+            return JsonResponse({
+                "error": "Super User accounts have master governance authority and cannot request self-reset from worker terminals."
+            }, status=403)
+
+        # Look up user in AppUser
+        user = AppUser.objects.filter(Q(user_id__iexact=raw_user_id) | Q(user_id__iexact=clean_user_id)).first()
+        if user and user.is_superuser:
+            return JsonResponse({
+                "error": "Super User accounts have master governance authority and cannot request self-reset from worker terminals."
+            }, status=403)
+
+        # Determine user name and department
+        user_name = user.name if user else f"Employee {raw_user_id}"
+        department = user.department if user else "Production & SMT"
+
+        # Check existing pending request
+        existing = PasswordResetRequest.objects.filter(
+            user_id__iexact=raw_user_id,
+            status="pending"
+        ).first()
+
+        if existing:
+            return JsonResponse({
+                "success": True,
+                "message": f"A password reset request for {existing.user_name} ({existing.user_id}) is already pending Super User action.",
+                "request": existing.to_dict(),
+            })
+
+        req_id = f"PRR-{uuid.uuid4().hex[:8].upper()}"
+        req = PasswordResetRequest.objects.create(
+            id=req_id,
+            user_id=raw_user_id,
+            user_name=user_name,
+            department=department,
+            plant=plant,
+            status="pending",
+            notes=notes,
+            requested_at=dj_timezone.now(),
+        )
+
+        record_audit_log(
+            request=request,
+            action="PASSWORD_RESET_REQUESTED",
+            user_id=raw_user_id,
+            user_name=user_name,
+            role="Employee",
+            entity_type="User",
+            entity_id=raw_user_id,
+            details={
+                "requestId": req_id,
+                "plant": plant,
+                "department": department,
+                "notes": notes,
+            }
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Password reset request submitted successfully for {user_name} ({raw_user_id}). Super User has been notified.",
+            "request": req.to_dict(),
+        }, status=201)
+
+    elif request.method == "GET":
+        status_filter = request.GET.get("status")
+        qs = PasswordResetRequest.objects.all()
+        if status_filter:
+            qs = qs.filter(status__iexact=status_filter)
+        return JsonResponse({
+            "requests": [r.to_dict() for r in qs[:200]]
+        })
+
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@csrf_exempt
+def api_password_reset_resolve(request: HttpRequest, request_id: str) -> JsonResponse:
+    """
+    Super User action: Set new password for employee or reject invalid request.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    try:
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except Exception:
+        body = {}
+
+    action = str(body.get("action") or "set_password").lower().strip()
+    new_password = str(body.get("newPassword") or body.get("new_password") or body.get("password") or "").strip()
+    resolver_id = str(body.get("userId") or body.get("user_id") or "USR-ADMIN").strip()
+    resolver_name = str(body.get("userName") or body.get("user_name") or "Super User").strip()
+    resolver_role = str(body.get("role") or "Admin").strip()
+    notes = str(body.get("notes") or "").strip()
+
+    if not is_hod_or_superuser(resolver_id, resolver_role):
+        return JsonResponse({
+            "error": "Unauthorized. Only a Super User / Administrator can review password reset requests."
+        }, status=403)
+
+    req = PasswordResetRequest.objects.filter(id=request_id).first()
+    if not req:
+        return JsonResponse({"error": f"Password reset request '{request_id}' not found."}, status=404)
+
+    now = dj_timezone.now()
+
+    if action == "reject":
+        req.status = "rejected"
+        req.resolved_at = now
+        req.resolved_by = resolver_name
+        req.resolver_user_id = resolver_id
+        req.notes = notes or "Rejected by Super User"
+        req.save()
+
+        record_audit_log(
+            request=request,
+            action="PASSWORD_RESET_REJECTED",
+            user_id=resolver_id,
+            user_name=resolver_name,
+            role="Admin",
+            entity_type="User",
+            entity_id=req.user_id,
+            details={
+                "requestId": req.id,
+                "targetUserId": req.user_id,
+                "targetUserName": req.user_name,
+                "resolver": resolver_name,
+                "reason": req.notes,
+            }
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Password reset request for {req.user_name} rejected.",
+            "request": req.to_dict(),
+        })
+
+    # Action is set_password
+    if not new_password or len(new_password) < 4:
+        return JsonResponse({
+            "error": "New password must be at least 4 characters long."
+        }, status=400)
+
+    # Update or create AppUser
+    user = AppUser.objects.filter(Q(user_id__iexact=req.user_id)).first()
+    if user:
+        user.password = new_password
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.is_active = True
+        user.save()
+    else:
+        AppUser.objects.create(
+            user_id=req.user_id,
+            name=req.user_name,
+            department=req.department or "Production",
+            role="Employee",
+            password=new_password,
+            is_active=True,
+            created_by=f"Superuser ({resolver_name})",
+        )
+
+    req.status = "completed"
+    req.resolved_at = now
+    req.resolved_by = resolver_name
+    req.resolver_user_id = resolver_id
+    req.new_password_set = True
+    req.notes = notes or f"Password updated by {resolver_name}"
+    req.save()
+
+    record_audit_log(
+        request=request,
+        action="PASSWORD_RESET_COMPLETED",
+        user_id=resolver_id,
+        user_name=resolver_name,
+        role="Admin",
+        entity_type="User",
+        entity_id=req.user_id,
+        details={
+            "requestId": req.id,
+            "targetUserId": req.user_id,
+            "targetUserName": req.user_name,
+            "resolver": resolver_name,
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"New password set successfully for {req.user_name} ({req.user_id}).",
+        "request": req.to_dict(),
+    })
+
 
 
 

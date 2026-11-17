@@ -59,7 +59,7 @@ describe('Login Page Layout & Specification', () => {
     expect(handleEnterOffline).toHaveBeenCalled()
   })
 
-  it('clicking Forgot Password opens policy modal explaining Superuser manual credential handover', () => {
+  it('clicking Forgot Password opens request modal to notify Super User', () => {
     render(
       <LoginPage
         lang="en"
@@ -72,10 +72,10 @@ describe('Login Page Layout & Specification', () => {
     const forgotPwBtn = screen.getByRole('button', { name: /Forgot password\?/i })
     fireEvent.click(forgotPwBtn)
 
-    expect(screen.getByText(/Credential Reset Policy/i)).toBeInTheDocument()
-    expect(screen.getByText(/random password resets and email links are disabled/i)).toBeInTheDocument()
-    expect(screen.getByText(/Contact your Plant Manager or the Factory Superuser/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Understood/i })).toBeInTheDocument()
+    expect(screen.getByText(/Password Reset Request to Super User/i)).toBeInTheDocument()
+    expect(screen.getByText(/governed by the Super User/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Employee ID \/ User ID \*/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Notify Super User for New Password/i })).toBeInTheDocument()
   })
 
   it('supports password visibility show/hide toggle', () => {

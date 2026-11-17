@@ -51,6 +51,13 @@ import {
   type ReprintReason,
   type ReprintRequest,
 } from '@/lib/labelReprintService'
+import {
+  getPasswordResetRequests,
+  syncBackendPasswordResetRequests,
+  resolvePasswordResetRequest,
+  rejectPasswordResetRequest,
+  type PasswordResetRequest,
+} from '@/lib/passwordResetService'
 
 // Lazy-load heavy views to keep bundle fast
 const IndiaMaintenanceView = React.lazy(() => import('@/components/IndiaMaintenanceView'))
@@ -249,26 +256,48 @@ export function App() {
   const [reprintRequests, setReprintRequests] = React.useState<ReprintRequest[]>(() => getReprintRequests())
   const [isNotificationFlyoutOpen, setIsNotificationFlyoutOpen] = React.useState(false)
 
+  // Password reset requests governance (Super User sets new passwords)
+  const [passwordResetRequests, setPasswordResetRequests] = React.useState<PasswordResetRequest[]>(() =>
+    getPasswordResetRequests()
+  )
+  const [selectedResetRequest, setSelectedResetRequest] = React.useState<PasswordResetRequest | null>(null)
+  const [newPasswordInput, setNewPasswordInput] = React.useState('')
+  const [isResetModalOpen, setIsResetModalOpen] = React.useState(false)
+  const [isSettingPassword, setIsSettingPassword] = React.useState(false)
+  const [activeNotifTab, setActiveNotifTab] = React.useState<'all' | 'passwords' | 'reprints'>('all')
+
   React.useEffect(() => {
     let isMounted = true
     const handleReprintUpdate = () => {
       if (isMounted) setReprintRequests(getReprintRequests())
     }
+    const handleResetUpdate = () => {
+      if (isMounted) setPasswordResetRequests(getPasswordResetRequests())
+    }
+
     window.addEventListener('meridian_reprint_updated', handleReprintUpdate)
+    window.addEventListener('meridian_password_reset_updated', handleResetUpdate)
 
     void syncBackendReprintRequests().then((reqs) => {
       if (isMounted && reqs) setReprintRequests(reqs)
+    })
+    void syncBackendPasswordResetRequests().then((reqs) => {
+      if (isMounted && reqs) setPasswordResetRequests(reqs)
     })
 
     const interval = setInterval(() => {
       void syncBackendReprintRequests().then((reqs) => {
         if (isMounted && reqs) setReprintRequests(reqs)
       })
+      void syncBackendPasswordResetRequests().then((reqs) => {
+        if (isMounted && reqs) setPasswordResetRequests(reqs)
+      })
     }, 5000)
 
     return () => {
       isMounted = false
       window.removeEventListener('meridian_reprint_updated', handleReprintUpdate)
+      window.removeEventListener('meridian_password_reset_updated', handleResetUpdate)
       clearInterval(interval)
     }
   }, [])
@@ -277,7 +306,13 @@ export function App() {
     return reprintRequests.filter((r) => r.status === 'pending')
   }, [reprintRequests])
 
+  const pendingPasswordResetRequests = React.useMemo(() => {
+    return passwordResetRequests.filter((r) => r.status === 'pending')
+  }, [passwordResetRequests])
+
   const pendingReprintCount = pendingReprintRequests.length
+  const pendingPasswordResetCount = pendingPasswordResetRequests.length
+  const totalPendingNotifications = pendingReprintCount + pendingPasswordResetCount
 
   // Check if a specific asset can be viewed by the user under department RBAC
   const checkAssetAccess = React.useCallback(
@@ -1708,20 +1743,20 @@ export function App() {
             <button
               type="button"
               className="ico relative cursor-pointer"
-              aria-label={`Notifications ${pendingReprintCount > 0 ? `(${pendingReprintCount} pending approvals)` : ''}`}
+              aria-label={`Notifications ${totalPendingNotifications > 0 ? `(${totalPendingNotifications} pending approvals)` : ''}`}
               onClick={() => setIsNotificationFlyoutOpen(true)}
               title={
-                pendingReprintCount > 0
-                  ? `${pendingReprintCount} Re-print Request(s) Pending Super User Approval`
+                totalPendingNotifications > 0
+                  ? `${totalPendingNotifications} Pending Super User Action(s): ${pendingPasswordResetCount} Password Reset(s), ${pendingReprintCount} Re-print Request(s)`
                   : 'Notifications'
               }
             >
               <svg viewBox="0 0 24 24">
                 <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6ZM10 19a2 2 0 0 0 4 0" />
               </svg>
-              {pendingReprintCount > 0 ? (
+              {totalPendingNotifications > 0 ? (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white font-bold text-[10px] flex items-center justify-center animate-pulse shadow-xs border border-white dark:border-slate-900">
-                  {pendingReprintCount}
+                  {totalPendingNotifications}
                 </span>
               ) : (
                 <i className="dot" />
@@ -1931,14 +1966,20 @@ export function App() {
                       </div>
 
                       <div className="flex items-center gap-2 flex-wrap">
+                        {pendingPasswordResetCount > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-rose-600" />
+                            <span>{pendingPasswordResetCount} Password Reset{pendingPasswordResetCount === 1 ? '' : 's'} Pending</span>
+                          </span>
+                        )}
                         <span
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
                             pendingReprintCount > 0
-                              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 animate-pulse'
+                              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
                               : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
                           }`}
                         >
-                          <span className={`w-2 h-2 rounded-full ${pendingReprintCount > 0 ? 'bg-rose-600' : 'bg-emerald-500'}`} />
+                          <span className={`w-2 h-2 rounded-full ${pendingReprintCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                           <span>{pendingReprintCount} Reprint Request{pendingReprintCount === 1 ? '' : 's'} Pending Approval</span>
                         </span>
                         <a
@@ -1950,13 +1991,121 @@ export function App() {
                       </div>
                     </div>
 
-                    {/* Pending Requests Table / Cards */}
-                    {pendingReprintRequests.length > 0 ? (
-                      <div className="space-y-3">
-                        <div className="text-xs font-bold text-[var(--ink)] flex items-center justify-between">
-                          <span>Requests Requiring Action ({pendingReprintRequests.length})</span>
-                          <span className="text-[11px] text-[var(--mute)] font-normal">Approving unlocks 1-time print permit for the requester</span>
+                    {/* SECTION 1: Pending Password Reset Requests */}
+                    <div className="space-y-2.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🔑</span>
+                          <h4 className="text-xs font-bold text-[var(--ink)]">
+                            Employee Password Reset Requests ({pendingPasswordResetRequests.length})
+                          </h4>
                         </div>
+                        <span className="text-[11px] text-[var(--mute)]">
+                          Operators who requested password reset from worker login terminal
+                        </span>
+                      </div>
+
+                      {pendingPasswordResetRequests.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {pendingPasswordResetRequests.map((req) => (
+                            <div
+                              key={req.id}
+                              className="p-3.5 rounded-xl border border-rose-500/40 bg-[var(--surf)] hover:border-purple-500/50 transition shadow-2xs space-y-2.5 flex flex-col justify-between"
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-xs text-rose-600 dark:text-rose-400">
+                                        👤 {req.userId}
+                                      </span>
+                                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--surf2)] text-[var(--mute)] border border-[var(--line)]">
+                                        {req.id}
+                                      </span>
+                                    </div>
+                                    <h4 className="text-xs font-bold text-[var(--ink)] mt-0.5 truncate max-w-[280px]">
+                                      {req.userName}
+                                    </h4>
+                                  </div>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 shrink-0">
+                                    ⏳ Reset Pending
+                                  </span>
+                                </div>
+
+                                <div className="text-[11px] text-[var(--mute)] space-y-0.5 bg-[var(--surf2)]/50 p-2 rounded-lg border border-[var(--line)]/50">
+                                  <div>
+                                    <b>Department:</b> <span className="text-[var(--ink)] font-semibold">{req.department || 'Production & SMT'}</span>
+                                  </div>
+                                  <div>
+                                    <b>Plant:</b> <span className="text-[var(--ink)]">{req.plant || activeFactory}</span>
+                                  </div>
+                                  <div>
+                                    <b>Reason:</b> <span className="text-rose-600 dark:text-rose-400 font-semibold">{req.notes || 'Forgot password'}</span>
+                                  </div>
+                                  <div>
+                                    <b>Requested:</b> {new Date(req.requestedAt).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1 border-t border-[var(--line)]/60">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedResetRequest(req)
+                                    setNewPasswordInput('Meridian@2026')
+                                    setIsResetModalOpen(true)
+                                  }}
+                                  className="flex-1 py-1.5 px-3 rounded-lg bg-[#165DFF] hover:bg-[#1249cb] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
+                                >
+                                  <span>🔑</span>
+                                  <span>Set New Password</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res = await rejectPasswordResetRequest(req.id, currentUser, 'Rejected by Super User')
+                                    if (res.success) {
+                                      toast.info(`Rejected password reset request for ${req.userName}.`)
+                                    }
+                                  }}
+                                  className="py-1.5 px-3 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-semibold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                                >
+                                  <span>✕</span>
+                                  <span>Reject</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                          <span className="text-xl">🛡️</span>
+                          <div>
+                            <div className="font-bold">Zero Pending Password Reset Requests</div>
+                            <div className="text-[11px] opacity-80">
+                              All employee credentials are active and synchronized with workshop security protocols.
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SECTION 2: Pending QR Label Reprint Requests */}
+                    <div className="space-y-2.5 pt-2 border-t border-[var(--line)]">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🏷️</span>
+                          <h4 className="text-xs font-bold text-[var(--ink)]">
+                            QR Code Re-print Authorizations ({pendingReprintRequests.length})
+                          </h4>
+                        </div>
+                        <span className="text-[11px] text-[var(--mute)]">
+                          Strict anti-duplicate label rule requires HOD approval
+                        </span>
+                      </div>
+
+                      {pendingReprintRequests.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {pendingReprintRequests.map((req) => (
                             <div
@@ -2034,18 +2183,18 @@ export function App() {
                             </div>
                           ))}
                         </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
-                        <span className="text-xl">🛡️</span>
-                        <div>
-                          <div className="font-bold">All QR Label Reprint Requests are Approved & Clear</div>
-                          <div className="text-[11px] opacity-80">
-                            Zero duplicate print requests pending. Strict anti-duplicate label governance is fully active.
+                      ) : (
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                          <span className="text-xl">🛡️</span>
+                          <div>
+                            <div className="font-bold">All QR Label Reprint Requests are Approved & Clear</div>
+                            <div className="text-[11px] opacity-80">
+                              Zero duplicate print requests pending. Strict anti-duplicate label governance is fully active.
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </section>
                 )}
 
@@ -3644,33 +3793,150 @@ export function App() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--surf2)]/60">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-600 flex items-center justify-center text-base font-bold">
-                  🔔
-                </div>
-                <div>
-                  <h3 id="notif-flyout-title" className="text-sm font-bold text-[var(--ink)]">
-                    Notifications & Approvals
-                  </h3>
-                  <div className="text-[11px] text-[var(--mute)]">
-                    {pendingReprintCount} re-print approval {pendingReprintCount === 1 ? 'request' : 'requests'} pending
+            <div className="p-4 border-b border-[var(--line)] bg-[var(--surf2)]/60">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-600 flex items-center justify-center text-base font-bold">
+                    🔔
+                  </div>
+                  <div>
+                    <h3 id="notif-flyout-title" className="text-sm font-bold text-[var(--ink)]">
+                      Notifications & Approvals
+                    </h3>
+                    <div className="text-[11px] text-[var(--mute)]">
+                      {pendingPasswordResetCount > 0
+                        ? `${pendingPasswordResetCount} password reset, ${pendingReprintCount} re-print approval requests pending`
+                        : `${pendingReprintCount} re-print approval ${pendingReprintCount === 1 ? 'request' : 'requests'} pending`}
+                    </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsNotificationFlyoutOpen(false)}
+                  className="w-7 h-7 rounded-lg text-[var(--mute)] hover:bg-[var(--surf2)] hover:text-[var(--ink)] flex items-center justify-center text-sm transition cursor-pointer"
+                  aria-label="Close notifications"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsNotificationFlyoutOpen(false)}
-                className="w-7 h-7 rounded-lg text-[var(--mute)] hover:bg-[var(--surf2)] hover:text-[var(--ink)] flex items-center justify-center text-sm transition cursor-pointer"
-                aria-label="Close notifications"
-              >
-                ✕
-              </button>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-[var(--line)]/60">
+                <button
+                  type="button"
+                  onClick={() => setActiveNotifTab('all')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    activeNotifTab === 'all'
+                      ? 'bg-[var(--ink)] text-[var(--surf)]'
+                      : 'bg-[var(--surf)] text-[var(--mute)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  All ({totalPendingNotifications})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveNotifTab('passwords')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                    activeNotifTab === 'passwords'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-[var(--surf)] text-rose-600 dark:text-rose-400 hover:bg-rose-500/10'
+                  }`}
+                >
+                  <span>🔑 Passwords</span>
+                  <span>({pendingPasswordResetCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveNotifTab('reprints')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                    activeNotifTab === 'reprints'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-[var(--surf)] text-amber-600 dark:text-amber-400 hover:bg-amber-500/10'
+                  }`}
+                >
+                  <span>🏷️ Re-prints</span>
+                  <span>({pendingReprintCount})</span>
+                </button>
+              </div>
             </div>
 
             {/* List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {pendingReprintRequests.length > 0 ? (
+              {/* Password Reset Requests */}
+              {(activeNotifTab === 'all' || activeNotifTab === 'passwords') &&
+                pendingPasswordResetRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-3.5 rounded-xl border border-rose-500/40 bg-rose-500/5 space-y-2.5 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-xs text-rose-600 dark:text-rose-400">
+                            👤 {req.userId}
+                          </span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                            Password Reset
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-[var(--ink)] mt-0.5">
+                          {req.userName}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-[var(--mute)] shrink-0">
+                        {req.id}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-[var(--mute)] space-y-0.5 border-t border-[var(--line)] pt-2">
+                      <div>
+                        <b>Department:</b> <span className="text-[var(--ink)]">{req.department || 'Production & SMT'}</span>
+                      </div>
+                      <div>
+                        <b>Plant:</b> <span className="text-[var(--ink)]">{req.plant || activeFactory}</span>
+                      </div>
+                      <div>
+                        <b>Reason:</b> <span className="text-rose-600 dark:text-rose-400 font-semibold">{req.notes || 'Forgot password'}</span>
+                      </div>
+                      <div>
+                        <b>Requested:</b> {new Date(req.requestedAt).toLocaleString()}
+                      </div>
+                    </div>
+
+                    {isSuperuserOrAdmin && (
+                      <div className="flex items-center gap-2 pt-1 border-t border-[var(--line)]/60">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedResetRequest(req)
+                            setNewPasswordInput('Meridian@2026')
+                            setIsResetModalOpen(true)
+                          }}
+                          className="flex-1 py-1.5 px-3 rounded-lg bg-[#165DFF] hover:bg-[#1249cb] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
+                        >
+                          <span>🔑</span>
+                          <span>Set New Password</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const res = await rejectPasswordResetRequest(req.id, currentUser, 'Rejected by Super User')
+                            if (res.success) {
+                              toast.info(`Rejected password reset request for ${req.userName}.`)
+                            }
+                          }}
+                          className="py-1.5 px-2.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-semibold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                        >
+                          <span>✕</span>
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+              {/* Reprint Requests */}
+              {(activeNotifTab === 'all' || activeNotifTab === 'reprints') &&
                 pendingReprintRequests.map((req) => (
                   <div
                     key={req.id}
@@ -3713,7 +3979,7 @@ export function App() {
                     </div>
 
                     {isSuperuserOrAdmin ? (
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-2 pt-1 border-t border-[var(--line)]/60">
                         <button
                           type="button"
                           onClick={() => {
@@ -3747,13 +4013,14 @@ export function App() {
                       </div>
                     )}
                   </div>
-                ))
-              ) : (
+                ))}
+
+              {totalPendingNotifications === 0 && (
                 <div className="py-10 text-center space-y-2">
                   <div className="text-3xl">🎉</div>
                   <div className="text-xs font-bold text-[var(--ink)]">All Approvals Up to Date</div>
                   <div className="text-[11px] text-[var(--mute)] max-w-xs mx-auto">
-                    No pending reprint requests. Single-print policy is fully active across all factory terminals.
+                    No pending password resets or reprint requests. Industrial security and single-print governance are fully synchronized.
                   </div>
                 </div>
               )}
@@ -3777,6 +4044,158 @@ export function App() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Super User Set New Password Modal */}
+      {isResetModalOpen && selectedResetRequest && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 text-xs text-[var(--ink)] animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">👑</span>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--ink)]">
+                    Set New Password (Super User)
+                  </h3>
+                  <div className="text-[10px] text-[var(--mute)]">
+                    Ticket: {selectedResetRequest.id}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetModalOpen(false)
+                  setSelectedResetRequest(null)
+                  setNewPasswordInput('')
+                }}
+                className="w-7 h-7 rounded-lg text-[var(--mute)] hover:bg-[var(--surf2)] flex items-center justify-center text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Requester details */}
+            <div className="p-3 rounded-xl bg-[var(--surf2)]/60 border border-[var(--line)] space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-[var(--mute)]">Employee Name:</span>
+                <span className="font-bold text-[var(--ink)]">{selectedResetRequest.userName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--mute)]">Employee ID:</span>
+                <span className="font-mono font-bold text-[var(--acc)]">{selectedResetRequest.userId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--mute)]">Department:</span>
+                <span>{selectedResetRequest.department || 'Production & SMT'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--mute)]">Plant:</span>
+                <span>{selectedResetRequest.plant}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--mute)]">Requested:</span>
+                <span>{new Date(selectedResetRequest.requestedAt).toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* New Password Input Form */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!newPasswordInput || newPasswordInput.length < 4) {
+                  toast.error('New password must be at least 4 characters long.')
+                  return
+                }
+                setIsSettingPassword(true)
+                try {
+                  const res = await resolvePasswordResetRequest(
+                    selectedResetRequest.id,
+                    newPasswordInput,
+                    currentUser
+                  )
+                  if (res.success) {
+                    toast.success(`New password set successfully for ${selectedResetRequest.userName}!`)
+                    setIsResetModalOpen(false)
+                    setSelectedResetRequest(null)
+                    setNewPasswordInput('')
+                  } else {
+                    toast.error(res.message || 'Failed to update password')
+                  }
+                } catch (err: any) {
+                  toast.error(err?.message || 'Error updating password')
+                } finally {
+                  setIsSettingPassword(false)
+                }
+              }}
+              className="space-y-3"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="admin-new-pw" className="font-semibold text-[11px]">
+                    Enter New Password for User *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const samplePasswords = ['Meridian@2026', 'Factory@789', 'IndiaPlant#2026', 'Pass#SMT88']
+                      const chosen = samplePasswords[Math.floor(Math.random() * samplePasswords.length)]
+                      setNewPasswordInput(chosen)
+                    }}
+                    className="text-[10px] text-[var(--acc)] hover:underline cursor-pointer font-semibold"
+                  >
+                    🎲 Suggest Password
+                  </button>
+                </div>
+                <input
+                  id="admin-new-pw"
+                  type="text"
+                  required
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="e.g. Meridian@2026"
+                  className="w-full px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surf)] text-[var(--ink)] font-mono text-xs focus:outline-none focus:border-[var(--acc)]"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-700 dark:text-emerald-300">
+                ✓ Saving will immediately unlock account lockout and activate this new password for {selectedResetRequest.userName} across all workshop terminals.
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSettingPassword}
+                  className="flex-1 py-2 px-3 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  {isSettingPassword ? (
+                    <span>⏳ Saving password...</span>
+                  ) : (
+                    <>
+                      <span>✓</span>
+                      <span>Confirm & Apply New Password</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsResetModalOpen(false)
+                    setSelectedResetRequest(null)
+                    setNewPasswordInput('')
+                  }}
+                  className="px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--line)] text-[var(--ink)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

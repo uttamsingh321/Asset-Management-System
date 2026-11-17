@@ -540,4 +540,54 @@ class ReprintAuditLog(models.Model):
         }
 
 
+class PasswordResetRequest(models.Model):
+    """
+    Enterprise Password Reset Governance Workflow:
+    When an employee clicks "Forgot password?", a request is submitted.
+    Super User is notified with the employee's name, user_id, department, plant, and timestamp.
+    Super User sets the new password directly from the governance center / notifications.
+    """
+    STATUS_CHOICES = [
+        ("pending", "Pending Super User Reset"),
+        ("completed", "Completed / Reset"),
+        ("rejected", "Rejected"),
+    ]
+
+    id = models.CharField(max_length=64, primary_key=True)
+    user_id = models.CharField(max_length=64, db_index=True)
+    user_name = models.CharField(max_length=128)
+    department = models.CharField(max_length=128, blank=True)
+    plant = models.CharField(max_length=128, blank=True)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="pending", db_index=True)
+    requested_at = models.DateTimeField(default=timezone.now, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.CharField(max_length=128, blank=True)
+    resolver_user_id = models.CharField(max_length=64, blank=True)
+    new_password_set = models.BooleanField(default=False)
+    notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+        verbose_name = "Password Reset Request"
+        verbose_name_plural = "Password Reset Requests"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "requestId": self.id,
+            "userId": self.user_id,
+            "userName": self.user_name,
+            "department": self.department,
+            "plant": self.plant,
+            "status": self.status,
+            "requestedAt": self.requested_at.isoformat() if self.requested_at else None,
+            "resolvedAt": self.resolved_at.isoformat() if self.resolved_at else None,
+            "resolvedBy": self.resolved_by,
+            "resolverUserId": self.resolver_user_id,
+            "newPasswordSet": self.new_password_set,
+            "notes": self.notes,
+        }
+
+
+
 

@@ -2,6 +2,7 @@ import * as React from 'react'
 import type { Language } from '@/lib/indiaLocale'
 import type { UserProfile } from '@/lib/deviceTracker'
 import { masterMappingService } from '@/lib/masterMappingService'
+import { submitPasswordResetRequest } from '@/lib/passwordResetService'
 import { toast } from 'sonner'
 
 export function findLocalRBACUser(id: string) {
@@ -113,6 +114,64 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [failedAttempts, setFailedAttempts] = React.useState(0)
   const [lockoutRemaining, setLockoutRemaining] = React.useState<number | null>(null)
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = React.useState(false)
+
+  // Password Reset Request states (Notifies Super User)
+  const [resetUserId, setResetUserId] = React.useState('')
+  const [resetReason, setResetReason] = React.useState('Forgot password / unable to log in')
+  const [isSubmittingReset, setIsSubmittingReset] = React.useState(false)
+  const [resetSubmittedData, setResetSubmittedData] = React.useState<{
+    userName: string
+    userId: string
+    plant: string
+    requestId: string
+  } | null>(null)
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const clean = (resetUserId || '').trim()
+    if (!clean) {
+      toast.error(lang === 'hi' ? 'कृपया कर्मचारी आईडी दर्ज करें' : 'Please enter your Employee ID / User ID')
+      return
+    }
+
+    if (['USR-ADMIN', 'SUPERUSER', 'ADMIN'].includes(clean.toUpperCase())) {
+      toast.error(
+        lang === 'hi'
+          ? 'सुपरयूज़र खाता केवल सिस्टम आर्किटेक्चर द्वारा प्रबंधित किया जा सकता है।'
+          : 'Super User accounts have master governance authority and cannot request self-reset from worker terminals.'
+      )
+      return
+    }
+
+    setIsSubmittingReset(true)
+    try {
+      const res = await submitPasswordResetRequest({
+        userId: clean,
+        plant: selectedFactory,
+        reason: resetReason,
+      })
+
+      if (res.success && res.request) {
+        setResetSubmittedData({
+          userName: res.request.userName,
+          userId: res.request.userId,
+          plant: res.request.plant || selectedFactory,
+          requestId: res.request.id,
+        })
+        toast.success(
+          lang === 'hi'
+            ? `पासवर्ड रीसेट अनुरोध भेजा गया! सुपरयूज़र (${res.request.userName}) को सूचित कर दिया गया है।`
+            : `Password reset request submitted! Super User notified for ${res.request.userName}.`
+        )
+      } else {
+        toast.error(res.message || 'Failed to submit password reset request.')
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error submitting password reset request.')
+    } finally {
+      setIsSubmittingReset(false)
+    }
+  }
 
   // Detect scanned asset code from deep-link URL if user arrived via barcode / QR scan
   const scannedAssetCode = React.useMemo(() => {
@@ -613,7 +672,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setIsForgotPasswordOpen(true)}
+                  onClick={() => {
+                    setResetUserId(userId)
+                    setResetSubmittedData(null)
+                    setIsForgotPasswordOpen(true)
+                  }}
                   className="text-[11px] text-[#4d88ff] hover:underline cursor-pointer"
                   style={{ color: '#4d88ff', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
@@ -795,11 +858,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <div className="flex items-center justify-between border-b border-white/10 pb-3" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
               <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="text-xl">🔐</span>
-                <h3 className="text-sm font-bold" style={{ fontSize: '14px', fontWeight: 700 }}>Credential Reset Policy</h3>
+                <h3 className="text-sm font-bold" style={{ fontSize: '14px', fontWeight: 700 }}>
+                  {lang === 'hi' ? 'पासवर्ड रीसेट अनुरोध (सुपरयूज़र)' : 'Password Reset Request to Super User'}
+                </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsForgotPasswordOpen(false)}
+                onClick={() => {
+                  setIsForgotPasswordOpen(false)
+                  setResetSubmittedData(null)
+                }}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10"
                 style={{
                   width: '28px',
@@ -816,56 +884,136 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3 text-white/80 leading-relaxed" style={{ fontSize: '12px', lineHeight: 1.6, color: 'rgba(255,255,255,0.85)' }}>
-              <p>
-                In compliance with strict industrial asset governance and Indian plant security guidelines, <b>random password resets and email links are disabled</b>.
-              </p>
-              <div
-                className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-1"
-                style={{
-                  padding: '12px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  marginTop: '10px',
-                  marginBottom: '10px',
-                }}
-              >
-                <div className="font-bold text-white" style={{ fontWeight: 700, color: '#ffffff' }}>How to reset your password:</div>
-                <div className="text-[11px] text-white/70" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>
-                  1. Contact your Plant Manager or the Factory Superuser.
+            {resetSubmittedData ? (
+              <div className="space-y-4 text-center py-2">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center text-2xl font-bold border border-emerald-500/30">
+                  ✓
                 </div>
-                <div className="text-[11px] text-white/70" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>
-                  2. Verify your Employee ID and Department in person or via factory internal intercom.
+                <div>
+                  <h4 className="text-sm font-bold text-white">
+                    {lang === 'hi' ? 'सुपरयूज़र को सूचना भेज दी गई है' : 'Super User Notified Successfully!'}
+                  </h4>
+                  <p className="text-[11px] text-white/70 mt-1">
+                    {lang === 'hi'
+                      ? 'आपके पासवर्ड रीसेट का अनुरोध सुपरयूज़र को प्राप्त हो गया है।'
+                      : 'A password reset notification has been dispatched to the Super User Approval Center.'}
+                  </p>
                 </div>
-                <div className="text-[11px] text-white/70" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>
-                  3. The Superuser will set your new password directly in the RBAC Management Console and hand over your updated credential card.
-                </div>
-              </div>
-              <div className="font-mono text-[10px] text-white/60" style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>
-                Factory IT Support: ext. 4401 · it.support@meridian.com
-              </div>
-            </div>
 
-            <div className="pt-2" style={{ paddingTop: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setIsForgotPasswordOpen(false)}
-                className="w-full py-2.5 rounded-xl font-bold bg-[#165DFF] text-white hover:bg-[#1249cb]"
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '10px',
-                  backgroundColor: '#165DFF',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                Understood / समझ आ गया
-              </button>
-            </div>
+                <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 text-left space-y-1.5 text-[11px]">
+                  <div className="flex justify-between">
+                    <span className="text-white/60">Requester Name:</span>
+                    <span className="font-bold text-white">{resetSubmittedData.userName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/60">Employee / User ID:</span>
+                    <span className="font-mono font-bold text-blue-400">{resetSubmittedData.userId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/60">Factory Plant:</span>
+                    <span className="text-white">{resetSubmittedData.plant}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/60">Request Ticket:</span>
+                    <span className="font-mono text-emerald-400">{resetSubmittedData.requestId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/60">Status:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]">
+                      ⏳ Pending Super User Action
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-200 text-left leading-relaxed">
+                  ℹ️ <b>Next step:</b> Contact your Super User or Plant Admin. The Super User has your request in their Approval Center and will set your new password. Once set, you can immediately sign in with it here.
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPasswordOpen(false)
+                    setResetSubmittedData(null)
+                  }}
+                  className="w-full py-2.5 rounded-xl font-bold bg-[#165DFF] hover:bg-[#1249cb] text-white cursor-pointer transition shadow-md"
+                >
+                  {lang === 'hi' ? 'साइन इन पर वापस जाएं' : 'Return to Sign In'}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResetSubmit} className="space-y-3.5 text-xs">
+                <div className="text-white/80 leading-relaxed text-[11px]">
+                  {lang === 'hi'
+                    ? 'औद्योगिक सुरक्षा नियम के अनुसार, पासवर्ड रीसेट का अनुरोध सुपरयूज़र को भेजा जाता है जो आपके लिए नया पासवर्ड सेट करेंगे।'
+                    : 'In compliance with industrial security rules, password resets are governed by the Super User. Submit your details below to notify the Super User to set a new password for your account.'}
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="reset-user-id" className="block text-[11px] font-semibold text-white/90">
+                    {lang === 'hi' ? 'कर्मचारी आईडी / यूज़र आईडी *' : 'Employee ID / User ID *'}
+                  </label>
+                  <input
+                    id="reset-user-id"
+                    type="text"
+                    required
+                    value={resetUserId}
+                    onChange={(e) => setResetUserId(e.target.value)}
+                    placeholder="e.g. 19102709, SMT-101, MNT-202"
+                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/30 text-xs focus:outline-none focus:border-[#165DFF]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-white/90">
+                    {lang === 'hi' ? 'फैक्टरी / विनिर्माण संयंत्र' : 'Factory / Manufacturing Plant'}
+                  </label>
+                  <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 text-[11px]">
+                    🏭 {selectedFactory}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="reset-reason" className="block text-[11px] font-semibold text-white/90">
+                    {lang === 'hi' ? 'अनुरोध का कारण / टिप्पणी' : 'Reason / Note'}
+                  </label>
+                  <input
+                    id="reset-reason"
+                    type="text"
+                    value={resetReason}
+                    onChange={(e) => setResetReason(e.target.value)}
+                    placeholder="e.g. Forgot password, locked out, terminal change"
+                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/30 text-xs focus:outline-none focus:border-[#165DFF]"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingReset}
+                    className="flex-1 py-2.5 rounded-xl font-bold bg-[#165DFF] hover:bg-[#1249cb] text-white disabled:opacity-50 cursor-pointer transition shadow-md flex items-center justify-center gap-2 text-xs"
+                  >
+                    {isSubmittingReset ? (
+                      <span>⏳ Sending request...</span>
+                    ) : (
+                      <>
+                        <span>🔔</span>
+                        <span>{lang === 'hi' ? 'सुपरयूज़र को सूचित करें' : 'Notify Super User for New Password'}</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPasswordOpen(false)
+                      setResetSubmittedData(null)
+                    }}
+                    className="px-3 py-2.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 text-white cursor-pointer text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Asset, AuditLog, UserSession, AppUser, ReprintRequest, ReprintAuditLog
+from .models import Asset, AuditLog, UserSession, AppUser, ReprintRequest, ReprintAuditLog, PasswordResetRequest
 from .device_detector import parse_device_and_browser, _detect_device_type, _detect_os, _detect_browser
 
 
@@ -731,6 +731,94 @@ class RBACUserManagementTests(TestCase):
         self.assertEqual(history_data["firstPrintedBy"], "Ramesh Kumar")
         self.assertEqual(history_data["lastPrintedBy"], "Ramesh Kumar")
         self.assertGreaterEqual(len(history_data["history"]), 4)  # first print, blocked attempt, req submitted, approved, reprint, blocked attempt
+
+    def test_password_reset_governance_workflow(self):
+        # 1. Create employee user and superuser
+        emp = AppUser.objects.create(
+            user_id="19102709",
+            name="Arbind Kumar Singh",
+            department="Production",
+            role="Employee",
+            password="OldSecretPassword123",
+            is_active=True
+        )
+        admin = AppUser.objects.create(
+            user_id="USR-ADMIN",
+            name="Super User",
+            department="IT",
+            role="Admin",
+            password="AdminPassword2026!",
+            is_superuser=True
+        )
+
+        # 2. Superuser self-reset attempt is blocked
+        res_admin_block = self.client.post(
+            reverse('api-password-reset-request'),
+            data=json.dumps({"userId": "USR-ADMIN"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res_admin_block.status_code, 403)
+
+        # 3. Employee requests password reset
+        res_req = self.client.post(
+            reverse('api-password-reset-request'),
+            data=json.dumps({
+                "userId": "19102709",
+                "plant": "Noida Plant",
+                "notes": "Forgot password on morning shift",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_req.status_code, 201)
+        req_data = res_req.json()
+        self.assertTrue(req_data["success"])
+        self.assertEqual(req_data["request"]["userName"], "Arbind Kumar Singh")
+        self.assertEqual(req_data["request"]["status"], "pending")
+        req_id = req_data["request"]["id"]
+
+        # 4. Superuser queries pending password reset requests
+        res_list = self.client.get(reverse('api-password-reset-requests'), {"status": "pending"})
+        self.assertEqual(res_list.status_code, 200)
+        requests = res_list.json()["requests"]
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0]["userId"], "19102709")
+
+        # 5. Non-superuser cannot resolve request (unauthorized)
+        res_unauth = self.client.post(
+            reverse('api-password-reset-resolve', kwargs={"request_id": req_id}),
+            data=json.dumps({
+                "userId": "SOME-EMP",
+                "userName": "Normal Emp",
+                "role": "Employee",
+                "newPassword": "HackedPassword123",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_unauth.status_code, 403)
+
+        # 6. Superuser sets new password
+        res_resolve = self.client.post(
+            reverse('api-password-reset-resolve', kwargs={"request_id": req_id}),
+            data=json.dumps({
+                "userId": "USR-ADMIN",
+                "userName": "Super User",
+                "role": "Admin",
+                "newPassword": "NewStrongPassword2026!",
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res_resolve.status_code, 200)
+        self.assertTrue(res_resolve.json()["success"])
+
+        # 7. Verify AppUser password updated and request marked completed
+        emp.refresh_from_db()
+        self.assertEqual(emp.password, "NewStrongPassword2026!")
+
+        reset_req = PasswordResetRequest.objects.get(id=req_id)
+        self.assertEqual(reset_req.status, "completed")
+        self.assertEqual(reset_req.resolved_by, "Super User")
+        self.assertTrue(reset_req.new_password_set)
+
 
 
 

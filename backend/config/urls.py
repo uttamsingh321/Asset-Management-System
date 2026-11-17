@@ -25,6 +25,8 @@ from dashboard.views import (
     api_reprint_requests,
     api_reprint_request_action,
     api_reprint_history,
+    api_password_reset_request,
+    api_password_reset_resolve,
 )
 
 urlpatterns = [
@@ -60,6 +62,10 @@ urlpatterns = [
     # Asset Transfer Approval Workflow (Sequential RBAC)
     path('api/transfers/', api_transfers, name='api-transfers'),
     path('api/transfers/<str:transfer_id>/action/', api_transfer_action, name='api-transfer-action'),
+    # Master Governance: Super User Password Reset Requests
+    path('api/auth/password-reset-request/', api_password_reset_request, name='api-password-reset-request'),
+    path('api/auth/password-reset-requests/', api_password_reset_request, name='api-password-reset-requests'),
+    path('api/auth/password-reset-resolve/<str:request_id>/', api_password_reset_resolve, name='api-password-reset-resolve'),
     # Master Mapping & RBAC Administration Module
     path('api/master-mapping/', include('master_mapping.urls')),
 ]
