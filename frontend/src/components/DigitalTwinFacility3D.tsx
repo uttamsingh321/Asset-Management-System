@@ -3,6 +3,9 @@ import type { Asset } from '@/types/asset'
 import { resolveMajorAssetCategory, MAJOR_ASSET_CATEGORIES } from '@/types/asset'
 import { exportAssetsToExcel } from '@/lib/excelExport'
 import { toast } from 'sonner'
+import Gis from '../digitalTwin/Gis'
+import { DIM } from '../digitalTwin/data'
+import '../digitalTwin/digitalTwin.css'
 
 // ── Full-screen asset detail modal shown when user clicks any asset node ──────
 interface AssetDetailModalProps {
@@ -228,7 +231,7 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
     activeBuildingFilter !== 'All' ? activeBuildingFilter : 'C39'
   )
   const [viewMode, setViewMode] = useState<ViewMode3D>('isometric')
-  const [visualizerMode, setVisualizerMode] = useState<'3d' | 'blueprint' | 'data'>('3d')
+  const [visualizerMode, setVisualizerMode] = useState<'3d' | 'gis' | 'blueprint' | 'data'>('3d')
   const [assetScope, setAssetScope] = useState<AssetScope>('all')
   const [activeFloorIndex, setActiveFloorIndex] = useState<number>(1) // default to 1st Floor / SMT
   const [activeNode, setActiveNode] = useState<Asset | null>(null)
@@ -749,6 +752,18 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--surf2)] p-1 rounded-xl border border-[var(--line)] text-xs font-bold">
           <button
             type="button"
+            onClick={() => setVisualizerMode('gis')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+              visualizerMode === 'gis'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-[var(--mute)] hover:text-[var(--ink)]'
+            }`}
+          >
+            <span>🌐</span>
+            <span>GIS Site Map</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setVisualizerMode('3d')}
             className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
               visualizerMode === '3d'
@@ -905,6 +920,20 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
         </div>
       </div>
 
+      {/* ── MODE 0: GIS Campus Map ── */}
+      {visualizerMode === 'gis' && (
+        <div className="dt my-3 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+          <Gis
+            co="All"
+            onOpen={(bId: string) => {
+              setSelectedBuildingId(bId)
+              setVisualizerMode('3d')
+              if (onSelectBuilding) onSelectBuilding(bId)
+            }}
+          />
+        </div>
+      )}
+
       {/* ── MODE 1: 3D Spatial Visualizer Stage ── */}
       {visualizerMode === '3d' && (
         <div
@@ -917,7 +946,7 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
-          className={`relative my-3 flex h-[420px] md:h-[480px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#080B13] border border-slate-800 shadow-2xl select-none touch-none ${
+          className={`dt relative my-3 flex h-[480px] md:h-[560px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#080B13] border border-slate-800 shadow-2xl select-none touch-none ${
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
           }`}
           style={{ perspective: '1200px', touchAction: 'none', overscrollBehavior: 'contain' }}
@@ -984,16 +1013,16 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
             style={{
               transformStyle: 'preserve-3d',
               transform: transform3D,
-              width: '480px',
-              height: '480px',
+              width: '560px',
+              height: '420px',
             }}
           >
             {/* Foundation Heavy Slab */}
             <div
               className="absolute rounded-3xl border-2 shadow-2xl backdrop-blur-xs transition-transform duration-500"
               style={{
-                width: '420px',
-                height: '420px',
+                width: '540px',
+                height: '400px',
                 transform: 'translateZ(-50px)',
                 borderColor: selectedBuilding.color,
                 backgroundColor: 'rgba(11, 15, 25, 0.75)',
@@ -1009,8 +1038,8 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
             {/* Corner Structural Pillars in Exploded Mode */}
             {viewMode === 'exploded' && (
               <>
-                {[-190, 190].map((cx) =>
-                  [-190, 190].map((cy) => (
+                {[-240, 240].map((cx) =>
+                  [-170, 170].map((cy) => (
                     <div
                       key={`pillar-${cx}-${cy}`}
                       className="absolute w-2 bg-gradient-to-t from-blue-500/40 via-cyan-400/40 to-blue-500/40 rounded-full"
@@ -1050,8 +1079,8 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                       : 'border-slate-700/50 bg-slate-900/35 hover:border-slate-500 hover:bg-slate-800/40 opacity-70'
                   }`}
                   style={{
-                    width: `${380 - fIdx * 14}px`,
-                    height: `${380 - fIdx * 14}px`,
+                    width: `${500 - fIdx * 12}px`,
+                    height: `${350 - fIdx * 10}px`,
                     transform: `translateZ(${zDistance}px)`,
                     transformStyle: 'preserve-3d',
                   }}
@@ -1121,6 +1150,38 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                     })}
                   </div>
 
+                  {/* Industrial Conveyor Belt */}
+                  {(floor.name.toLowerCase().includes('smt') || floor.name.toLowerCase().includes('production') || fIdx === 1) && (
+                    <div
+                      className="conv pointer-events-none"
+                      style={{
+                        position: 'absolute',
+                        left: '6%',
+                        right: '6%',
+                        top: '52%',
+                        height: '8px',
+                        transform: 'translateZ(4px)',
+                        zIndex: 2,
+                      }}
+                    />
+                  )}
+
+                  {/* Lift Core */}
+                  <div
+                    className="core pointer-events-none"
+                    style={{
+                      position: 'absolute',
+                      left: '46.5%',
+                      top: '2%',
+                      width: '42px',
+                      height: '24px',
+                      transform: 'translateZ(4px)',
+                      zIndex: 2,
+                    }}
+                  >
+                    <span>LIFT</span>
+                  </div>
+
                   {/* Equipment Hotspot Nodes on this Floor */}
                   <div className="absolute inset-0 p-6 flex flex-wrap items-center justify-around gap-4 pointer-events-none">
                     {floorAssets.slice(0, 12).map((asset, nodeIdx) => {
@@ -1128,6 +1189,15 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                       const isMaintenance = asset.status === 'Maintenance' || asset.status === 'Under Repair'
                       const nodeColor = isOperational ? '#10B981' : isMaintenance ? '#EF4444' : '#F59E0B'
                       const isSelectedNode = activeNode?.assetCode === asset.assetCode
+
+                      const catKey = asset.currentCategory?.includes('Machin')
+                        ? 'Fixed assets'
+                        : asset.currentCategory?.includes('Tool')
+                        ? 'Tools'
+                        : asset.currentCategory?.includes('Access')
+                        ? 'Accessories'
+                        : 'Fixtures'
+                      const d = DIM[catKey] || [26, 16, 16, '#243044']
 
                       return (
                         <div
@@ -1144,6 +1214,29 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                             transform: `translateZ(${isSelectedNode ? '28px' : '18px'}) scale(${isSelectedNode ? 1.3 : 1})`,
                           }}
                         >
+                          {/* 3D Cyberpunk Machine Extruded Box */}
+                          <div
+                            className={`m ${isSelectedNode ? 'sel' : ''}`}
+                            style={{
+                              position: 'absolute',
+                              top: '-14px',
+                              '--w': `${d[0]}px`,
+                              '--d': `${d[1]}px`,
+                              '--h': `${d[2]}px`,
+                              '--b': d[3],
+                              '--c': nodeColor,
+                              transformStyle: 'preserve-3d',
+                            } as React.CSSProperties}
+                          >
+                            <i className="ft" />
+                            <i className="ff" />
+                            <i className="fb" />
+                            <i className="fr2" />
+                            <i className="fl2" />
+                            <i className="tw" />
+                            <i className="tw2" />
+                          </div>
+
                           <span
                             className={`absolute h-9 w-9 rounded-full ${isSelectedNode ? 'animate-ping opacity-80' : 'animate-pulse opacity-40'} pointer-events-none`}
                             style={{ background: nodeColor }}

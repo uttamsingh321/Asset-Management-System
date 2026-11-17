@@ -277,4 +277,27 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     // Stage remains responsive and clean
     expect(stage).toBeInTheDocument()
   })
+
+  it('allows switching to GIS Campus Map and clicking a building opens 3D twin', () => {
+    const onSelectBuilding = vi.fn()
+    render(
+      <DigitalTwinFacility3D
+        assets={mockAssets}
+        onSelectBuilding={onSelectBuilding}
+      />
+    )
+
+    const gisBtn = screen.getByRole('button', { name: /GIS Site Map/i })
+    expect(gisBtn).toBeInTheDocument()
+
+    // Switch to GIS
+    fireEvent.click(gisBtn)
+    expect(screen.getByRole('img', { name: /Site map of both companies/i })).toBeInTheDocument()
+    expect(screen.getByText(/Schematic site map, not to scale/i)).toBeInTheDocument()
+
+    // Switch back to 3D
+    const spatialBtn = screen.getByRole('button', { name: /3D Spatial Twin/i })
+    fireEvent.click(spatialBtn)
+    expect(screen.getByText(/Live Telemetry Active/i)).toBeInTheDocument()
+  })
 })

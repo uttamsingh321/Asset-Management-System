@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Digital Twin Facility Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#04060c}
+.dt{--bg:#04060c;--bg1:#0a1020;--bg2:#101a30;--line:#17355a;--cy:#00e5ff;--mg:#ff2bd6;--lime:#39ff88;--am:#ffb020;--tx:#d4eaff;--mu:#7f9bbd;--glow:rgba(0,229,255,.35);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dt,.dt *{box-sizing:border-box}
+.dt .wrap{max-width:1320px;margin:0 auto;padding:16px}
+.dt header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.dt h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.3px}
+.dt .sub{color:var(--mu);font-size:12px;margin-top:2px}
+.dt .live{display:inline-flex;align-items:center;gap:6px;color:var(--lime);font-size:12px;border:1px solid var(--lime);border-radius:99px;padding:2px 10px;margin-left:8px}
+.dt .live i{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);animation:dtp 1.6s infinite}
+@keyframes dtp{50%{opacity:.3}}
+.dt .chips{display:flex;flex-wrap:wrap;gap:6px}
+.dt .chip{background:var(--bg1);border:1px solid var(--line);color:var(--tx);padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:12px}
+.dt .chip:hover{border-color:var(--cy)}
+.dt .chip.on{border-color:var(--cy);box-shadow:0 0 12px var(--glow) inset,0 0 10px var(--glow);color:var(--cy)}
+.dt .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.dt .kpi{background:var(--bg1);border:1px solid var(--line);border-left:3px solid var(--cy);border-radius:8px;padding:10px 14px}
+.dt .kpi b{display:block;font-size:24px;font-weight:600}
+.dt .kpi span{color:var(--mu);font-size:12px}
+.dt .main{display:grid;grid-template-columns:150px 1fr 270px;gap:10px}
+.dt .rail{display:flex;flex-direction:column;gap:8px}
+.dt .fl{background:var(--bg1);border:1px solid var(--line);border-radius:8px;padding:9px 10px;cursor:pointer;text-align:left;color:var(--tx);font:inherit;transition:.2s}
+.dt .fl:hover{border-color:var(--cy)}
+.dt .fl.on{border-color:var(--cy);box-shadow:0 0 14px var(--glow);background:var(--bg2)}
+.dt .fl b{display:block;font-size:13px}
+.dt .fl small{color:var(--mu);font-size:11px}
+.dt .bar{height:4px;border-radius:4px;background:var(--bg);margin-top:6px;overflow:hidden;display:flex}
+.dt .bar i{display:block;height:100%}
+.dt .stagebox{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:radial-gradient(600px 300px at 50% 60%,rgba(0,229,255,.10),transparent),#050912;min-height:540px}
+.dt .stage{position:absolute;inset:0;perspective:1500px;cursor:grab;touch-action:none}
+.dt .stage:active{cursor:grabbing}
+.dt .world{position:absolute;left:50%;top:52%;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.dt .world.drag{transition:none}
+.dt .floor{position:absolute;width:460px;height:310px;margin:-155px 0 0 -230px;transform-style:preserve-3d;border:1px solid rgba(0,229,255,.45);background:linear-gradient(135deg,rgba(0,229,255,.10),rgba(255,43,214,.05)),repeating-linear-gradient(0deg,rgba(0,229,255,.12) 0 1px,transparent 1px 26px),repeating-linear-gradient(90deg,rgba(0,229,255,.12) 0 1px,transparent 1px 26px);transition:transform .6s cubic-bezier(.2,.8,.2,1),opacity .4s,box-shadow .4s;cursor:pointer;color:#d4eaff}
+.dt .floor.dim{opacity:.45}
+.dt .fname{position:absolute;left:8px;bottom:6px;font-size:13px;font-weight:600;color:#00e5ff;text-shadow:0 0 8px #00e5ff}
+.dt .zone{position:absolute;border:1px dashed rgba(0,229,255,.55);transform-style:preserve-3d;--wh:7px;transition:background .3s,border-color .3s}
+.dt .zone span{position:absolute;left:5px;top:3px;font-size:10px;color:#9fe9ff}
+.dt .zone.pick{border-style:solid;border-color:#ff2bd6;box-shadow:0 0 14px rgba(255,43,214,.6) inset}
+.dt .m{position:absolute;width:var(--w);height:var(--d);margin:calc(var(--d)/-2) 0 0 calc(var(--w)/-2);transform-style:preserve-3d;cursor:pointer}
+.dt .m>i{position:absolute;display:block;background-color:var(--b)}
+.dt .ft{left:0;top:0;width:100%;height:100%;transform:translateZ(var(--h))}
+.dt .ft::after{content:'';position:absolute;right:3px;top:3px;width:3px;height:3px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c)}
+.dt .ff,.dt .fb{left:0;width:100%;height:var(--h);transform-origin:0 0;transform:rotateX(90deg)}
+.dt .ff{top:100%;background-image:linear-gradient(rgba(0,0,0,.18),rgba(0,0,0,.18))}
+.dt .fb{top:0;background-image:linear-gradient(rgba(0,0,0,.4),rgba(0,0,0,.4))}
+.dt .fr2,.dt .fl2{top:0;width:var(--h);height:100%;transform-origin:0 0;transform:rotateY(-90deg)}
+.dt .fr2{left:100%;background-image:linear-gradient(rgba(0,0,0,.32),rgba(0,0,0,.32))}
+.dt .fl2{left:0;background-image:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45))}
+.dt .w{position:absolute;display:block;pointer-events:none}
+.dt .wn,.dt .ws{left:0;width:100%;height:var(--wh);transform-origin:0 0;transform:rotateX(90deg)}
+.dt .wn{top:0}
+.dt .ws{top:100%;-webkit-mask:linear-gradient(90deg,#000 0 36%,transparent 36% 60%,#000 60%);mask:linear-gradient(90deg,#000 0 36%,transparent 36% 60%,#000 60%)}
+.dt .ww,.dt .we{top:0;height:100%;width:var(--wh);transform-origin:0 0;transform:rotateY(-90deg)}
+.dt .ww{left:0}.dt .we{left:100%}
+.dt .conv{position:absolute;left:6%;right:6%;top:55%;height:7px;margin-top:-3px;animation:dtcv 1s linear infinite}
+@keyframes dtcv{to{background-position:16px 0}}
+.dt .aisle{position:absolute;left:50%;top:0;bottom:0}
+.dt .core{position:absolute;left:46.5%;top:2%;width:7%;height:11%;font-size:9px;display:flex;align-items:center;justify-content:center;font-style:normal}
+.dt .sl{position:absolute;display:block}
+.dt .sls{left:0;top:100%;width:100%;height:7px;transform-origin:0 0;transform:rotateX(90deg)}
+.dt .sle{left:100%;top:0;width:7px;height:100%;transform-origin:0 0;transform:rotateY(-90deg)}
+.dt .floor.hide{opacity:0;pointer-events:none}
+.dt .floor.on{background-color:#a9b5c1;background-image:radial-gradient(ellipse at 40% 30%,rgba(255,255,255,.4),transparent 65%),repeating-linear-gradient(0deg,rgba(40,55,70,.2) 0 1px,transparent 1px 38px),repeating-linear-gradient(90deg,rgba(40,55,70,.2) 0 1px,transparent 1px 38px);border:2px solid #56677a;box-shadow:0 26px 50px rgba(0,0,0,.7),0 0 0 1px rgba(0,229,255,.5)}
+.dt .floor.on .fname{color:rgba(25,40,55,.5);text-shadow:none;font-size:18px;letter-spacing:1px;left:14px;bottom:12px}
+.dt .floor.on .zone{border:2px solid #e0a800;background:rgba(95,130,160,.16);--wh:16px}
+.dt .floor.on .zone:has(.conv){background:rgba(60,160,150,.24)}
+.dt .floor.on .zone.pick{border-color:#ff2bd6}
+.dt .floor.on .zone span{color:#1b2d3f;font-weight:600;font-size:11px;text-shadow:0 0 3px rgba(255,255,255,.5)}
+.dt .floor.on .aisle{border-left:3px dashed #e0a800}
+.dt .floor.on .core{background:#8794a3;border:2px solid #4b5866;color:#10202e;font-weight:600}
+.dt .floor.on .wn,.dt .floor.on .ws{background:linear-gradient(#eef2f5 0 58%,rgba(140,205,225,.6) 58% 86%,#eef2f5 86%);border-bottom:2px solid #5f6f7f}
+.dt .floor.on .ww,.dt .floor.on .we{background:linear-gradient(90deg,#eef2f5 0 58%,rgba(140,205,225,.6) 58% 86%,#eef2f5 86%);border-right:2px solid #5f6f7f}
+.dt .floor.on .ws{height:9px}.dt .floor.on .we{width:9px}
+.dt .world.fm .floor.on .zone{--wh:32px}
+.dt .floor.on .conv{height:9px;border-top:2px solid #a3afbb;border-bottom:2px solid #a3afbb;background:repeating-linear-gradient(90deg,#1c1f24 0 6px,#2c3036 6px 12px)}
+.dt .floor.on .sls{background:linear-gradient(#8f9aa6,#5a6570)}
+.dt .floor.on .sle{background:linear-gradient(90deg,#78838f,#46505a)}
+.dt .m::before{content:'';position:absolute;background:#000;opacity:.5;filter:blur(4px);left:-2px;top:2px;right:-7px;bottom:-7px}
+.dt .ft{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.14) 0 1px,transparent 1px 9px),linear-gradient(rgba(255,255,255,.22),rgba(255,255,255,.22))}
+.dt .ff::after{content:'';position:absolute;left:12%;top:22%;width:42%;height:40%;background:#0d2c3d;border:1px solid #4a5560;box-shadow:inset 0 0 5px #5fd8ff}
+.dt .rk .ff::after{left:10%;top:6%;width:80%;height:88%;border:0;background:repeating-linear-gradient(#0a0e14 0 2px,#1d2733 2px 4px);box-shadow:inset 0 0 0 1px #3a4655}
+.dt .tw2,.dt .m>.tw{left:calc(50% - 1.5px);top:50%;width:3px;height:13px;transform-origin:0 0;background-image:linear-gradient(#3b4048 0 45%,var(--c) 45%);box-shadow:0 0 7px var(--c)}
+.dt .m>.tw{transform:translateZ(var(--h)) rotateX(90deg)}
+.dt .tw2{transform:translateZ(var(--h)) rotateZ(90deg) rotateX(90deg)}
+.dt .m.dm i,.dt .m.dm::before{opacity:.12}
+.dt .m.sel .ft{background-color:#ff2bd6;animation:dtp 1s infinite}
+.dt .hud{position:absolute;pointer-events:none;color:#d4eaff;font-size:12px}
+.dt .corner{position:absolute;width:18px;height:18px;border:2px solid #00e5ff;pointer-events:none}
+.dt .tl{left:8px;top:8px;border-right:0;border-bottom:0}
+.dt .tr{right:8px;top:8px;border-left:0;border-bottom:0}
+.dt .bl{left:8px;bottom:8px;border-right:0;border-top:0}
+.dt .br{right:8px;bottom:8px;border-left:0;border-top:0}
+.dt .tools{position:absolute;left:14px;top:14px;display:flex;flex-wrap:wrap;gap:6px;z-index:3;max-width:70%}
+.dt .tools .chip{background:rgba(5,9,18,.8);color:#d4eaff;backdrop-filter:blur(6px)}
+.dt .read{right:16px;top:16px;text-align:right;line-height:1.5}
+.dt .tip{position:fixed;z-index:20;pointer-events:none;background:rgba(5,9,18,.95);border:1px solid #00e5ff;border-radius:8px;padding:8px 10px;font-size:12px;color:#d4eaff;box-shadow:0 0 16px rgba(0,229,255,.4)}
+.dt .help{left:16px;bottom:14px;color:#7f9bbd}
+.dt .drawer{background:var(--bg1);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:200px}
+.dt .drawer h3{margin:0 0 4px;font-size:16px}
+.dt .row{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.dt .row span{color:var(--mu)}
+.dt .pill{display:inline-block;padding:1px 9px;border-radius:99px;font-size:11px;border:1px solid var(--c);color:var(--c)}
+.dt .empty{color:var(--mu);text-align:center;padding:28px 6px;line-height:1.6}
+.dt .ledger{margin-top:12px;background:var(--bg1);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.dt .lh{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dt .lh input{background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 10px;font:inherit;font-size:12px;min-width:200px}
+.dt .twrap{overflow:auto;max-height:300px}
+.dt table{width:100%;border-collapse:collapse;min-width:640px}
+.dt th{position:sticky;top:0;background:var(--bg2);text-align:left;font-weight:500;color:var(--mu);font-size:12px;padding:8px 14px}
+.dt td{padding:8px 14px;border-top:1px solid var(--line);font-size:13px}
+.dt tr.r{cursor:pointer}
+.dt tr.r:hover td,.dt tr.r.sel td{background:var(--bg2)}
+.dt tr.r.sel td:first-child{box-shadow:inset 3px 0 var(--mg)}
+.dt .note{color:var(--mu);font-size:11px;margin:10px 2px}
+.dt .gis{display:grid;grid-template-columns:1fr 300px;gap:10px}
+.dt .gmap{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#050912}
+.dt #gsvg{display:block;min-height:300px}
+.dt .bd{cursor:pointer;transition:opacity .3s,filter .2s}
+.dt .bd:hover{filter:brightness(1.35) drop-shadow(0 0 10px var(--gc))}
+.dt .gc{background:var(--bg1);border:1px solid var(--line);border-top:3px solid var(--gc);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.dt .gc h4{margin:0 0 8px;font-size:13px;font-weight:600}
+.dt .gb{display:block;width:100%;text-align:left;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 10px;margin-bottom:6px;font:inherit;font-size:13px;cursor:pointer}
+.dt .gb:hover{border-color:var(--gc)}
+.dt .gb small{color:var(--mu);margin-left:6px}
+.dt .fr{display:grid;grid-template-columns:1fr 64px 22px;gap:2px 8px;align-items:center;margin-top:6px;font-size:11px;color:var(--mu)}
+.dt .fr i{height:4px;background:var(--bg2);border-radius:4px;overflow:hidden}
+.dt .fr u{display:block;height:100%;background:var(--gc);text-decoration:none}
+.dt .fr em{font-style:normal;color:var(--tx);text-align:right}
+.dt .dor{position:absolute;left:198px;top:100%;width:36px;height:0;transform-style:preserve-3d}
+.dt .dor i{position:absolute;display:block;transform-origin:0 0}
+.dt .jl,.dt .jr{top:0;width:3px;height:36px;transform:rotateX(90deg);background:#2c3138}
+.dt .jl{left:-3px}.dt .jr{left:100%}
+.dt .lt{left:-3px;top:-2px;width:calc(100% + 6px);height:4px;transform:translateZ(36px);background:#2c3138}
+.dt .lf{left:0;top:0;width:100%;height:34px;transform:rotateX(90deg);background:linear-gradient(#a7b3bf,#7d8b99);border:1px solid #4b5866;transition:transform .8s cubic-bezier(.3,.7,.2,1)}
+.dt .lf::before{content:'';position:absolute;left:16%;right:16%;top:10%;height:40%;background:linear-gradient(135deg,rgba(150,225,255,.8),rgba(50,110,150,.6));border:1px solid #2c3138}
+.dt .lf::after{content:'';position:absolute;right:8%;top:58%;width:4px;height:7px;border-radius:2px;background:#ffcf40}
+.dt .dor.op .lf{transform:rotateZ(-105deg) rotateX(90deg)}
+.dt .stairs{position:absolute;left:189px;top:246px;width:56px;height:60px;background:#59646f;border:1px solid #3a4048}
+.dt .st{pointer-events:none}
+.dt .st .ff::after{display:none}
+.dt .wk .hd,.dt .wk .bo{animation:dtbob .3s infinite alternate}
+.dt .st .ff{background-image:linear-gradient(rgba(0,0,0,.3),rgba(0,0,0,.3))}
+.dt .st .fl2{background-image:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55))}
+.dt .pr{position:absolute;left:0;top:0;transform-style:preserve-3d;transition:transform .3s}
+.dt .bx{position:absolute;width:var(--w);height:var(--d);margin:calc(var(--d)/-2) 0 0 calc(var(--w)/-2);transform-style:preserve-3d}
+.dt .bx>i{position:absolute;display:block;background-color:var(--b)}
+.dt .bx .ft{background-image:linear-gradient(rgba(255,255,255,.22),rgba(255,255,255,.22))}
+.dt .bx .ft::after,.dt .bx .ff::after{display:none}
+.dt .jt{position:absolute;left:0;width:0;height:0;transform-style:preserve-3d;transform:translateZ(var(--pz))}
+.dt .shd{position:absolute;display:block;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.45);filter:blur(2px)}
+.dt .wk .lgA{animation:sw .22s ease-in-out infinite alternate}
+.dt .wk .lgB{animation:sw .22s ease-in-out infinite alternate-reverse}
+.dt .wk .arA{animation:swa .22s ease-in-out infinite alternate-reverse}
+.dt .wk .arB{animation:swa .22s ease-in-out infinite alternate}
+.dt .cl .lgA,.dt .cl .lgB{animation-name:swc}
+@keyframes sw{from{transform:translateZ(var(--pz)) rotateY(-32deg)}to{transform:translateZ(var(--pz)) rotateY(32deg)}}
+@keyframes swa{from{transform:translateZ(var(--pz)) rotateY(-24deg)}to{transform:translateZ(var(--pz)) rotateY(24deg)}}
+@keyframes swc{from{transform:translateZ(var(--pz)) rotateY(-55deg)}to{transform:translateZ(var(--pz)) rotateY(20deg)}}
+@keyframes dtbob{to{transform:translateY(-2px)}}
+.dt .pw{position:absolute;left:0;top:0;transform-style:preserve-3d}
+.dt .pb{position:absolute;left:-6px;top:-30px;width:12px;height:30px;transform-origin:50% 100%;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .3s}
+.dt .world.drag .pb{transition:opacity .3s}
+.dt .pb i{position:absolute;display:block}
+.dt .pb .hd{left:3px;top:0;width:7px;height:7px;border-radius:50%;background:#ffd9b0}
+.dt .pb .bo{left:1px;top:8px;width:10px;height:12px;border-radius:3px;background:#ffb020;box-shadow:0 0 8px #ffb020}
+.dt .pb .lg{top:20px;width:4px;height:10px;background:#2a3d63}
+.dt .pb .l1{left:2px}.dt .pb .l2{left:7px}
+.dt .lg{transform-box:fill-box;transform-origin:50% 0}
+.dt .wk .l1,.dt .wk .l2{animation:dtlg .3s infinite alternate}
+.dt .wk .l2{animation-direction:alternate-reverse}
+@keyframes dtlg{to{transform:scaleY(.55)}}
+@media (max-width:980px){.dt .gis,.dt .main{grid-template-columns:1fr}.dt .rail{flex-direction:row;overflow-x:auto}.dt .rail .fl{min-width:140px}.dt .stagebox{min-height:440px}}
+.dt{background:radial-gradient(1200px 500px at 70% -10%,rgba(0,229,255,.10),transparent),var(--bg);color:var(--tx);font-family:'Chakra Petch',system-ui,sans-serif;font-size:14px;min-height:100vh}
+</style></head>
+<body><div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script type="text/babel">
+const { useEffect, useMemo, useRef, useState } = React;
+const COL = { Deployed: '#39ff88', Pending: '#ffb020', Fault: '#ff3b3b' };
+const FL = [
+  { n: 'Ground floor', z: ['Production'] },
+  { n: '1st floor · SMT', z: ['SMT Line 1 (Cleanroom A)', 'SMT Line 2 (Cleanroom B)'] },
+  { n: '2nd floor · Quality', z: ['Thermal Testing Chamber'] },
+  { n: '3rd floor · Finance & IT', z: ['Finance & Accounts', 'Central Server Room'] },
+];
+const CAT = ['Fixed assets', 'Accessories', 'Tools', 'Fixtures'];
+const PL = [
+  { c: 'TUW1', co: 'Ismartu', b: 'D198', u: 'Transmission' },
+  { c: 'TUW2', co: 'Ismartu', b: 'D198', u: 'Transmission' },
+  { c: 'TUW3', co: 'Ismartu', b: 'D198', u: 'OEM' },
+  { c: 'TUW5', co: 'Ismartu', b: 'C39', u: 'Transmission' },
+  { c: 'TUW6', co: 'Ismartu', b: 'C39', u: 'OEM' },
+  { c: '9502', co: 'Padget', b: 'D197', u: 'Transmission' },
+  { c: '9503', co: 'Padget', b: 'D197', u: 'Transmission' },
+  { c: '9504', co: 'Padget', b: 'D199', u: 'OEM' },
+  { c: '9505', co: 'Padget', b: 'C39', u: 'Transmission' },
+  { c: '9506', co: 'Padget', b: 'C39', u: 'OEM' },
+];
+const CN = { Ismartu: 'Ismartu India Pvt Ltd (5020)', Padget: 'Padget Electronics Pvt Ltd (9500)' };
+const BL = ['C39', 'D197', 'D198', 'D199'];
+const DIM = {
+  'Fixed assets': [28, 16, 17, '#c9d2db'], Accessories: [11, 9, 6, '#8e9aa8'],
+  Tools: [13, 10, 8, '#d4a63a'], Fixtures: [19, 13, 11, '#7d95ab'],
+};
+function buildMachines() {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const M = []; let id = 1;
+  BL.forEach((b) => {
+    const pls = PL.filter((p) => p.b === b);
+    FL.forEach((f, fi) => {
+      const rows = Math.ceil(f.z.length / 2);
+      f.z.forEach((zn, zi) => {
+        const c = zi % 2, r = Math.floor(zi / 2);
+        const x0 = c * 50 + 3, w = f.z.length === 1 ? 94 : 44;
+        const y0 = (r * 100) / rows + 5, h = 100 / rows - 10;
+        const n = fi === 0 && zi === 2 ? 0 : 3 + Math.floor(rnd() * 4);
+        const cols = Math.ceil(n / 2);
+        for (let k = 0; k < n; k++) {
+          const s = rnd(), p = pls[Math.floor(rnd() * pls.length)];
+          M.push({
+            id, b, co: p.co, p: p.c, u: p.u, code: '20' + String(5900 + id * 7), fi, zi, zone: zn,
+            cat: CAT[Math.floor(rnd() * 4)],
+            who: 'USR-' + String(10 + Math.floor(rnd() * 80)).padStart(3, '0'),
+            st: s < 0.62 ? 'Deployed' : s < 0.88 ? 'Pending' : 'Fault',
+            x: x0 + ((k % cols) + 0.5) * w / cols,
+            y: y0 + 12 + (Math.floor(k / cols) + 0.5) * (h - 12) / 2,
+          });
+          id++;
+        }
+      });
+    });
+  });
+  return M;
+}
+
+const CC = {
+  Ismartu: { c: '#00e5ff', l: '#0a2a40', r: '#0d3a58', t: '#1a7fa8', w: '#8ff3ff' },
+  Padget: { c: '#ff2bd6', l: '#35103a', r: '#4a1550', t: '#8a2a92', w: '#ffa0ee' },
+};
+const GB = [
+  { id: 'C39', co: 'Ismartu', x: 10, y: 9, w: 5, d: 7 },
+  { id: 'C39', co: 'Padget', x: 15, y: 9, w: 5, d: 7 },
+  { id: 'D198', co: 'Ismartu', x: 12, y: -1, w: 7, d: 6 },
+  { id: 'D197', co: 'Padget', x: 0, y: 13, w: 6, d: 6 },
+  { id: 'D199', co: 'Padget', x: 0, y: 0, w: 6, d: 5 },
+];
+const SP = [-3.5, 7.5];
+const PX = 216;
+const RT = {
+  C39Ismartu: [[8.5, 7.5], [8.5, 17.2], [12.5, 17.2], [12.5, 16]],
+  C39Padget: [[8.5, 7.5], [8.5, 17.2], [17.5, 17.2], [17.5, 16]],
+  D198Ismartu: [[15.5, 7.5], [15.5, 5]],
+  D197Padget: [[8.5, 7.5], [8.5, 19.9], [3, 19.9], [3, 19]],
+  D199Padget: [[3, 7.5], [3, 5]],
+};
+const DX = (g) => { const r = RT[g.id + g.co]; return r[r.length - 1][0]; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const LABELS = [
+  ['C39 · Sector 57', 'Ismartu 5020 · Padget 9500', 15, 12.5],
+  ['D198', 'Ismartu 5020', 15.5, 2],
+  ['D197', 'Padget 9500', 3, 16],
+  ['D199', 'Padget 9500', 3, 2.5],
+];
+const PLOTS = [[9, 8.4, 12, 8.8, '#7fa0c8'], [11, -2, 9, 8.6, '#00e5ff'], [-1, 12, 8.6, 8.4, '#ff2bd6'], [-1, -1.5, 8, 7.8, '#ff2bd6']];
+const ox = 450, oy = 85, kx = 19.1, ky = 11, FH = 15, HH = 4 * FH;
+const P = (x, y, z) => [ox + (x - y) * kx, oy + (x + y) * ky - z];
+const pts = (a) => a.map((p) => p.map((n) => n.toFixed(1)).join(',')).join(' ');
+const mk = (s) => () => (s = (s * 16807) % 2147483647) / 2147483647;
+
+function Box({ x, y, w, d, z0, H, k, win, rnd }) {
+  const els = [
+    <polygon key="l" points={pts([P(x, y + d, z0), P(x + w, y + d, z0), P(x + w, y + d, z0 + H), P(x, y + d, z0 + H)])} fill={k.l} stroke={k.c} />,
+    <polygon key="r" points={pts([P(x + w, y, z0), P(x + w, y + d, z0), P(x + w, y + d, z0 + H), P(x + w, y, z0 + H)])} fill={k.r} stroke={k.c} />,
+    <polygon key="t" points={pts([P(x, y, z0 + H), P(x + w, y, z0 + H), P(x + w, y + d, z0 + H), P(x, y + d, z0 + H)])} fill={k.t} stroke={k.c} />,
+  ];
+  if (win) {
+    const nf = Math.round(H / FH);
+    [[w, (t) => [x + t * w, y + d]], [d, (t) => [x + w, y + t * d]]].forEach(([len, f], s) => {
+      const n = Math.round(len * 1.1);
+      for (let fl = 0; fl < nf; fl++)
+        for (let i = 0; i < n; i++) {
+          const a = f((i + 0.2) / n), b = f((i + 0.8) / n);
+          const za = z0 + (fl + 0.3) * FH, zb = z0 + (fl + 0.75) * FH;
+          els.push(<polygon key={`w${s}-${fl}-${i}`}
+            points={pts([P(a[0], a[1], za), P(b[0], b[1], za), P(b[0], b[1], zb), P(a[0], a[1], zb)])}
+            fill={rnd() < 0.62 ? k.w : 'rgba(255,255,255,.08)'} />);
+        }
+    });
+  }
+  return <>{els}</>;
+}
+
+function Gis({ M, co, onOpen: openIn, onExitCo, onTip, onTipMove, onTipHide, from, onDone }) {
+  const rt0 = from ? RT[from] : null;
+  const e0 = rt0 ? rt0[rt0.length - 1] : SP;
+  const cp = useRef(e0);
+  const busy = useRef(false);
+  const [pp, setPp] = useState({ p: e0, v: from ? 0 : 1, ms: 0, w: 0 });
+  const [dop, setDop] = useState(null);
+  const mv = async (p) => {
+    const d = Math.hypot(p[0] - cp.current[0], p[1] - cp.current[1]) * 130;
+    cp.current = p; setPp({ p, v: 1, ms: d, w: 1 }); await sleep(d);
+  };
+  const onOpen = async (id, c) => {
+    if (busy.current) return;
+    busy.current = true; onTipHide();
+    const key = id + c;
+    for (const p of RT[key]) await mv(p);
+    setPp((s) => ({ ...s, w: 0 })); setDop(key); await sleep(450);
+    setPp((s) => ({ ...s, v: 0 })); await sleep(350);
+    busy.current = false; openIn(id, c);
+  };
+  useEffect(() => {
+    if (!from) return;
+    const rt = RT[from];
+    (async () => {
+      busy.current = true; setDop(from); await sleep(500);
+      setPp((s) => ({ ...s, v: 1 })); await sleep(450);
+      let i = 0;
+      for (const p of rt.slice(0, -1).reverse().concat([SP])) { await mv(p); if (!i++) setDop(null); }
+      setPp((s) => ({ ...s, w: 0 })); busy.current = false; onDone && onDone();
+    })();
+  }, []);
+  const order = [...GB].sort((a, b) => a.x + a.y - b.x - b.y);
+  const grid = [];
+  for (let i = -4; i <= 26; i += 2)
+    grid.push(
+      <polyline key={'a' + i} points={pts([P(i, -4, 0), P(i, 24, 0)])} stroke="rgba(0,229,255,.07)" fill="none" />,
+      <polyline key={'b' + i} points={pts([P(-4, i, 0), P(26, i, 0)])} stroke="rgba(0,229,255,.07)" fill="none" />
+    );
+  const mx = Math.max(1, ...GB.flatMap((g) => FL.map((f, fi) => M.filter((m) => m.b === g.id && m.co === g.co && m.fi === fi).length)));
+  const tipFor = (g) => {
+    const a = M.filter((m) => m.b === g.id && m.co === g.co);
+    const d = a.filter((m) => m.st === 'Deployed').length;
+    return (<>
+      <b>{g.id}</b> · {CN[g.co]}<br />
+      {PL.filter((p) => p.b === g.id && p.co === g.co).map((p) => p.c + ' ' + p.u).join(' · ')}<br />
+      {a.length} units · {Math.round((d / a.length) * 100)}% deployed<br />Click to open the floors
+    </>);
+  };
+  return (
+    <section className="gis">
+      <div className="gmap">
+        <svg viewBox="0 0 900 520" width="100%" role="img" aria-label="Site map of both companies" id="gsvg">
+          <defs><radialGradient id="gg" cx="50%" cy="55%" r="65%"><stop offset="0" stopColor="#0b1a33" /><stop offset="1" stopColor="#04060c" /></radialGradient></defs>
+          <rect width="900" height="520" fill="url(#gg)" />
+          {grid}
+          <polygon points={pts([P(-4, 6.8, 0), P(26, 6.8, 0), P(26, 8.2, 0), P(-4, 8.2, 0)])} fill="#0c1424" stroke="#1b2c4a" />
+          <polyline points={pts([P(-4, 7.5, 0), P(26, 7.5, 0)])} stroke="#3a5a86" strokeDasharray="6 6" fill="none" />
+          <polygon points={pts([P(7.8, 8.2, 0), P(9.2, 8.2, 0), P(9.2, 24, 0), P(7.8, 24, 0)])} fill="#0c1424" stroke="#1b2c4a" />
+          {PLOTS.map((p, i) => (
+            <g key={i}>
+              <polygon points={pts([P(p[0], p[1], 0), P(p[0] + p[2], p[1], 0), P(p[0] + p[2], p[1] + p[3], 0), P(p[0], p[1] + p[3], 0)])}
+                fill="rgba(20,40,70,.55)" stroke={p[4]} strokeOpacity=".7" strokeDasharray="5 4" />
+              {Array.from({ length: 7 }, (_, t) => {
+                const q = P(p[0] + ((t + 0.5) * p[2]) / 7, p[1] + p[3] - 0.5, 0);
+                return <circle key={t} cx={q[0]} cy={q[1]} r="3.5" fill="#1d6b48" opacity=".85" />;
+              })}
+            </g>
+          ))}
+          {order.map((b, i) => {
+            const k = CC[b.co], rnd = mk(i * 977 + 13), dim = co !== 'All' && co !== b.co;
+            return (
+              <g key={b.id + b.co} className="bd" style={{ '--gc': k.c, opacity: dim ? 0.22 : 1 }}
+                onMouseEnter={(e) => onTip(e, tipFor(b))} onMouseMove={onTipMove} onMouseLeave={onTipHide}
+                onClick={() => { onTipHide(); onOpen(b.id, b.co); }}>
+                <Box x={b.x} y={b.y} w={b.w} d={b.d} z0={0} H={HH} k={k} win rnd={rnd} />
+                <Box x={b.x + b.w * 0.2} y={b.y + b.d * 0.25} w={1.2} d={1.2} z0={HH} H={6} k={k} rnd={rnd} />
+                <Box x={b.x + b.w * 0.6} y={b.y + b.d * 0.55} w={1.2} d={1.2} z0={HH} H={6} k={k} rnd={rnd} />
+                <polygon points={pts([P(DX(b) - 0.4, b.y + b.d, 0), P(DX(b) + 0.4, b.y + b.d, 0), P(DX(b) + 0.4, b.y + b.d, 11), P(DX(b) - 0.4, b.y + b.d, 11)])} fill={dop === b.id + b.co ? '#ffcf40' : '#06101f'} stroke="#ffb020" />
+              </g>
+            );
+          })}
+          {(() => { const q = P(pp.p[0], pp.p[1], 0); return (
+            <g pointerEvents="none" className={'sp' + (pp.w ? ' wk' : '')} style={{ transform: `translate(${q[0]}px,${q[1]}px)`, transition: `transform ${pp.ms}ms linear, opacity .3s`, opacity: pp.v }}>
+              <ellipse rx="6" ry="2.5" fill="rgba(0,0,0,.45)" />
+              <rect className="lg l1" x="-3.5" y="-9" width="3" height="9" fill="#2a3d63" />
+              <rect className="lg l2" x=".5" y="-9" width="3" height="9" fill="#2a3d63" />
+              <rect x="-4.5" y="-19" width="9" height="11" rx="2.5" fill="#ffb020" />
+              <circle cy="-23" r="3.6" fill="#ffd9b0" />
+            </g>); })()}
+          {LABELS.map((l) => {
+            const t = P(l[2], l[3], HH + 8);
+            return (
+              <g key={l[0]} pointerEvents="none">
+                <rect x={t[0] - 80} y={t[1] - 50} width="160" height="34" rx="8" fill="rgba(5,9,18,.88)" stroke="#00e5ff" strokeOpacity=".6" />
+                <text x={t[0]} y={t[1] - 34} textAnchor="middle" fill="#d4eaff" fontSize="12" fontWeight="600">{l[0]}</text>
+                <text x={t[0]} y={t[1] - 21} textAnchor="middle" fill="#7f9bbd" fontSize="10">{l[1]}</text>
+                <line x1={t[0]} y1={t[1] - 16} x2={t[0]} y2={t[1]} stroke="#00e5ff" />
+                <circle cx={t[0]} cy={t[1]} r="3" fill="#00e5ff" />
+              </g>
+            );
+          })}
+          <g transform="translate(850 52)" pointerEvents="none">
+            <circle r="20" fill="none" stroke="#00e5ff" strokeOpacity=".6" />
+            <polygon points="0,-16 5,4 0,0 -5,4" fill="#00e5ff" />
+            <text y="-26" textAnchor="middle" fill="#00e5ff" fontSize="10">N</text>
+          </g>
+          <text x="20" y="506" fill="#7f9bbd" fontSize="11">Schematic site map, not to scale</text>
+        </svg>
+        <div className="tools">
+          <span className="chip on" style={{ cursor: 'default' }}>Site overview</span>
+          {co !== 'All' && <button className="chip" style={{ borderColor: '#ffb020', color: '#ffb020' }} onClick={onExitCo}>Exit company</button>}
+          <span className="chip" style={{ borderColor: '#00e5ff', cursor: 'default' }}>Ismartu India</span>
+          <span className="chip" style={{ borderColor: '#ff2bd6', cursor: 'default' }}>Padget Electronics</span>
+        </div>
+        <i className="corner tl" /><i className="corner tr" /><i className="corner bl" /><i className="corner br" />
+      </div>
+      <aside>
+        {['Ismartu', 'Padget'].map((c) => (
+          <div key={c} className="gc" style={{ '--gc': CC[c].c }}>
+            <h4>{CN[c]}</h4>
+            {[...new Set(GB.filter((g) => g.co === c).map((g) => g.id))].map((b) => {
+              const a = M.filter((m) => m.b === b && m.co === c);
+              return (
+                <button key={b} className="gb" onClick={() => onOpen(b, c)}>
+                  <b>{b}</b>
+                  <small>{PL.filter((p) => p.b === b && p.co === c).map((p) => p.c).join(' · ')}</small>
+                  <div className="fr">
+                    {FL.map((f, fi) => {
+                      const n = a.filter((m) => m.fi === fi).length;
+                      return (<span key={fi} style={{ display: 'contents' }}>
+                        <span>{f.n}</span><i><u style={{ width: (n / mx) * 100 + '%' }} /></i><em>{n}</em>
+                      </span>);
+                    })}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </aside>
+    </section>
+  );
+}
+
+function Walker() {
+  const b = (k, w, d, h, c, x, y, z) => (
+    <div key={k} className="bx" style={{ left: x, top: y, '--w': w + 'px', '--d': d + 'px', '--h': h + 'px', '--b': c, transform: `translateZ(${z}px)` }}>
+      <i className="ft" /><i className="ff" /><i className="fb" /><i className="fr2" /><i className="fl2" />
+    </div>
+  );
+  const j = (k, cls, y, z, kids) => <div key={k} className={'jt ' + cls} style={{ top: y, '--pz': z + 'px' }}>{kids}</div>;
+  const leg = [b('a', 5, 5, 12, '#27406b', 0, 0, -15), b('b', 7, 5.4, 3, '#16181c', 1, 0, -15)];
+  const arm = [b('c', 4, 4, 11, '#ff8a00', 0, 0, -11), b('d', 3.6, 3.6, 3, '#e8b894', 0, 0, -14)];
+  return (<>
+    <i className="shd" />
+    {j('l1', 'lgA', -3.2, 15, leg)}{j('l2', 'lgB', 3.2, 15, leg)}
+    {b('t', 7, 12, 13, '#ff8a00', 0, 0, 15)}{b('s', 7.3, 12.3, 2.2, '#e9f2f6', 0, 0, 21)}
+    {j('a1', 'arA', -8, 27.5, arm)}{j('a2', 'arB', 8, 27.5, arm)}
+    {b('h', 6.5, 7, 7, '#e8b894', 0.5, 0, 28)}{b('hat', 8.5, 9, 3.2, '#ffd400', 0, 0, 34.5)}{b('br', 11, 9, 1, '#ffd400', 1.5, 0, 34)}
+  </>);
+}
+
+function Stairs({ H, up }) {
+  const box = (key, x, y, w, d, h, c, z = 0) => (
+    <div key={key} className="m st" style={{ left: x + 'px', top: y + 'px', '--w': w + 'px', '--d': d + 'px', '--h': h + 'px', '--b': c, '--c': 'transparent', transform: `translateZ(${z}px)` }}>
+      <i className="ft" /><i className="ff" /><i className="fb" /><i className="fr2" /><i className="fl2" />
+    </div>
+  );
+  return (<>
+    {null}
+    {up && Array.from({ length: 14 }, (_, i) => { const t = ((i + 1) * H) / 14; return [box('s' + i, 46 + i * 12, 289, 12, 26, 2.5, i % 2 ? '#aeb9c4' : '#c3ccd5', t - 2.5), box('l' + i, 46 + i * 12, 277, 12, 2, t, '#7d8b99'), box('r' + i, 46 + i * 12, 301, 12, 2, t, '#7d8b99')]; })}
+    {box('wa', 55, 236, 94, 4, 30, '#9aa6b2')}{box('wb', 185, 236, 94, 4, 30, '#9aa6b2')}
+  </>);
+}
+
+function Machine({ m, cls, onPick, onTip, onTipMove, onTipHide }) {
+  const rk = m.zone === 'Central Server Room';
+  const d = rk ? [12, 16, 34, '#243044'] : DIM[m.cat];
+  const node = (<>
+    <b>{m.code}</b><br />{m.cat} · {m.zone}<br />{m.co} · {m.p} ({m.u})<br />
+    {m.who} · <span style={{ color: COL[m.st] }}>{m.st}</span>
+  </>);
+  return (
+    <div className={'m' + (rk ? ' rk' : '') + cls}
+      style={{ left: m.x + '%', top: m.y + '%', '--w': d[0] + 'px', '--d': d[1] + 'px', '--h': d[2] + 'px', '--b': d[3], '--c': COL[m.st] }}
+      onClick={(e) => { e.stopPropagation(); onPick(m.id); }}
+      onMouseEnter={(e) => onTip(e, node)} onMouseMove={onTipMove} onMouseLeave={onTipHide}>
+      <i className="ft" /><i className="ff" /><i className="fb" /><i className="fr2" /><i className="fl2" />
+      <i className="tw" /><i className="tw2" />
+    </div>
+  );
+}
+
+function DigitalTwin() {
+  const M = useMemo(buildMachines, []);
+  const [view, setView] = useState('gis');
+  const [b, setB] = useState('C39');
+  const [co, setCo] = useState('All');
+  const [pl, setPl] = useState('All');
+  const [fl, setFl] = useState(2);
+  const [sel, setSel] = useState(null);
+  const [stt, setStt] = useState('All');
+  const [q, setQ] = useState('');
+  const [zone, setZone] = useState(null);
+  const [ex, setEx] = useState(true);
+  const [heat, setHeat] = useState(false);
+  const [spin, setSpin] = useState(false);
+  const [fm, setFm] = useState(false);
+  const [cam, setCam] = useState({ rx: 58, rz: -38, sc: 1 });
+  const [dragging, setDragging] = useState(false);
+  const [tip, setTip] = useState(null);
+  const P0 = { x: 36, y: 380, f: 0, z: 0, h: -90, v: 1, ms: 0, w: 0, out: 1, room: 0 };
+  const [pw, setPw] = useState(P0);
+  const [door, setDoor] = useState(-1);
+  const [from, setFrom] = useState(null);
+  const pwr = useRef(P0);
+  const sq = useRef(0);
+  const lb = useRef(null);
+  const drag = useRef(null);
+  const moved = useRef(0);
+  const stageRef = useRef(null);
+
+  const cm = (m) => (co === 'All' || m.co === co) && (pl === 'All' || m.p === pl);
+  const cnt = (fi) => {
+    const a = M.filter((m) => m.b === b && m.fi === fi && cm(m));
+    return { t: a.length, d: a.filter((m) => m.st === 'Deployed').length, p: a.filter((m) => m.st === 'Pending').length, f: a.filter((m) => m.st === 'Fault').length };
+  };
+  const rows = M.filter((m) => m.b === b && m.fi === fl && cm(m) && (stt === 'All' || m.st === stt) &&
+    (zone === null || m.zi === zone) && (!q || (m.code + m.zone + m.who + m.cat).toLowerCase().includes(q)));
+  const vis = new Set(rows.map((m) => m.id));
+  const B = M.filter((m) => m.b === b && cm(m));
+  const T = B.length || 1;
+  const D = B.filter((m) => m.st === 'Deployed').length;
+  const Pn = B.filter((m) => m.st === 'Pending').length;
+  const F = B.filter((m) => m.st === 'Fault').length;
+  const mach = sel ? M[sel - 1] : null;
+
+  // ---- walker: doors, stairs, floors ----
+  const upd = (o) => { pwr.current = { ...pwr.current, ...o }; setPw(pwr.current); };
+  const run = async (steps) => {
+    const id = ++sq.current;
+    for (const s of steps) {
+      if (sq.current !== id) return false;
+      const { d, wait, ...o } = s;
+      if (d !== undefined) setDoor(d);
+      if (Object.keys(o).length) upd({ ms: 0, w: 0, z: 0, ...o });
+      await sleep(o.ms || wait || 0);
+    }
+    return sq.current === id;
+  };
+  const plan = (t) => {
+    const c = pwr.current;
+    if (t < 0 && c.out) return [];
+    if (t >= 0 && !c.out && c.room && c.f === t) return [];
+    const s = [];
+    let f = c.f, x = c.x, y = c.y, hd = c.h;
+    const hh = (a) => { hd += ((((a - hd + 180) % 360) + 360) % 360) - 180; return hd; };
+    const mv = (nx, ny, o) => {
+      if (nx === x && ny === y) return;
+      s.push({ x: nx, y: ny, ms: Math.round((Math.abs(nx - x) + Math.abs(ny - y)) * 5), w: 1, h: hh((Math.atan2(ny - y, nx - x) * 180) / Math.PI), ...o });
+      x = nx; y = ny;
+    };
+    const H = (g) => Math.max(zf(g + 1) - zf(g), 6);
+    const bottom = () => { if (x !== 34 || y !== 289) { mv(x, 255); mv(34, 255); mv(34, 289); } };
+    const top = () => { if (x !== 214 || y !== 289) { mv(x, 255); mv(214, 255); mv(214, 289); } };
+    if (c.out) {
+      s.push({ x: 36, y: 380, f: 0, z: 0, v: 1, ms: 0 }, { d: 10, wait: 500 }); x = 36; y = 380; f = 0;
+      mv(36, 312); mv(34, 289, { out: 0 }); s.push({ d: -1, wait: 300 });
+    } else if (c.room) {
+      s.push({ d: f, wait: 400 }); mv(120, 255, { room: 0 }); s.push({ d: -1, wait: 300 });
+    }
+    const end = Math.max(t, 0);
+    while (f !== end) {
+      const g = end > f ? f : f - 1, h = H(g);
+      if (end > f) {
+        bottom();
+        for (let i = 0; i < 14; i++) s.push({ x: 46 + i * 12, y: 289, z: ((i + 1) * h) / 14, ms: 220, w: 1, h: hh(0) });
+        s.push({ x: 214, y: 289, z: h, ms: 220, w: 1, h: hh(0) }, { f: f + 1, z: 0, ms: 0 });
+        f++; x = 214; y = 289;
+      } else {
+        top(); s.push({ f: f - 1, z: h, ms: 0 });
+        for (let i = 13; i >= 0; i--) s.push({ x: 46 + i * 12, y: 289, z: ((i + 1) * h) / 14, ms: 220, w: 1, h: hh(180) });
+        s.push({ x: 34, y: 289, z: 0, ms: 220, w: 1, h: hh(180) });
+        f--; x = 34; y = 289;
+      }
+    }
+    if (t < 0) {
+      bottom(); s.push({ d: 10, wait: 450 }); mv(36, 312); mv(36, 385, { out: 1 }); s.push({ d: -1, wait: 200 }, { v: 0, ms: 0 });
+    } else {
+      if (y !== 255) mv(x, 255);
+      mv(120, 255); s.push({ d: t, wait: 500 }); mv(120, 150, { room: 1 }); s.push({ d: -1, wait: 300 });
+    }
+    return s;
+  };
+  useEffect(() => {
+    if (view !== 'twin') { sq.current++; lb.current = null; upd(P0); setDoor(-1); return; }
+    if (lb.current !== b) { lb.current = b; upd(P0); setDoor(-1); }
+    run(plan(fl)).then((ok) => ok && upd({ w: 0 }));
+  }, [view, b, fl]);
+
+  const enter = () => { setFm(true); setCam({ rx: 52, rz: -28, sc: 1.55 }); setEx(false); };
+  const leave = (q) => {
+    setFm(false); setCam({ rx: 58, rz: -38, sc: 1 }); setEx(true);
+    if (q !== true && pwr.current.room) run([{ d: pwr.current.f, wait: 400 }, { x: 120, y: 255, ms: 525, w: 1, room: 0 }, { d: -1, wait: 300 }]);
+  };
+  const exitCo = async () => {
+    const key = view === 'twin' && co !== 'All' ? b + co : null;
+    if (fm) leave(true);
+    if (view === 'twin') {
+      const s = plan(-1);
+      await run(s);
+    }
+    setFrom(key); setCo('All'); setPl('All'); setSel(null); setZone(null); setView('gis');
+  };
+  const openB = (bb, c) => { setB(bb); setCo(c); setPl('All'); setSel(null); setZone(null); setFrom(null); setView('twin'); };
+  const pick = (id) => { setSel(id); setFl(M[id - 1].fi); };
+  const onFloor = (fi) => {
+    if (moved.current > 5) return;
+    if (fl === fi && !fm) { setSel(null); setZone(null); enter(); return; }
+    setFl(fi); setSel(null); setZone(null);
+  };
+
+  const showTip = (e, node) => setTip({ x: e.clientX, y: e.clientY, node });
+  const moveTip = (e) => setTip((t) => t && { ...t, x: e.clientX, y: e.clientY });
+  const hideTip = () => setTip(null);
+
+  useEffect(() => {
+    const mv = (e) => {
+      const d = drag.current; if (!d) return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      moved.current += Math.abs(dx) + Math.abs(dy);
+      d.x = e.clientX; d.y = e.clientY;
+      setSpin(false);
+      setCam((c) => ({ ...c, rz: c.rz + dx * 0.35, rx: Math.max(10, Math.min(85, c.rx - dy * 0.3)) }));
+    };
+    const up = () => { drag.current = null; setDragging(false); };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+    return () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+  }, []);
+  useEffect(() => {
+    const el = stageRef.current; if (!el) return;
+    const h = (e) => { e.preventDefault(); setCam((c) => ({ ...c, sc: Math.max(0.5, Math.min(2, c.sc * (e.deltaY > 0 ? 0.92 : 1.08))) })); };
+    el.addEventListener('wheel', h, { passive: false });
+    return () => el.removeEventListener('wheel', h);
+  }, [view]);
+  useEffect(() => {
+    if (!spin) return;
+    const t = setInterval(() => setCam((c) => ({ ...c, rz: c.rz + 0.4 })), 30);
+    return () => clearInterval(t);
+  }, [spin]);
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key !== 'Escape' || e.target.tagName === 'INPUT') return;
+      if (fm) leave(); else if (co !== 'All') exitCo();
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  });
+
+  const k = window.innerWidth < 700 ? 0.6 : 1;
+  const gap = ex ? 95 : 30;
+  const exitBtn = { borderColor: '#ffb020', color: '#ffb020' };
+  const zf = (fi) => (fm && fi === fl ? 0 : (fi - 1.5) * gap + (fi === fl && ex ? 18 : 0));
+
+  return (
+    <div className="dt">
+      <div className="wrap">
+        <header>
+          <div>
+            <h1>Digital Twin Facility Visualizer<span className="live"><i />Live telemetry</span></h1>
+            <div className="sub">Building {b} · {FL.length} floors · preview with sample data</div>
+          </div>
+          <div className="chips">
+            {BL.map((x) => (
+              <button key={x} className={'chip' + (b === x ? ' on' : '')}
+                onClick={() => { setB(x); setPl('All'); setSel(null); setZone(null); }}>{x}</button>
+            ))}
+          </div>
+        </header>
+
+        <div className="chips" style={{ marginBottom: 12 }}>
+          <button className={'chip' + (view === 'gis' ? ' on' : '')} onClick={() => setView('gis')}>GIS site map</button>
+          <button className={'chip' + (view === 'twin' ? ' on' : '')} onClick={() => setView('twin')}>3D floor twin</button>
+        </div>
+        <div className="chips" style={{ marginBottom: 12 }}>
+          {[['All', 'All companies'], ['Ismartu', 'Ismartu India (5020)'], ['Padget', 'Padget Electronics (9500)']].map((c) => (
+            <button key={c[0]} className={'chip' + (co === c[0] ? ' on' : '')}
+              onClick={() => { setCo(c[0]); setPl('All'); setSel(null); }}>{c[1]}</button>
+          ))}
+          {PL.filter((p) => p.b === b && (co === 'All' || p.co === co)).map((p) => (
+            <button key={p.c} className={'chip' + (pl === p.c ? ' on' : '')}
+              onClick={() => { setPl(pl === p.c ? 'All' : p.c); setSel(null); }}>{p.c} · {p.u}</button>
+          ))}
+        </div>
+
+        <div className="kpis">
+          {[['Units in ' + b, B.length], ['Deployed', Math.round((D / T) * 100) + '%'], ['Pending', Pn], ['Faults', F], ['Selected floor', cnt(fl).t + ' units']].map((x) => (
+            <div className="kpi" key={x[0]}><b>{x[1]}</b><span>{x[0]}</span></div>
+          ))}
+        </div>
+
+        {view === 'gis' && <Gis M={M} co={co} onOpen={openB} from={from} onDone={() => setFrom(null)} onExitCo={exitCo} onTip={showTip} onTipMove={moveTip} onTipHide={hideTip} />}
+
+        {view === 'twin' && (<>
+          <div className="main">
+            <div className="rail">
+              {FL.map((f, fi) => {
+                const c = cnt(fi), t = Math.max(c.t, 1);
+                return (
+                  <button key={fi} className={'fl' + (fi === fl ? ' on' : '')} onClick={() => { setFl(fi); setSel(null); setZone(null); }}>
+                    <b>{f.n}</b><small>{c.t ? c.t + ' units' : 'No units yet'}</small>
+                    <div className="bar">
+                      <i style={{ width: (c.d / t) * 100 + '%', background: 'var(--lime)' }} />
+                      <i style={{ width: (c.p / t) * 100 + '%', background: 'var(--am)' }} />
+                      <i style={{ width: (c.f / t) * 100 + '%', background: 'var(--mg)' }} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="stagebox">
+              <div className="tools">
+                {co !== 'All' && <button className="chip" style={exitBtn} onClick={exitCo}>Exit company</button>}
+                {fm
+                  ? <button className="chip" style={{ borderColor: '#ff2bd6', color: '#ff2bd6' }} onClick={leave}>Exit floor</button>
+                  : <button className="chip" style={{ borderColor: '#00e5ff', color: '#00e5ff' }} onClick={enter}>Enter floor</button>}
+                {!fm && <button className={'chip' + (ex ? ' on' : '')} onClick={() => setEx(!ex)}>Exploded view</button>}
+                <button className={'chip' + (heat ? ' on' : '')} onClick={() => setHeat(!heat)}>Heatmap</button>
+                <button className={'chip' + (spin ? ' on' : '')} onClick={() => setSpin(!spin)}>Spin</button>
+                <button className="chip" onClick={() => setCam((c) => ({ ...c, rx: 84, rz: 0 }))}>Top-down</button>
+                <button className="chip" onClick={() => setCam(fm ? { rx: 52, rz: -28, sc: 1.55 } : { rx: 58, rz: -38, sc: 1 })}>Reset</button>
+              </div>
+
+              <div className="stage" ref={stageRef}
+                onPointerDown={(e) => { drag.current = { x: e.clientX, y: e.clientY }; moved.current = 0; setDragging(true); }}>
+                <div className={'world' + (dragging ? ' drag' : '') + (fm ? ' fm' : '')}
+                  style={{ transform: `rotateX(${cam.rx}deg) rotateZ(${cam.rz}deg) scale(${cam.sc * k})` }}>
+                  <div className="pw" style={{ transform: `translate3d(${pw.x - 230}px,${pw.y - 155}px,${zf(pw.f) + pw.z}px)`, transition: `transform ${pw.ms}ms linear` }}>
+                    <div className={'pr' + (pw.w ? ' wk' : '') + (pw.z > 0 ? ' cl' : '')} style={{ visibility: pw.v ? 'visible' : 'hidden', transform: `rotateZ(${pw.h}deg) scale3d(1.35,1.35,1.35)` }}>
+                      <Walker />
+                    </div>
+                  </div>
+                  {FL.map((f, fi) => {
+                    const rws = Math.ceil(f.z.length / 2);
+                    const z = fm && fi === fl ? 0 : (fi - 1.5) * gap + (fi === fl && ex ? 18 : 0);
+                    const cls = 'floor ' + (fi === fl ? 'on' : 'dim') + (fm && fi !== fl ? ' hide' : '');
+                    return (
+                      <div key={fi} className={cls} style={{ transform: `translateZ(${z}px)` }} onClick={() => onFloor(fi)}>
+                        <div className="fname">{f.n}</div>
+                        <i className="aisle" /><i className="core">Lift</i><b className="sl sls" /><b className="sl sle" />
+                          <Stairs H={Math.max(zf(fi + 1) - zf(fi), 6)} up={fi < 3} />
+                          {fi === 0 && <b className={'dor' + (door === 10 ? ' op' : '')} style={{ left: 18, top: 310 }}><i className="jl" /><i className="jr" /><i className="lt" /><i className="lf" /></b>}
+                          <b className={'dor' + (door === fi ? ' op' : '')} style={{ left: 102, top: 236 }}><i className="jl" /><i className="jr" /><i className="lt" /><i className="lf" /></b>
+                        {f.z.map((zn, zi) => {
+                          const c = zi % 2, r = Math.floor(zi / 2);
+                          let bg;
+                          if (heat) {
+                            const a = M.filter((m) => m.b === b && m.fi === fi && m.zi === zi && cm(m));
+                            const p = a.length ? a.filter((m) => m.st !== 'Deployed').length / a.length : 0;
+                            bg = `rgba(${p > 0.4 ? '255,43,214' : p > 0.2 ? '255,176,32' : '57,255,136'},${a.length ? 0.12 + a.length * 0.035 : 0.03})`;
+                          }
+                          return (
+                            <div key={zi} className={'zone' + (fi === fl && zone === zi ? ' pick' : '')}
+                              style={{ left: c * 50 + 3 + '%', width: (f.z.length === 1 ? 94 : 44) + '%', top: (r * 100) / rws + 5 + '%', height: 100 / rws - 10 + '%', background: bg }}>
+                              <span>{zn}</span>
+                              <b className="w wn" /><b className="w ws" /><b className="w ww" /><b className="w we" />
+                              {zn.includes('SMT') && <b className="conv" />}
+                            </div>
+                          );
+                        })}
+                        {M.filter((m) => m.b === b && m.fi === fi).map((m) => (
+                          <Machine key={m.id} m={m} onPick={(id) => { if (moved.current <= 5) pick(id); }}
+                            cls={((m.fi === fl ? !vis.has(m.id) : !cm(m)) ? ' dm' : '') + (m.id === sel ? ' sel' : '')}
+                            onTip={showTip} onTipMove={moveTip} onTipHide={hideTip} />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <i className="corner tl" /><i className="corner tr" /><i className="corner bl" /><i className="corner br" />
+              <div className="hud read">Rotation X {Math.round(cam.rx)}° · Z {Math.round(((cam.rz % 360) + 360) % 360)}°<br />Scale {Math.round(cam.sc * 100)}%</div>
+              <div className="hud help">{fm ? 'Drag to orbit · scroll to zoom · click a machine · Esc to exit floor' : 'Drag to orbit · scroll to zoom · click a floor to select it, click again to enter'}</div>
+              <div className="hud" style={{ right: 16, bottom: 14, textAlign: 'right' }}>
+                {co !== 'All' ? CN[co].split(' ')[0] + ' › ' : ''}<b>{b}</b> › {fm ? FL[fl].n : 'all floors'}
+              </div>
+            </div>
+
+            <aside className="drawer">
+              {mach ? (<>
+                <h3>{mach.code}</h3>
+                <span className="pill" style={{ '--c': COL[mach.st] }}>{mach.st}</span>
+                <div style={{ marginTop: 10 }}>
+                  {[['Category', mach.cat], ['Floor', FL[mach.fi].n], ['Zone', mach.zone], ['Company', CN[mach.co]],
+                    ['Plant code', mach.p + ' · ' + mach.u], ['Custodian', mach.who],
+                    ['Position', Math.round(mach.x) + '%, ' + Math.round(mach.y) + '%']].map((r) => (
+                    <div className="row" key={r[0]}><span>{r[0]}</span>{r[1]}</div>
+                  ))}
+                </div>
+              </>) : (
+                <div className="empty"><b>No machine selected</b><br />Click a machine in the 3D view or a row in the ledger to see its details here.</div>
+              )}
+            </aside>
+          </div>
+
+          <section className="ledger">
+            <div className="lh">
+              <b>{FL[fl].n} · {rows.length} of {cnt(fl).t} units</b>
+              <div className="chips">
+                {['All', 'Deployed', 'Pending', 'Fault'].map((s) => (
+                  <button key={s} className={'chip' + (stt === s ? ' on' : '')} onClick={() => setStt(s)}>{s}</button>
+                ))}
+                {FL[fl].z.map((z, zi) => (
+                  <button key={z} className={'chip' + (zone === zi ? ' on' : '')} onClick={() => setZone(zone === zi ? null : zi)}>{z}</button>
+                ))}
+              </div>
+              <input type="search" placeholder="Search code, zone, custodian" value={q} onChange={(e) => setQ(e.target.value.toLowerCase())} />
+            </div>
+            <div className="twrap">
+              <table>
+                <thead><tr><th>Asset code</th><th>Category</th><th>Zone</th><th>Company · plant</th><th>Custodian</th><th>Status</th></tr></thead>
+                <tbody>
+                  {rows.length ? rows.map((m) => (
+                    <tr key={m.id} className={'r' + (m.id === sel ? ' sel' : '')} onClick={() => pick(m.id)}>
+                      <td>{m.code}</td><td>{m.cat}</td><td>{m.zone}</td><td>{m.co} · {m.p}</td><td>{m.who}</td>
+                      <td><span className="pill" style={{ '--c': COL[m.st] }}>{m.st}</span></td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="6"><div className="empty">No machines match here.<br />Clear the filters, or deploy a machine on this floor.</div></td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>)}
+
+        <div className="note">Company codes and plant codes come from your SAP list. Machines are generated sample data.</div>
+      </div>
+      {tip && <div className="tip" style={{ left: tip.x + 14, top: tip.y + 14 }}>{tip.node}</div>}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<DigitalTwin />);
+</script>
+</body></html>
