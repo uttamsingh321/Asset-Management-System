@@ -27,16 +27,17 @@ describe('Login Page Layout & Specification', () => {
     // Left side: Logo & Factory Name
     expect(screen.getByText(/Meridian Manufacturing India Pvt\. Ltd\./i)).toBeInTheDocument()
     expect(screen.getByText(/Enterprise Plant System/i)).toBeInTheDocument()
-    expect(screen.getByText(/Noida Plant · Line 1 & 2/i)).toBeInTheDocument()
-    expect(screen.getByText(/Gurgaon Facility/i)).toBeInTheDocument()
 
     // Right side: Username, Password, Factory Selection
     expect(screen.getByLabelText(/Factory \/ Manufacturing Plant \*/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/e\.g\. USR-ADMIN, SMT-101/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Enter manual superuser password/i)).toBeInTheDocument()
 
-    // Multi-factory selection options
-    expect(screen.getByText(/Noida Plant \(SMT Line & Assembly\)/i)).toBeInTheDocument()
+    // Multi-factory selection options: IIPL-Sector 63, Paget-Sector 63, IIPL-Phase II, Padget -Phase II
+    expect(screen.getAllByText('IIPL-Sector 63').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Paget-Sector 63').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('IIPL-Phase II').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Padget -Phase II').length).toBeGreaterThan(0)
 
     // Language toggle button removed per user request
     expect(screen.queryByRole('button', { name: /Switch to English|हिन्दी में बदलें/i })).not.toBeInTheDocument()

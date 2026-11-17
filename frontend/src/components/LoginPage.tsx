@@ -90,10 +90,10 @@ interface LoginPageProps {
 }
 
 export const FACTORY_OPTIONS = [
-  { id: 'noida', name: 'Noida Plant (SMT Line & Assembly)', state: 'Uttar Pradesh', code: 'PLANT-NOI' },
-  { id: 'gurgaon', name: 'Gurgaon Plant (Machining & Tooling)', state: 'Haryana', code: 'PLANT-GGN' },
-  { id: 'pune', name: 'Pune Central Plant (Facility C39 & D197-D199)', state: 'Maharashtra', code: 'PLANT-PUN' },
-  { id: 'chennai', name: 'Chennai Staging & Logistics Hub', state: 'Tamil Nadu', code: 'PLANT-CHE' },
+  { id: 'iipl-sec63', name: 'IIPL-Sector 63', state: 'Noida', code: 'PLANT-IIPL-63' },
+  { id: 'paget-sec63', name: 'Paget-Sector 63', state: 'Noida', code: 'PLANT-PAD-63' },
+  { id: 'iipl-phase2', name: 'IIPL-Phase II', state: 'Noida', code: 'PLANT-IIPL-P2' },
+  { id: 'padget-phase2', name: 'Padget -Phase II', state: 'Noida', code: 'PLANT-PAD-P2' },
 ]
 
 export const LoginPage: React.FC<LoginPageProps> = ({
@@ -103,9 +103,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 }) => {
   const [userId, setUserId] = React.useState(() => localStorage.getItem('meridian_remember_user') || '')
   const [password, setPassword] = React.useState('')
-  const [selectedFactory, setSelectedFactory] = React.useState(
-    () => localStorage.getItem('meridian_remember_factory') || FACTORY_OPTIONS[0].name
-  )
+  const [selectedFactory, setSelectedFactory] = React.useState(() => {
+    const saved = localStorage.getItem('meridian_remember_factory')
+    if (saved && FACTORY_OPTIONS.some((f) => f.name === saved)) {
+      return saved
+    }
+    return FACTORY_OPTIONS[0].name
+  })
   const [rememberMe, setRememberMe] = React.useState(() => Boolean(localStorage.getItem('meridian_remember_user')))
   const [showPassword, setShowPassword] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
@@ -500,19 +504,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div className="login-facilities-grid grid grid-cols-2 gap-3 max-w-md pt-2">
             <div className="login-facility-card p-3 rounded-xl bg-white/10 border border-white/15 backdrop-blur-xs">
               <div className="login-facility-label text-[11px] text-white/70">SMT & Cleanrooms</div>
-              <div className="login-facility-val text-xs font-bold text-white mt-0.5">Noida Plant · Line 1 & 2</div>
+              <div className="login-facility-val text-xs font-bold text-white mt-0.5">IIPL-Sector 63</div>
             </div>
             <div className="login-facility-card p-3 rounded-xl bg-white/10 border border-white/15 backdrop-blur-xs">
-              <div className="login-facility-label text-[11px] text-white/70">Tooling & Machining</div>
-              <div className="login-facility-val text-xs font-bold text-white mt-0.5">Gurgaon Facility</div>
+              <div className="login-facility-label text-[11px] text-white/70">Electronics Assembly</div>
+              <div className="login-facility-val text-xs font-bold text-white mt-0.5">Paget-Sector 63</div>
             </div>
             <div className="login-facility-card p-3 rounded-xl bg-white/10 border border-white/15 backdrop-blur-xs">
-              <div className="login-facility-label text-[11px] text-white/70">Central Warehouse</div>
-              <div className="login-facility-val text-xs font-bold text-white mt-0.5">Pune Central C39 / D197</div>
+              <div className="login-facility-label text-[11px] text-white/70">Main Manufacturing</div>
+              <div className="login-facility-val text-xs font-bold text-white mt-0.5">IIPL-Phase II</div>
             </div>
             <div className="login-facility-card p-3 rounded-xl bg-white/10 border border-white/15 backdrop-blur-xs">
               <div className="login-facility-label text-[11px] text-white/70">Staging & Dispatch</div>
-              <div className="login-facility-val text-xs font-bold text-white mt-0.5">Chennai Hub</div>
+              <div className="login-facility-val text-xs font-bold text-white mt-0.5">Padget -Phase II</div>
             </div>
           </div>
         </div>
@@ -632,7 +636,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 >
                   {FACTORY_OPTIONS.map((fac) => (
                     <option key={fac.id} value={fac.name} className="bg-[#162035] text-white">
-                      {fac.name} ({fac.state})
+                      {fac.name}
                     </option>
                   ))}
                 </select>

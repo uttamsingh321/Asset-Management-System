@@ -146,11 +146,11 @@ export function App() {
     )
   })
   const [activeFactory, setActiveFactory] = React.useState<string>(() => {
-    return (
-      sessionStorage.getItem('meridian_active_factory') ||
-      localStorage.getItem('meridian_remember_factory') ||
-      'Noida Plant (SMT Line & Assembly)'
-    )
+    const s = sessionStorage.getItem('meridian_active_factory')
+    const l = localStorage.getItem('meridian_remember_factory')
+    if (s && s !== 'Noida Plant (SMT Line & Assembly)') return s
+    if (l && l !== 'Noida Plant (SMT Line & Assembly)') return l
+    return 'IIPL-Sector 63'
   })
 
   const [currentHash, setCurrentHash] = React.useState<string>(() => {
