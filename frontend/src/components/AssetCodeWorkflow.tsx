@@ -980,6 +980,135 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         </div>
       </div>
 
+      {/* Four Major Asset Categories (四大核心资产类别) Task Queue Overview */}
+      <section
+        className="card p-3 sm:p-4 space-y-3 bg-[var(--surf)] border border-[var(--line)] shadow-2xs"
+        aria-label="Four Major Asset Categories Task Overview"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[var(--line)]/60">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[var(--acc)]/10 text-[var(--acc)] flex items-center justify-center text-base font-bold">
+              🏷️
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-[var(--ink)] tracking-tight">
+                  Four Major Asset Categories (四大核心资产类别)
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  Task Scope
+                </span>
+              </div>
+              <p className="text-[10px] text-[var(--mute)]">
+                Fixed Assets · Accessories · Tools · Fixtures — Click any category card to filter task queue
+              </p>
+            </div>
+          </div>
+          {categoryFilter !== 'All' && (
+            <button
+              type="button"
+              onClick={() => setCategoryFilter('All')}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[var(--surf2)] hover:bg-[var(--line)] text-[var(--ink)] flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+            >
+              <span>Filtered by: <b>{categoryFilter}</b></span>
+              <span className="text-[var(--mute)] hover:text-[var(--bad)] font-bold">✕ Show All</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {MAJOR_ASSET_CATEGORIES.map((catKey) => {
+            const cfg = MAJOR_ASSET_CATEGORIES_CONFIG[catKey]
+            const isSelected = categoryFilter === catKey
+
+            const catAssets = assets.filter(
+              (a) => resolveMajorAssetCategory(a.currentCategory || a.category) === catKey
+            )
+            const catCompleted = catAssets.filter((a) => isAssetTaskCompleted(a)).length
+            const catPending = catAssets.length - catCompleted
+            const catPct = catAssets.length > 0 ? Math.round((catCompleted / catAssets.length) * 100) : 0
+
+            return (
+              <div
+                key={catKey}
+                onClick={() => {
+                  const nextFilter = categoryFilter === catKey ? 'All' : catKey
+                  setCategoryFilter(nextFilter)
+                  if (nextFilter !== 'All') {
+                    setSelectedImportCategory(catKey)
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Task Category ${cfg.label}: ${catAssets.length} total`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setCategoryFilter(categoryFilter === catKey ? 'All' : catKey)
+                  }
+                }}
+                className={`relative overflow-hidden rounded-xl p-3 border transition-all duration-200 cursor-pointer text-left select-none ${
+                  isSelected
+                    ? 'ring-2 ring-[var(--acc)] bg-[var(--acc)]/10 border-[var(--acc)] shadow-sm'
+                    : 'bg-gradient-to-br from-[var(--surf)] to-[var(--surf2)]/50 border-[var(--line)] hover:border-[var(--acc)]/50 hover:shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl p-1 rounded-lg bg-[var(--surf)] border border-[var(--line)] shadow-2xs">
+                      {cfg.icon}
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-bold text-[var(--ink)] leading-tight">
+                        {cfg.label}
+                      </h4>
+                      <div className="text-[10px] text-[var(--mute)] font-medium">
+                        {cfg.chineseLabel}
+                      </div>
+                    </div>
+                  </div>
+                  {isSelected ? (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--acc)] text-white shadow-2xs">
+                      Filtered ✓
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-[var(--mute)]">
+                      {catPct}% done
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-2 flex items-baseline justify-between">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-lg sm:text-xl font-black text-[var(--ink)] tracking-tight">
+                      {catAssets.length.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-[var(--mute)]">
+                      codes
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-500">
+                    {catPending.toLocaleString()} pending
+                  </span>
+                </div>
+
+                <div className="w-full bg-[var(--surf2)] h-1 rounded-full overflow-hidden mt-1.5">
+                  <div
+                    className="bg-[var(--ok)] h-full transition-all duration-300"
+                    style={{ width: `${catPct}%` }}
+                  />
+                </div>
+
+                <div className="mt-1.5 text-[10px] text-[var(--mute)] flex items-center justify-between">
+                  <span>✅ {catCompleted.toLocaleString()} filled</span>
+                  <span className="truncate max-w-[110px] text-right font-medium">{cfg.chineseLabel}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
       {/* Code Provisioning Section (Optionally visible or toggled) */}
       {(activeTab === 'import' || canUpload) && (
         <div className="space-y-4">
