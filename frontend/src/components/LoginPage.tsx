@@ -291,11 +291,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         return
       }
 
-      // If backend rejected (e.g. 401 User ID not yet in backend SQLite or offline discrepancy),
-      // verify against Master RBAC local store
+      // If backend rejected with account lockout (403), it was handled above.
+      // If backend explicitly rejected invalid credentials (user exists and password mismatch):
+      if (data.failedAttempts !== undefined) {
+        setFailedAttempts(data.failedAttempts)
+        toast.error(
+          data.error ||
+            (lang === 'hi'
+              ? 'अमान्य क्रेडेंशियल। कृपया सही पासवर्ड दर्ज करें।'
+              : 'Invalid User ID or Password. Verify with Superuser.')
+        )
+        setLoading(false)
+        return
+      }
+
+      // If user does not exist in backend SQLite yet (e.g. newly provisioned offline),
+      // verify strictly against Master RBAC local store requiring valid non-empty password
       const localUser = findLocalRBACUser(cleanUser)
       if (
         localUser &&
+        localUser.password &&
+        localUser.password.length >= 4 &&
         (localUser.password === cleanPw ||
           (cleanUser === 'USR-ADMIN' && (cleanPw === 'AdminPassword2026!' || cleanPw === 'Admin@2026!')))
       ) {
@@ -344,21 +360,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       }
 
       // Neither backend nor RBAC store authenticated
-      if (data.failedAttempts !== undefined) {
-        setFailedAttempts(data.failedAttempts)
-      } else {
-        setFailedAttempts((prev) => prev + 1)
-      }
+      setFailedAttempts((prev) => prev + 1)
       toast.error(
-        lang === 'hi'
-          ? 'अमान्य क्रेडेंशियल। कृपया सही पासवर्ड दर्ज करें।'
-          : 'Invalid User ID or Password. Verify with Superuser.'
+        data.error ||
+          (lang === 'hi'
+            ? 'अमान्य क्रेडेंशियल। कृपया सही पासवर्ड दर्ज करें।'
+            : 'Invalid User ID or Password. Verify with Superuser.')
       )
     } catch {
-      // Offline fallback authentication if backend is not reachable
+      // Offline fallback authentication ONLY if backend network is disconnected
       const localUser = findLocalRBACUser(cleanUser)
       if (
         localUser &&
+        localUser.password &&
+        localUser.password.length >= 4 &&
         (localUser.password === cleanPw ||
           (cleanUser === 'USR-ADMIN' && (cleanPw === 'AdminPassword2026!' || cleanPw === 'Admin@2026!')))
       ) {

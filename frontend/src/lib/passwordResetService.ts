@@ -254,9 +254,30 @@ export async function resolvePasswordResetRequest(
       }
     } catch {}
 
+    // Also update meridian_users_cache and meridian_rbac_users_v1
+    try {
+      const cacheUsers = JSON.parse(localStorage.getItem('meridian_users_cache') || '[]')
+      const cuIdx = cacheUsers.findIndex((u: any) => (u.userId || '').toUpperCase() === targetUserId.toUpperCase())
+      if (cuIdx !== -1) {
+        cacheUsers[cuIdx].password = newPassword
+        cacheUsers[cuIdx].isActive = true
+        localStorage.setItem('meridian_users_cache', JSON.stringify(cacheUsers))
+      }
+    } catch {}
+
+    try {
+      const v1Users = JSON.parse(localStorage.getItem('meridian_rbac_users_v1') || '[]')
+      const v1Idx = v1Users.findIndex((u: any) => (u.userId || u.employeeId || '').toUpperCase() === targetUserId.toUpperCase())
+      if (v1Idx !== -1) {
+        v1Users[v1Idx].password = newPassword
+        v1Users[v1Idx].status = 'Active'
+        localStorage.setItem('meridian_rbac_users_v1', JSON.stringify(v1Users))
+      }
+    } catch {}
+
     // Also clear any lockout key for this user
     try {
-      localStorage.removeItem(`meridian_lockout_${targetUserId}`)
+      localStorage.removeItem(`meridian_lockout_${targetUserId.toUpperCase()}`)
     } catch {}
   }
 

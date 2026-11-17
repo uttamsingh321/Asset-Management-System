@@ -139,11 +139,7 @@ function sanitizeAssetList(assets: Asset[]): Asset[] {
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState<boolean>(() => {
-    return (
-      sessionStorage.getItem('meridian_auth') === 'true' ||
-      localStorage.getItem('meridian_remember_user') !== null ||
-      window.location.hash.includes('offline')
-    )
+    return sessionStorage.getItem('meridian_auth') === 'true'
   })
   const [activeFactory, setActiveFactory] = React.useState<string>(() => {
     const s = sessionStorage.getItem('meridian_active_factory')
@@ -491,6 +487,7 @@ export function App() {
   const handleLogout = () => {
     sessionStorage.removeItem('meridian_auth')
     sessionStorage.removeItem('meridian_offline_mode')
+    sessionStorage.removeItem('meridian_active_factory')
     logAuditEvent('LOGOUT', { user: currentUser }, currentUser.userId)
     setIsAuthenticated(false)
     toast.info('Logged out from workshop terminal')

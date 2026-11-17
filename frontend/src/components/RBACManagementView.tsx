@@ -503,6 +503,9 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
     const newUsers = users.map((x) => (x.id === resetPwdModal.user!.id ? updated : x))
     setUsers(newUsers)
     masterMappingService.saveRBACUsers(newUsers)
+    try {
+      localStorage.removeItem(`meridian_lockout_${resetPwdModal.user.employeeId.toUpperCase()}`)
+    } catch {}
     fetch(`/api/users/${encodeURIComponent(resetPwdModal.user.employeeId)}/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

@@ -1004,7 +1004,9 @@ def api_users(request: HttpRequest) -> JsonResponse:
                 existing_user.name = name
                 existing_user.department = department
                 existing_user.role = role
-                existing_user.password = password
+                # Only update password if an explicit valid password is provided and not default placeholder
+                if password and len(password.strip()) >= 4 and password.strip() != "Temporary@123":
+                    existing_user.password = password.strip()
                 existing_user.email = email
                 existing_user.is_superuser = is_super
                 existing_user.is_active = is_active
@@ -1213,6 +1215,11 @@ def api_user_login(request: HttpRequest) -> JsonResponse:
             }, status=403)
 
         # Verify password
+        if not user.password or len(user.password.strip()) < 4:
+            return JsonResponse({
+                "error": "Password not configured for this account. Please click 'Forgot password?' or contact Superuser."
+            }, status=401)
+
         is_pw_valid = (user.password == password) or (
             user.user_id.upper() == "USR-ADMIN" and password in ["AdminPassword2026!", "Admin@2026!"]
         )

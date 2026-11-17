@@ -207,7 +207,23 @@ describe('Super User Password Reset Notification & Governance Specification', ()
     const arbind = rbacUsers.find((u) => u.employeeId === '19102709')
     expect(arbind?.password).toBe('MeridianNewPass@2026')
 
-    // Test that Arbind can now log in on LoginPage with this new password
+    // Test that Arbind CANNOT log in with a random password
+    const handleLoginFail = vi.fn()
+    const { unmount } = render(<LoginPage onLoginSuccess={handleLoginFail} onEnterOfflineMode={vi.fn()} lang="en" />)
+
+    const failUserInput = screen.getByLabelText(/User ID \/ Employee ID \*/i)
+    const failPwInput = screen.getByLabelText(/^Password \*/i)
+    fireEvent.change(failUserInput, { target: { value: '19102709' } })
+    fireEvent.change(failPwInput, { target: { value: 'completely_random_wrong_pw' } })
+
+    const failSignInBtn = screen.getByRole('button', { name: /Sign In to Factory System/i })
+    fireEvent.click(failSignInBtn)
+
+    await new Promise((r) => setTimeout(r, 200))
+    expect(handleLoginFail).not.toHaveBeenCalled()
+    unmount()
+
+    // Test that Arbind can now log in on LoginPage ONLY with this exact new password
     const handleLoginSuccess = vi.fn()
     render(<LoginPage onLoginSuccess={handleLoginSuccess} onEnterOfflineMode={vi.fn()} lang="en" />)
 

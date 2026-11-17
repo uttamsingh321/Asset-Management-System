@@ -287,6 +287,18 @@ export const UserManagementView: React.FC<Props> = ({ currentUser, onSwitchUser,
     })
     persistUsers(updatedUsers)
 
+    try {
+      const currentRBAC = masterMappingService.getRBACUsers()
+      const uIdx = currentRBAC.findIndex((u) => u.employeeId.toUpperCase() === targetUser.userId.toUpperCase())
+      if (uIdx !== -1) {
+        currentRBAC[uIdx].password = pw
+        currentRBAC[uIdx].status = 'Active'
+        currentRBAC[uIdx].failedLoginAttempts = 0
+        masterMappingService.saveRBACUsers(currentRBAC)
+      }
+      localStorage.removeItem(`meridian_lockout_${targetUser.userId.toUpperCase()}`)
+    } catch {}
+
     // Call backend PUT if possible
     try {
       await fetch(`/api/users/${targetUser.userId}/`, {

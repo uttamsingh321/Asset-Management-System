@@ -794,7 +794,17 @@ export const masterMappingService = {
 
         data.users.forEach((bu: any) => {
           const bId = (bu.userId || bu.employeeId || '').trim().toUpperCase()
-          if (bId && !currentIds.has(bId)) {
+          if (!bId) return
+          const existingIdx = merged.findIndex((u) => (u.employeeId || '').trim().toUpperCase() === bId)
+          if (existingIdx !== -1) {
+            merged[existingIdx].employeeName = bu.name || bu.userName || merged[existingIdx].employeeName
+            merged[existingIdx].department = bu.department || merged[existingIdx].department
+            merged[existingIdx].role = bu.role || merged[existingIdx].role
+            merged[existingIdx].status = bu.isActive !== false ? 'Active' : 'Inactive'
+            if (bu.password) {
+              merged[existingIdx].password = bu.password
+            }
+          } else {
             merged.push({
               id: String(bu.id || Date.now()),
               employeeId: bu.userId || bu.employeeId,
@@ -814,9 +824,7 @@ export const masterMappingService = {
           }
         })
 
-        if (merged.length > current.length) {
-          this.saveRBACUsers(merged)
-        }
+        this.saveRBACUsers(merged)
         return merged
       }
     } catch {}
