@@ -735,18 +735,6 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
     color: 'var(--ink)',
   }
 
-  const grid2Style: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '14px',
-  }
-
-  const grid3Style: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: '12px',
-  }
-
   return (
     <>
       {/* Dimmed backdrop */}
@@ -811,7 +799,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
         </div>
 
         {/* Scrollable Body */}
-        <form id="add-asset-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form id="add-asset-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
           {/* 1. PRE-FETCHED EXCEL MASTER RECORD (Shown when initialAsset is present) */}
           {initialAsset && (
             <div className="rounded-2xl border-2 border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-4 space-y-3 shadow-xs">
@@ -1149,7 +1137,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
 
               {/* Categories & Descriptions */}
-              <div style={grid2Style}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label style={labelStyle}>Category Specification / Sub-type</label>
                   <input
@@ -1604,7 +1592,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </div>
 
               {/* Floor and Plant */}
-              <div style={grid2Style}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label htmlFor="field-floor" style={labelStyle}>Floor</label>
                   <input
@@ -1817,7 +1805,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     Row 5 of QR Label
                   </span>
                 </div>
-                <div style={grid2Style}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <input
                       id="field-inChargeId"
@@ -1869,7 +1857,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     </span>
                   </div>
                 </div>
-                <div style={grid2Style}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label style={labelStyle} htmlFor="field-submitterId">
                       Current User Employee ID
@@ -2074,7 +2062,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
               </span>
             </div>
 
-            <div style={grid3Style}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* 1. Asset photo: Click card to show Camera or File options */}
               <div className="space-y-1.5">
                 <label style={labelStyle}>Asset photo</label>
@@ -2161,6 +2149,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     type="file"
                     accept="image/*"
                     className="hidden"
+                    style={{ display: 'none' }}
                     onChange={(e) => handleFileChange(e, setAssetPhoto, 'photo')}
                   />
                 </div>
@@ -2311,6 +2300,7 @@ export const AddAssetPanel: React.FC<AddAssetPanelProps> = ({
                     type="file"
                     accept="image/*"
                     className="hidden"
+                    style={{ display: 'none' }}
                     onChange={(e) => handleFileChange(e, setIdCardPicture, 'id')}
                   />
                 </div>

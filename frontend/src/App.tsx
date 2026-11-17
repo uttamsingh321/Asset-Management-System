@@ -1822,6 +1822,37 @@ export function App() {
                   </div>
                 </section>
 
+                {/* Pending Tasks Queue Alert Banner */}
+                {pendingTaskCount > 0 && (
+                  <div className="mt-3 p-3 sm:p-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg font-bold shrink-0 border border-amber-500/30">
+                        ⏳
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-[var(--ink)]">
+                            {pendingTaskCount.toLocaleString()} Asset Codes in Task Queue
+                          </h4>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                            Awaiting Physical Data Entry
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[var(--mute)] mt-0.5">
+                          Super user imported {assets.length.toLocaleString()} master codes from SAP/ERP. Complete physical asset details to activate them in the deployed fleet.
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href="#tasks"
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition flex items-center justify-center gap-1.5 shrink-0 shadow-xs text-center"
+                    >
+                      <span>Open Task Queue ({pendingTaskCount.toLocaleString()})</span>
+                      <span>→</span>
+                    </a>
+                  </div>
+                )}
+
                 {/* Four Major Asset Categories (四大核心资产类别) Overview Strip */}
                 <section
                   className="mt-3 card p-3 sm:p-4 space-y-3 bg-[var(--surf)] border border-[var(--line)] shadow-2xs"

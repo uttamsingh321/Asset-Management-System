@@ -269,6 +269,7 @@ main {
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
+  scroll-padding-top: 80px;
 }
 
 /* Sticky Fixed Header */
@@ -854,6 +855,21 @@ h1 {
 
   .leg {
     gap: 12px;
+  }
+}
+
+@media (max-width: 540px) {
+  #theme,
+  header .ico[aria-label="Notifications"] {
+    display: none !important;
+  }
+  .search {
+    min-width: 110px;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+  .search input {
+    font-size: 12px;
   }
 }
 

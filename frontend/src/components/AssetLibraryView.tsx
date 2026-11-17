@@ -84,6 +84,13 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
     completedAssets.length > 0 ? 'completed' : 'all'
   )
 
+  // Auto-switch to 'all' if no completed physical units exist but task codes are available
+  React.useEffect(() => {
+    if (completedAssets.length === 0 && assets.length > 0) {
+      setGalleryViewMode('all')
+    }
+  }, [completedAssets.length, assets.length])
+
   const baseAssets = React.useMemo(() => {
     if (galleryViewMode === 'completed') return completedAssets
     if (galleryViewMode === 'pending') return assets.filter((a) => !isAssetTaskCompleted(a))
@@ -318,6 +325,7 @@ export const AssetLibraryView: React.FC<AssetLibraryViewProps> = ({
         accept=".xlsx,.xls,.csv"
         onChange={handleFileChange}
         className="hidden"
+        style={{ display: 'none' }}
         aria-label="Import Excel or CSV file"
       />
 

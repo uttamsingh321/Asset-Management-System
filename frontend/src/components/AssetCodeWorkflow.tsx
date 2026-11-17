@@ -882,7 +882,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
   const completionPct = totalCodes > 0 ? Math.round((completedAssets.length / totalCodes) * 100) : 0
 
   return (
-    <div className="space-y-6" id="v-task-dashboard">
+    <div className="space-y-6 scroll-mt-20" id="v-task-dashboard">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surf)] border border-[var(--line)] rounded-2xl p-6 shadow-xs">
         <div>
@@ -1142,6 +1142,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
                   disabled={!selectedImportCategory}
                   aria-label="Import asset code spreadsheet"
                   className="hidden"
+                  style={{ display: 'none' }}
                   onChange={(event) => {
                     const file = event.target.files?.[0]
                     if (file) void importCodes(file)
@@ -1591,8 +1592,8 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
 
         {/* Tasks Table / List */}
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] relative bg-[var(--surf)] shadow-2xs">
-          <table className="w-full text-left text-xs border-collapse table-auto min-w-[760px]">
-            <thead className="bg-[var(--surf2)]/70 border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
+          <table className="w-full min-w-full text-left text-xs border-collapse table-fixed min-w-[760px]">
+            <thead className="sticky top-0 z-10 bg-[var(--surf2)] border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px] shadow-2xs">
               <tr>
                 <th className="py-3 px-3.5 w-[30%]">Asset Code</th>
                 <th className="py-3 px-3 w-[16%]">Department</th>
