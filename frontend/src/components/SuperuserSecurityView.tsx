@@ -308,17 +308,26 @@ export const SuperuserSecurityView: React.FC<SuperuserSecurityViewProps> = ({ cu
           </div>
         </div>
 
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[320px] border border-[var(--line)] rounded-xl scrollbar-thin">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-y-auto max-h-[calc(100vh-320px)] min-h-[320px] border border-[var(--line)] rounded-xl scrollbar-thin">
+          <table className="w-full text-left text-xs border-collapse table-fixed">
+            <colgroup>
+              <col className="w-[12%]" />
+              <col className="w-[11%]" />
+              <col className="w-[13%]" />
+              <col className="w-[11%]" />
+              <col className="w-[13%]" />
+              <col className="w-[20%]" />
+              <col className="w-[20%]" />
+            </colgroup>
             <thead className="sticky top-0 z-10 bg-[var(--surf)] border-b border-[var(--line)] shadow-xs">
-              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px] bg-[var(--surf)]">
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Date & Time</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Security Action</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">User ID & Name</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Client IP Address</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Factory Selected</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Device / Telemetry</th>
-                <th className="py-2.5 px-3 bg-[var(--surf)]">Security Details</th>
+              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[10px] bg-[var(--surf)]">
+                <th className="py-2 px-2 bg-[var(--surf)]">Date & Time</th>
+                <th className="py-2 px-2 bg-[var(--surf)]">Action</th>
+                <th className="py-2 px-2 bg-[var(--surf)]">User ID & Name</th>
+                <th className="py-2 px-2 bg-[var(--surf)]">Client IP</th>
+                <th className="py-2 px-2 bg-[var(--surf)]">Factory</th>
+                <th className="py-2 px-2 bg-[var(--surf)]">Device / Telemetry</th>
+                <th className="py-2 px-2 bg-[var(--surf)]">Security Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
@@ -338,28 +347,29 @@ export const SuperuserSecurityView: React.FC<SuperuserSecurityViewProps> = ({ cu
 
                   return (
                     <tr key={`${log.id}-${log.timestamp}`} className="hover:bg-[var(--surf2)]/50 transition">
-                      <td className="py-2.5 px-3 whitespace-nowrap font-mono text-[11px] text-[var(--mute)]">
+                      <td className="py-2 px-2 font-mono text-[10px] text-[var(--mute)] break-all">
                         {new Date(log.timestamp).toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${badgeClass}`}>
+                      <td className="py-2 px-2">
+                        <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border ${badgeClass} whitespace-nowrap`}>
                           {log.action}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 font-medium">
-                        <div className="font-mono text-[var(--ink)] font-bold">{log.userId}</div>
-                        <div className="text-[11px] text-[var(--mute)]">{log.userName}</div>
+                      <td className="py-2 px-2">
+                        <div className="font-mono text-[var(--ink)] font-bold text-[10px] truncate">{log.userId}</div>
+                        <div className="text-[10px] text-[var(--mute)] truncate">{log.userName}</div>
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-blue-600">
+                      <td className="py-2 px-2 font-mono font-bold text-blue-600 text-[10px]">
                         {log.clientIp || '127.0.0.1'}
                       </td>
-                      <td className="py-2.5 px-3 text-[var(--ink)]">
+                      <td className="py-2 px-2 text-[10px] text-[var(--ink)] truncate">
                         {log.details?.factory || 'Noida Plant'}
                       </td>
-                      <td className="py-2.5 px-3 text-[11px] text-[var(--mute)]">
-                        {log.deviceType} · {log.os} · {log.browser}
+                      <td className="py-2 px-2 text-[10px] text-[var(--mute)]">
+                        <div className="truncate">{log.deviceType} · {log.os}</div>
+                        <div className="truncate">{log.browser}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-[11px] text-[var(--mute)] max-w-xs truncate">
+                      <td className="py-2 px-2 text-[10px] text-[var(--mute)] truncate">
                         {log.details?.reason ||
                           log.details?.authMethod ||
                           (log.details?.failedAttempts ? `Attempt ${log.details.failedAttempts}/5` : 'Standard authentication')}
