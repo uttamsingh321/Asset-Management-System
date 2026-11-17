@@ -14,6 +14,13 @@ import type { Asset } from '@/types/asset'
 export const STORAGE_KEY_PRINT_RECORDS = 'meridian_label_print_records'
 export const STORAGE_KEY_REPRINT_REQUESTS = 'meridian_reprint_requests'
 
+function getApiUrl(path: string): string {
+  if (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('null')) {
+    return `${window.location.origin}${path}`
+  }
+  return `http://localhost:8000${path}`
+}
+
 export type ReprintReason =
   | 'Label Damaged / Scratched'
   | 'Label Faded / Unreadable Barcode/QR'
@@ -53,6 +60,7 @@ export interface ReprintRequest {
   requestedBy: string
   requesterUserId: string
   requesterDept?: string
+  department?: string
   reason: ReprintReason | string
   notes?: string
   status: 'pending' | 'approved' | 'rejected'
@@ -158,6 +166,45 @@ function saveReprintRequests(requests: ReprintRequest[]): void {
   }
 }
 
+/**
+ * Synchronize reprint requests with central Django backend so Super Users
+ * and HODs on any machine/browser see live pending approval requests.
+ */
+export async function syncBackendReprintRequests(): Promise<ReprintRequest[]> {
+  try {
+    const res = await fetch(getApiUrl('/api/labels/reprint-requests/'), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+    if (!res.ok) return getReprintRequests()
+    const data = await res.json()
+    if (data && Array.isArray(data.requests)) {
+      const backendReqs: ReprintRequest[] = data.requests
+      const localReqs = getReprintRequests()
+      const reqMap = new Map<string, ReprintRequest>()
+      for (const r of localReqs) {
+        reqMap.set(r.id, r)
+      }
+      for (const r of backendReqs) {
+        reqMap.set(r.id, {
+          ...(reqMap.get(r.id) || {}),
+          ...r,
+        })
+      }
+      const merged = Array.from(reqMap.values()).sort(
+        (a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+      )
+      saveReprintRequests(merged)
+      return merged
+    }
+  } catch (err) {
+    console.warn('Backend reprint requests sync unavailable:', err)
+  }
+  return getReprintRequests()
+}
+
 /** Save print records to storage and dispatch update notification */
 function savePrintRecords(records: Record<string, AssetPrintRecord>): void {
   try {
@@ -238,7 +285,7 @@ export function recordAssetPrint(
 
   // Asynchronous background call to backend REST enforcement endpoint
   try {
-    fetch('/api/labels/record-print/', {
+    fetch(getApiUrl('/api/labels/record-print/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -309,7 +356,7 @@ export function createReprintRequest(params: {
 
   // Sync to backend endpoint asynchronously
   try {
-    fetch('/api/labels/reprint-requests/', {
+    fetch(getApiUrl('/api/labels/reprint-requests/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -377,17 +424,21 @@ export function approveReprintRequest(
 
   // Sync to backend REST action endpoint
   try {
-    fetch(`/api/labels/reprint-requests/${requestId}/action/`, {
+    fetch(getApiUrl(`/api/labels/reprint-requests/${requestId}/action/`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'approve',
         user_id: reviewer.userId,
         user_name: reviewer.userName,
-        role: reviewer.role || 'HOD',
+        role: reviewer.role || (isSuperUserRole(reviewer) ? 'Super User' : 'HOD'),
         notes: reviewNotes,
       }),
-    }).catch(() => {})
+    })
+      .then(() => {
+        void syncBackendReprintRequests()
+      })
+      .catch(() => {})
   } catch {}
 
   // Log audit event
@@ -440,17 +491,21 @@ export function rejectReprintRequest(
 
   // Sync to backend REST action endpoint
   try {
-    fetch(`/api/labels/reprint-requests/${requestId}/action/`, {
+    fetch(getApiUrl(`/api/labels/reprint-requests/${requestId}/action/`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'reject',
         user_id: reviewer.userId,
         user_name: reviewer.userName,
-        role: reviewer.role || 'HOD',
+        role: reviewer.role || (isSuperUserRole(reviewer) ? 'Super User' : 'HOD'),
         notes: reviewNotes,
       }),
-    }).catch(() => {})
+    })
+      .then(() => {
+        void syncBackendReprintRequests()
+      })
+      .catch(() => {})
   } catch {}
 
   // Log audit event

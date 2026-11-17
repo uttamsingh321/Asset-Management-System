@@ -23,6 +23,7 @@ import {
   rejectReprintRequest,
   getPrintRecords,
   getReprintRequests,
+  syncBackendReprintRequests,
   isSuperUserRole,
   isHODRole,
   isHODOrSuperUser,
@@ -761,6 +762,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   React.useEffect(() => {
     const onUpdate = () => setReprintUpdateVersion((v) => v + 1)
     window.addEventListener('meridian_reprint_updated', onUpdate)
+    void syncBackendReprintRequests().then(() => setReprintUpdateVersion((v) => v + 1))
     return () => window.removeEventListener('meridian_reprint_updated', onUpdate)
   }, [])
 

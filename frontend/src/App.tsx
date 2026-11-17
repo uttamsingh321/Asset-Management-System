@@ -43,8 +43,13 @@ import {
   getAssetPrintRecord,
   getLatestReprintRequest,
   createReprintRequest,
+  getReprintRequests,
+  syncBackendReprintRequests,
+  approveReprintRequest,
+  rejectReprintRequest,
   REPRINT_REASONS,
   type ReprintReason,
+  type ReprintRequest,
 } from '@/lib/labelReprintService'
 
 // Lazy-load heavy views to keep bundle fast
@@ -239,6 +244,40 @@ export function App() {
       currentUser.userId?.toUpperCase() === 'USR-ADMIN'
     )
   }, [currentUser])
+
+  // Reprint requests and real-time backend synchronization
+  const [reprintRequests, setReprintRequests] = React.useState<ReprintRequest[]>(() => getReprintRequests())
+  const [isNotificationFlyoutOpen, setIsNotificationFlyoutOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    let isMounted = true
+    const handleReprintUpdate = () => {
+      if (isMounted) setReprintRequests(getReprintRequests())
+    }
+    window.addEventListener('meridian_reprint_updated', handleReprintUpdate)
+
+    void syncBackendReprintRequests().then((reqs) => {
+      if (isMounted && reqs) setReprintRequests(reqs)
+    })
+
+    const interval = setInterval(() => {
+      void syncBackendReprintRequests().then((reqs) => {
+        if (isMounted && reqs) setReprintRequests(reqs)
+      })
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      window.removeEventListener('meridian_reprint_updated', handleReprintUpdate)
+      clearInterval(interval)
+    }
+  }, [])
+
+  const pendingReprintRequests = React.useMemo(() => {
+    return reprintRequests.filter((r) => r.status === 'pending')
+  }, [reprintRequests])
+
+  const pendingReprintCount = pendingReprintRequests.length
 
   // Check if a specific asset can be viewed by the user under department RBAC
   const checkAssetAccess = React.useCallback(
@@ -1667,14 +1706,26 @@ export function App() {
             </button>
 
             <button
-              className="ico"
-              aria-label="Notifications"
-              onClick={() => toast('No new notifications')}
+              type="button"
+              className="ico relative cursor-pointer"
+              aria-label={`Notifications ${pendingReprintCount > 0 ? `(${pendingReprintCount} pending approvals)` : ''}`}
+              onClick={() => setIsNotificationFlyoutOpen(true)}
+              title={
+                pendingReprintCount > 0
+                  ? `${pendingReprintCount} Re-print Request(s) Pending Super User Approval`
+                  : 'Notifications'
+              }
             >
               <svg viewBox="0 0 24 24">
                 <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6ZM10 19a2 2 0 0 0 4 0" />
               </svg>
-              <i className="dot" />
+              {pendingReprintCount > 0 ? (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white font-bold text-[10px] flex items-center justify-center animate-pulse shadow-xs border border-white dark:border-slate-900">
+                  {pendingReprintCount}
+                </span>
+              ) : (
+                <i className="dot" />
+              )}
             </button>
 
             {/* User Profile Avatar */}
@@ -1851,6 +1902,151 @@ export function App() {
                       <span>→</span>
                     </a>
                   </div>
+                )}
+
+                {/* 👑 Super User Approval & Governance Center */}
+                {isSuperuserOrAdmin && (
+                  <section
+                    className="mt-3 card p-4 sm:p-5 space-y-4 bg-gradient-to-br from-[var(--surf)] via-[var(--surf)] to-purple-500/5 border-2 border-purple-500/30 shadow-xs"
+                    aria-label="Super User Approval & Governance Center"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--line)]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center text-xl font-bold shadow-sm shadow-purple-600/30">
+                          👑
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-bold text-[var(--ink)] tracking-tight">
+                              Super User Approval & Governance Center (审批中心)
+                            </h3>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                              HOD Authority
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--mute)] mt-0.5">
+                            Enforce Single-Print Governance: Authorize duplicate QR code reprints requested by department operators.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                            pendingReprintCount > 0
+                              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 animate-pulse'
+                              : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${pendingReprintCount > 0 ? 'bg-rose-600' : 'bg-emerald-500'}`} />
+                          <span>{pendingReprintCount} Reprint Request{pendingReprintCount === 1 ? '' : 's'} Pending Approval</span>
+                        </span>
+                        <a
+                          href="#labels"
+                          className="text-xs font-bold px-3 py-1 rounded-lg border border-[var(--line)] bg-[var(--surf2)] hover:bg-[var(--line)] text-[var(--ink)] transition"
+                        >
+                          QR Label Print →
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Pending Requests Table / Cards */}
+                    {pendingReprintRequests.length > 0 ? (
+                      <div className="space-y-3">
+                        <div className="text-xs font-bold text-[var(--ink)] flex items-center justify-between">
+                          <span>Requests Requiring Action ({pendingReprintRequests.length})</span>
+                          <span className="text-[11px] text-[var(--mute)] font-normal">Approving unlocks 1-time print permit for the requester</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {pendingReprintRequests.map((req) => (
+                            <div
+                              key={req.id}
+                              className="p-3.5 rounded-xl border border-amber-500/40 bg-[var(--surf)] hover:border-purple-500/50 transition shadow-2xs space-y-2.5 flex flex-col justify-between"
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-xs text-[var(--acc)]">
+                                        🏷️ {req.assetCode}
+                                      </span>
+                                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--surf2)] text-[var(--mute)] border border-[var(--line)]">
+                                        {req.id}
+                                      </span>
+                                    </div>
+                                    <h4 className="text-xs font-bold text-[var(--ink)] mt-0.5 truncate max-w-[280px]">
+                                      {req.assetName || 'Equipment Fixed Asset'}
+                                    </h4>
+                                  </div>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                                    ⏳ Pending
+                                  </span>
+                                </div>
+
+                                <div className="text-[11px] text-[var(--mute)] space-y-0.5 bg-[var(--surf2)]/50 p-2 rounded-lg border border-[var(--line)]/50">
+                                  <div>
+                                    <b>Requester:</b> <span className="text-[var(--ink)] font-semibold">{req.requestedBy || 'Staff'}</span> ({req.requesterDept || req.department || 'Production'})
+                                  </div>
+                                  <div>
+                                    <b>Reason:</b> <span className="text-amber-600 dark:text-amber-400 font-semibold">{req.reason}</span>
+                                  </div>
+                                  {req.notes && (
+                                    <div>
+                                      <b>Operator Note:</b> <i>"{req.notes}"</i>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <b>Requested:</b> {new Date(req.requestedAt).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1 border-t border-[var(--line)]/60">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const note = 'Approved by Super User'
+                                    const res = approveReprintRequest(req.id, currentUser, note)
+                                    if (res) {
+                                      toast.success(`Approved reprint for ${req.assetCode}! 1-time print unlocked for ${req.requestedBy}.`)
+                                    }
+                                  }}
+                                  className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
+                                >
+                                  <span>✓</span>
+                                  <span>Approve 1-Time Print</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const note = 'Rejected by Super User'
+                                    const res = rejectReprintRequest(req.id, currentUser, note)
+                                    if (res) {
+                                      toast.info(`Rejected reprint request for ${req.assetCode}.`)
+                                    }
+                                  }}
+                                  className="py-1.5 px-3 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-semibold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                                >
+                                  <span>✕</span>
+                                  <span>Reject</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                        <span className="text-xl">🛡️</span>
+                        <div>
+                          <div className="font-bold">All QR Label Reprint Requests are Approved & Clear</div>
+                          <div className="text-[11px] opacity-80">
+                            Zero duplicate print requests pending. Strict anti-duplicate label governance is fully active.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
                 )}
 
                 {/* Four Major Asset Categories (四大核心资产类别) Overview Strip */}
@@ -3433,6 +3629,157 @@ export function App() {
         triggerRef={addAssetButtonRef}
         currentUser={currentUser}
       />
+
+      {/* Notifications & Approvals Flyout Modal */}
+      {isNotificationFlyoutOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="notif-flyout-title"
+          className="fixed inset-0 z-50 flex items-start justify-end p-2 sm:p-4 bg-black/50 backdrop-blur-2xs animate-in fade-in duration-150"
+          onClick={() => setIsNotificationFlyoutOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-[var(--surf)] border border-[var(--line)] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 mt-12 max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--surf2)]/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-600 flex items-center justify-center text-base font-bold">
+                  🔔
+                </div>
+                <div>
+                  <h3 id="notif-flyout-title" className="text-sm font-bold text-[var(--ink)]">
+                    Notifications & Approvals
+                  </h3>
+                  <div className="text-[11px] text-[var(--mute)]">
+                    {pendingReprintCount} re-print approval {pendingReprintCount === 1 ? 'request' : 'requests'} pending
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNotificationFlyoutOpen(false)}
+                className="w-7 h-7 rounded-lg text-[var(--mute)] hover:bg-[var(--surf2)] hover:text-[var(--ink)] flex items-center justify-center text-sm transition cursor-pointer"
+                aria-label="Close notifications"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {pendingReprintRequests.length > 0 ? (
+                pendingReprintRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2.5 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-xs text-[var(--ink)]">
+                            🏷️ {req.assetCode}
+                          </span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                            Re-print Request
+                          </span>
+                        </div>
+                        <div className="text-xs font-semibold text-[var(--ink)] mt-0.5 truncate max-w-[280px]">
+                          {req.assetName || 'Equipment Unit'}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-[var(--mute)] shrink-0">
+                        {req.id}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-[var(--mute)] space-y-0.5 border-t border-[var(--line)] pt-2">
+                      <div>
+                        <b>Requested by:</b> <span className="text-[var(--ink)] font-semibold">{req.requestedBy || 'Staff'}</span> ({req.requesterDept || req.department || 'Production & SMT'})
+                      </div>
+                      <div>
+                        <b>Reason:</b> <span className="text-amber-600 dark:text-amber-400 font-semibold">{req.reason}</span>
+                      </div>
+                      {req.notes && (
+                        <div>
+                          <b>Notes:</b> <i>"{req.notes}"</i>
+                        </div>
+                      )}
+                      <div>
+                        <b>Date:</b> {new Date(req.requestedAt).toLocaleString()}
+                      </div>
+                    </div>
+
+                    {isSuperuserOrAdmin ? (
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const res = approveReprintRequest(req.id, currentUser, 'Approved by Super User')
+                            if (res) {
+                              toast.success(`Approved re-print for ${req.assetCode}! Print button unlocked for 1 print.`)
+                            }
+                          }}
+                          className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition shadow-2xs cursor-pointer"
+                        >
+                          <span>✓</span>
+                          <span>Approve 1-Time Print</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const res = rejectReprintRequest(req.id, currentUser, 'Rejected by Super User')
+                            if (res) {
+                              toast.info(`Rejected re-print request for ${req.assetCode}.`)
+                            }
+                          }}
+                          className="py-1.5 px-2.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-semibold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                        >
+                          <span>✕</span>
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-amber-600 font-medium">
+                        ⏳ Under Review by HOD / Super User
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="py-10 text-center space-y-2">
+                  <div className="text-3xl">🎉</div>
+                  <div className="text-xs font-bold text-[var(--ink)]">All Approvals Up to Date</div>
+                  <div className="text-[11px] text-[var(--mute)] max-w-xs mx-auto">
+                    No pending reprint requests. Single-print policy is fully active across all factory terminals.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-[var(--line)] bg-[var(--surf2)]/30 flex items-center justify-between text-xs">
+              <a
+                href="#labels"
+                onClick={() => setIsNotificationFlyoutOpen(false)}
+                className="text-[var(--acc)] hover:underline font-semibold flex items-center gap-1"
+              >
+                <span>View Full Print & Approval Center</span>
+                <span>→</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setIsNotificationFlyoutOpen(false)}
+                className="px-3 py-1 rounded-lg border border-[var(--line)] bg-[var(--surf)] hover:bg-[var(--surf2)] text-[var(--ink)] font-medium cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
