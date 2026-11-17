@@ -408,6 +408,9 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
         boxSizing: 'border-box',
         overflow: 'hidden',
+        pageBreakInside: 'avoid',
+        breakInside: 'avoid',
+        maxHeight: '100%',
         boxShadow: scale === 1 ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
       }}
     >
@@ -416,8 +419,10 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
         style={{
           display: 'flex',
           borderBottom: '2px solid #000000',
-          minHeight: `${62 * scale}px`,
+          minHeight: `${56 * scale}px`,
+          height: `${56 * scale}px`,
           boxSizing: 'border-box',
+          overflow: 'hidden',
         }}
       >
         {/* Left: Company Logo (Original ismartu or PadGET) */}
@@ -494,9 +499,11 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
             style={{
               display: 'flex',
               borderBottom: idx === rows.length - 1 ? '2px solid #000000' : '1.5px solid #000000',
-              minHeight: `${26.5 * scale}px`,
+              minHeight: `${24 * scale}px`,
+              height: `${24 * scale}px`,
               alignItems: 'center',
               boxSizing: 'border-box',
+              overflow: 'hidden',
             }}
           >
             {/* Left Label Column */}
@@ -543,9 +550,11 @@ export const IsmartuAssetLabel = React.memo(function IsmartuAssetLabel({
       <div
         style={{
           display: 'flex',
-          height: `${86 * scale}px`,
+          height: `${78 * scale}px`,
+          minHeight: `${78 * scale}px`,
           alignItems: 'center',
           boxSizing: 'border-box',
+          overflow: 'hidden',
         }}
       >
         {/* Left: Barcode + Asset Code Text */}
@@ -639,12 +648,12 @@ export interface LabelSizePreset {
 }
 
 export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
-  { id: '100x65', name: '100 × 65 mm', widthMm: 100, heightMm: 65, scale: 1.0, desc: 'Enterprise Standard (Default)' },
-  { id: '80x50', name: '80 × 50 mm', widthMm: 80, heightMm: 50, scale: 0.8, desc: 'Medium Machinery' },
-  { id: '75x50', name: '75 × 50 mm (3" × 2")', widthMm: 75, heightMm: 50, scale: 0.75, desc: 'Standard Thermal Roll' },
-  { id: '70x45', name: '70 × 45 mm', widthMm: 70, heightMm: 45, scale: 0.7, desc: 'Compact Equipment' },
-  { id: '50x35', name: '50 × 35 mm (2" × 1.4")', widthMm: 50, heightMm: 35, scale: 0.52, desc: 'Mini Asset Tag' },
-  { id: 'custom', name: 'Custom Size', widthMm: 100, heightMm: 65, scale: 1.0, desc: 'User-defined Dimensions' },
+  { id: '100x65', name: '100 × 65 mm', widthMm: 100, heightMm: 65, scale: 0.72, desc: 'Enterprise Standard (Default - Single Page)' },
+  { id: '80x50', name: '80 × 50 mm', widthMm: 80, heightMm: 50, scale: 0.58, desc: 'Medium Machinery' },
+  { id: '75x50', name: '75 × 50 mm (3" × 2")', widthMm: 75, heightMm: 50, scale: 0.55, desc: 'Standard Thermal Roll' },
+  { id: '70x45', name: '70 × 45 mm', widthMm: 70, heightMm: 45, scale: 0.51, desc: 'Compact Equipment' },
+  { id: '50x35', name: '50 × 35 mm (2" × 1.4")', widthMm: 50, heightMm: 35, scale: 0.38, desc: 'Mini Asset Tag' },
+  { id: 'custom', name: 'Custom Size', widthMm: 100, heightMm: 65, scale: 0.72, desc: 'User-defined Dimensions' },
 ]
 
 // Memoized List Row Item for Zero Lag under 15,000+ assets
@@ -799,11 +808,15 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
   const [approvalsTab, setApprovalsTab] = React.useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
   const [approvalReviewNotes, setApprovalReviewNotes] = React.useState<Record<string, string>>({})
 
+  // Physical Print Verification Modal state (Prevents premature locking)
+  const [isPhysicalPrintConfirmOpen, setIsPhysicalPrintConfirmOpen] = React.useState(false)
+  const [pendingPhysicalPrintAssets, setPendingPhysicalPrintAssets] = React.useState<Asset[] | null>(null)
+
   // Label Print Size Management State
   const [selectedPresetId, setSelectedPresetId] = React.useState<string>('100x65')
   const [customWidthMm, setCustomWidthMm] = React.useState<number>(100)
   const [customHeightMm, setCustomHeightMm] = React.useState<number>(65)
-  const [customScalePercent, setCustomScalePercent] = React.useState<number>(100)
+  const [customScalePercent, setCustomScalePercent] = React.useState<number>(72)
   const [showSizeManager, setShowSizeManager] = React.useState<boolean>(false)
   const [qrContentMode, setQrContentMode] = React.useState<'url' | 'text' | 'json'>('url')
 
@@ -1138,7 +1151,8 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         })
         return
       }
-      validQueue.forEach((a) => recordAssetPrint(a.id, a.assetCode, activeUser))
+      setPendingPhysicalPrintAssets(validQueue)
+      setIsPhysicalPrintConfirmOpen(true)
       toast.info(
         lang === 'hi'
           ? `${validQueue.length} लेबलों के लिए प्रिंटर संवाद खोला जा रहा है...`
@@ -1266,6 +1280,33 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
     }
   }
 
+  // Physical Handover Confirmation Handlers (Strictly prevents premature locking on cancel/jam)
+  const handleConfirmPhysicalHandover = () => {
+    if (pendingPhysicalPrintAssets && pendingPhysicalPrintAssets.length > 0) {
+      pendingPhysicalPrintAssets.forEach((a) => {
+        recordAssetPrint(a.id, a.assetCode, activeUser)
+      })
+      toast.success(
+        lang === 'hi'
+          ? `भौतिक लेबल प्राप्त हुआ! ${pendingPhysicalPrintAssets.length} संपत्ति के लिए एकल-प्रिंट लॉक लागू किया गया।`
+          : `Physical label received in hand! Single-print lock applied for ${pendingPhysicalPrintAssets.length} asset(s).`
+      )
+      setReprintUpdateVersion((v) => v + 1)
+    }
+    setPendingPhysicalPrintAssets(null)
+    setIsPhysicalPrintConfirmOpen(false)
+  }
+
+  const handleCancelPhysicalHandover = () => {
+    toast.info(
+      lang === 'hi'
+        ? 'प्रिंट रद्द या विफल हुआ। प्रिंट बटन अनलॉक रहेगा ताकि आप पुनः प्रयास कर सकें।'
+        : 'Print was canceled or paper jammed. Asset remains UNLOCKED so you can retry printing without waiting for HOD approval.'
+    )
+    setPendingPhysicalPrintAssets(null)
+    setIsPhysicalPrintConfirmOpen(false)
+  }
+
   // Standard Print Handler
   const handlePrint = (title: string) => {
     if (selectedBulkCount > 0) {
@@ -1290,10 +1331,10 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         return
       }
 
-      // Record prints
-      eligibleBulk.forEach((a) => {
-        recordAssetPrint(a.id, a.assetCode, activeUser)
-      })
+      // Open physical handover confirmation modal without premature lock
+      setPendingPhysicalPrintAssets(eligibleBulk)
+      setIsPhysicalPrintConfirmOpen(true)
+
       const skipped = printableBulkAssets.length - eligibleBulk.length
       if (skipped > 0) {
         toast.warning(
@@ -1323,8 +1364,9 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
         return
       }
 
-      // Record print execution in storage & audit log
-      recordAssetPrint(currentAsset.id, currentAsset.assetCode, activeUser)
+      // Open physical handover confirmation modal without premature lock
+      setPendingPhysicalPrintAssets([currentAsset])
+      setIsPhysicalPrintConfirmOpen(true)
 
       toast.info(
         lang === 'hi'
@@ -1332,7 +1374,7 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
           : `Opening print dialog for ${title}...`,
         {
           description: elig.isReprintApproved
-            ? 'Authorized re-print permit consumed. Thank you.'
+            ? 'Authorized re-print permit ready. Locks strictly only once physical print is confirmed in hand.'
             : 'ismartu Equipment Fixed Asset template formatted for thermal sticker & standard laser printers.',
         }
       )
@@ -1380,6 +1422,8 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             visibility: visible !important;
           }
           .ismartu-print-item {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
             page-break-after: always !important;
             break-after: page !important;
             margin: 0 auto !important;
@@ -1388,6 +1432,8 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
             align-items: center !important;
             width: ${activeWidthMm}mm !important;
             height: ${activeHeightMm}mm !important;
+            max-height: ${activeHeightMm}mm !important;
+            overflow: hidden !important;
             box-sizing: border-box !important;
           }
           .ismartu-print-item:last-child {
@@ -1396,6 +1442,11 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
           }
           .ismartu-label-card {
             box-shadow: none !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            max-height: ${activeHeightMm}mm !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
           }
         }
       `}</style>
@@ -2800,6 +2851,107 @@ export function IndiaLabelPrintView({ assets, lang, onFillAssetData, currentUser
                 className="px-4 py-1.5 rounded-lg border border-[var(--line)] hover:bg-[var(--surf2)] text-[var(--ink)] font-semibold cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Physical Print Verification Modal - Enforces single-print integrity without premature locking */}
+      {isPhysicalPrintConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="physical-print-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in duration-150"
+          onClick={handleCancelPhysicalHandover}
+        >
+          <div
+            className="w-full max-w-lg bg-[var(--surf)] border border-[var(--line)] rounded-2xl shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between pb-3 border-b border-[var(--line)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl shrink-0">
+                  🏷️
+                </div>
+                <div>
+                  <h3 id="physical-print-modal-title" className="text-base font-bold text-[var(--ink)]">
+                    {lang === 'hi'
+                      ? 'भौतिक लेबल प्राप्ति सत्यापन'
+                      : 'Physical Label Handover Verification'}
+                  </h3>
+                  <p className="text-xs text-[var(--mute)]">
+                    {lang === 'hi'
+                      ? 'एकल-प्रिंट शासन: जब तक भौतिक लेबल हाथ में न मिले, बटन लॉक नहीं होगा।'
+                      : 'Single-print governance: Lock engages only after physical sticker is in hand.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelPhysicalHandover}
+                className="w-8 h-8 rounded-lg hover:bg-[var(--line)] text-[var(--mute)] flex items-center justify-center cursor-pointer text-sm"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Summary Box */}
+            <div className="p-4 rounded-xl bg-[var(--surf2)]/70 border border-[var(--line)] space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--mute)]">Target Assets</span>
+                <span className="font-bold text-[var(--ink)]">
+                  {pendingPhysicalPrintAssets?.length || 1} Label(s) Sent to Printer
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {(pendingPhysicalPrintAssets || [currentAsset]).slice(0, 8).map((a) => a && (
+                  <span
+                    key={a.id}
+                    className="px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-[var(--surf)] border border-[var(--line)] text-[var(--ink)]"
+                  >
+                    {a.assetCode}
+                  </span>
+                ))}
+                {(pendingPhysicalPrintAssets?.length || 0) > 8 && (
+                  <span className="text-xs text-[var(--mute)] self-center">
+                    +{(pendingPhysicalPrintAssets?.length || 0) - 8} more
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Question / Rule Explanation */}
+            <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-800 dark:text-blue-300 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <span>🛡️</span>
+                <span>Did you receive the readable physical sticker from the printer?</span>
+              </div>
+              <p className="text-[11px] leading-relaxed opacity-90">
+                • <strong>Confirm & Lock:</strong> If the label printed clearly and is in your hand, confirm to apply the enterprise single-print lock.<br />
+                • <strong>Keep Unlocked:</strong> If you cancelled printing, the paper jammed, or the print was defective, keep it unlocked to retry immediately without requiring HOD approval.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-[var(--line)]">
+              <button
+                type="button"
+                onClick={handleCancelPhysicalHandover}
+                className="w-full sm:w-auto px-4 py-2 text-xs font-semibold rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>✕</span>
+                <span>Print Canceled / Failed (Keep Unlocked)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPhysicalHandover}
+                className="w-full sm:w-auto px-5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>✓</span>
+                <span>Yes, Physical Label in Hand (Confirm & Lock)</span>
               </button>
             </div>
           </div>

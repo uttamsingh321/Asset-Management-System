@@ -235,6 +235,13 @@ describe('Secure QR Print Control & HOD Approval Workflow', () => {
     // Click print
     fireEvent.click(printBtn)
 
+    // Rule: Before user confirms physical label received in hand, print is NOT recorded or locked
+    expect(localStorage.getItem(STORAGE_KEY_PRINT_RECORDS)).toBeNull()
+
+    // User confirms physical label in hand
+    const confirmBtn = screen.getByRole('button', { name: /Yes, Physical Label in Hand/i })
+    fireEvent.click(confirmBtn)
+
     // Expect lock to take effect
     await waitFor(() => {
       const records = JSON.parse(localStorage.getItem(STORAGE_KEY_PRINT_RECORDS) || '{}')

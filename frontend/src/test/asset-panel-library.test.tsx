@@ -121,8 +121,8 @@ describe('Meridian Add Asset Drawer & Asset Library Specification', () => {
     fireEvent.change(screen.getByPlaceholderText(/MacBook Pro 16 inch M3 Pro Space Black/i), {
       target: { value: 'MacBook Pro 16" (M3 Pro)' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Laptops & Compute/i), {
-      target: { value: 'Laptops & Compute' },
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Fixed Assets, Accessories, Tools, Fixtures/i), {
+      target: { value: 'Fixed Assets' },
     })
     fireEvent.change(screen.getByPlaceholderText(/Name: e\.g\. Rajesh Kumar/i), {
       target: { value: 'Rajesh Kumar' },

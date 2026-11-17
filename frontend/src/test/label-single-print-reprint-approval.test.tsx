@@ -83,6 +83,13 @@ describe('Enterprise Single-Print & Super User Re-print Approval Rule', () => {
     fireEvent.click(printBtn)
     expect(printSpy).toHaveBeenCalledTimes(1)
 
+    // Rule: Before physical label is confirmed in hand, print button is NOT locked
+    expect(getAssetPrintRecord(testAsset.id, testAsset.assetCode)).toBeNull()
+
+    // Confirm physical label received in hand
+    const confirmBtn = screen.getByRole('button', { name: /Yes, Physical Label in Hand/i })
+    fireEvent.click(confirmBtn)
+
     // Print record is persisted in localStorage with count 1
     const record = getAssetPrintRecord(testAsset.id, testAsset.assetCode)
     expect(record).not.toBeNull()
@@ -210,6 +217,10 @@ describe('Enterprise Single-Print & Super User Re-print Approval Rule', () => {
     fireEvent.click(approvedPrintBtns[0])
     expect(printSpy).toHaveBeenCalledTimes(1)
 
+    // Confirm physical handover
+    const confirmBtn = screen.getByRole('button', { name: /Yes, Physical Label in Hand/i })
+    fireEvent.click(confirmBtn)
+
     // Print count is now 2
     const updatedRecord = getAssetPrintRecord(testAsset.id, testAsset.assetCode)
     expect(updatedRecord?.printCount).toBe(2)
@@ -250,6 +261,10 @@ describe('Enterprise Single-Print & Super User Re-print Approval Rule', () => {
 
     fireEvent.click(bulkBtn)
     expect(printSpy).toHaveBeenCalledTimes(1)
+
+    // Confirm physical handover
+    const confirmBtn = screen.getByRole('button', { name: /Yes, Physical Label in Hand/i })
+    fireEvent.click(confirmBtn)
 
     // 990001 now recorded as printed, while testAsset remains at 1
     expect(getAssetPrintRecord('asset-990001', '990001')?.printCount).toBe(1)
