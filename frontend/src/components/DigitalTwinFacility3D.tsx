@@ -4,8 +4,46 @@ import { resolveMajorAssetCategory, MAJOR_ASSET_CATEGORIES } from '@/types/asset
 import { exportAssetsToExcel } from '@/lib/excelExport'
 import { toast } from 'sonner'
 import Gis from '../digitalTwin/Gis'
+import DigitalTwinCyberpunk from '../digitalTwin/DigitalTwin'
 import { DIM } from '../digitalTwin/data'
 import '../digitalTwin/digitalTwin.css'
+
+function Walker() {
+  const b = (k: string, w: number, d: number, h: number, c: string, x: number, y: number, z: number) => (
+    <div key={k} className="bx" style={{ left: x, top: y, '--w': w + 'px', '--d': d + 'px', '--h': h + 'px', '--b': c, transform: `translateZ(${z}px)` } as React.CSSProperties}>
+      <i className="ft" /><i className="ff" /><i className="fb" /><i className="fr2" /><i className="fl2" />
+    </div>
+  )
+  const j = (k: string, cls: string, y: number, z: number, kids: React.ReactNode) => (
+    <div key={k} className={'jt ' + cls} style={{ top: y, '--pz': z + 'px' } as React.CSSProperties}>{kids}</div>
+  )
+  const leg = [b('a', 5, 5, 12, '#27406b', 0, 0, -15), b('b', 7, 5.4, 3, '#16181c', 1, 0, -15)]
+  const arm = [b('c', 4, 4, 11, '#ff8a00', 0, 0, -11), b('d', 3.6, 3.6, 3, '#e8b894', 0, 0, -14)]
+  return (
+    <>
+      <i className="shd" />
+      {j('l1', 'lgA', -3.2, 15, leg)}{j('l2', 'lgB', 3.2, 15, leg)}
+      {b('t', 7, 12, 13, '#ff8a00', 0, 0, 15)}{b('s', 7.3, 12.3, 2.2, '#e9f2f6', 0, 0, 21)}
+      {j('a1', 'arA', -8, 27.5, arm)}{j('a2', 'arB', 8, 27.5, arm)}
+      {b('h', 6.5, 7, 7, '#e8b894', 0.5, 0, 28)}{b('hat', 8.5, 9, 3.2, '#ffd400', 0, 0, 34.5)}{b('br', 11, 9, 1, '#ffd400', 1.5, 0, 34)}
+    </>
+  )
+}
+
+function Stairs({ H, up }: { H: number; up: boolean }) {
+  const box = (key: string, x: number, y: number, w: number, d: number, h: number, c: string, z = 0) => (
+    <div key={key} className="m st" style={{ left: x + 'px', top: y + 'px', '--w': w + 'px', '--d': d + 'px', '--h': h + 'px', '--b': c, '--c': 'transparent', transform: `translateZ(${z}px)` } as React.CSSProperties}>
+      <i className="ft" /><i className="ff" /><i className="fb" /><i className="fr2" /><i className="fl2" />
+    </div>
+  )
+  return (
+    <>
+      {up && Array.from({ length: 14 }, (_, i) => { const t = ((i + 1) * H) / 14; return [box('s' + i, 46 + i * 12, 289, 12, 26, 2.5, i % 2 ? '#aeb9c4' : '#c3ccd5', t - 2.5), box('l' + i, 46 + i * 12, 277, 12, 2, t, '#7d8b99'), box('r' + i, 46 + i * 12, 301, 12, 2, t, '#7d8b99')]; })}
+      {box('wa', 55, 236, 94, 4, 30, '#9aa6b2')}
+      {box('wb', 185, 236, 94, 4, 30, '#9aa6b2')}
+    </>
+  )
+}
 
 // ── Full-screen asset detail modal shown when user clicks any asset node ──────
 interface AssetDetailModalProps {
@@ -231,7 +269,7 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
     activeBuildingFilter !== 'All' ? activeBuildingFilter : 'C39'
   )
   const [viewMode, setViewMode] = useState<ViewMode3D>('isometric')
-  const [visualizerMode, setVisualizerMode] = useState<'3d' | 'gis' | 'blueprint' | 'data'>('3d')
+  const [visualizerMode, setVisualizerMode] = useState<'3d' | 'twin' | 'gis' | 'blueprint' | 'data'>('3d')
   const [assetScope, setAssetScope] = useState<AssetScope>('all')
   const [activeFloorIndex, setActiveFloorIndex] = useState<number>(1) // default to 1st Floor / SMT
   const [activeNode, setActiveNode] = useState<Asset | null>(null)
@@ -244,6 +282,80 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
   const [showFloorLedger, setShowFloorLedger] = useState(false)       // Default closed so toggle opens cleanly
   const [searchQuery, setSearchQuery] = useState('')
   const [autoRotate, setAutoRotate] = useState(false)
+
+  // Walker, Stairs, and Door Animations
+  const P0 = useMemo(() => ({ x: 36, y: 380, f: 0, z: 0, h: -90, v: 1, ms: 0, w: 0, out: 1, room: 0 }), [])
+  const [pw, setPw] = useState(P0)
+  const [door, setDoor] = useState(-1)
+  const pwr = useRef(P0)
+  const sq = useRef(0)
+  const lb = useRef<string | null>(null)
+
+  const upd = useCallback((o: any) => { pwr.current = { ...pwr.current, ...o }; setPw(pwr.current); }, [])
+  const runWalker = useCallback(async (steps: any[]) => {
+    const id = ++sq.current
+    for (const s of steps) {
+      if (sq.current !== id) return false
+      const { d, wait, ...o } = s
+      if (d !== undefined) setDoor(d)
+      if (Object.keys(o).length) upd({ ms: 0, w: 0, z: 0, ...o })
+      await new Promise((r) => setTimeout(r, o.ms || wait || 0))
+    }
+    return sq.current === id
+  }, [upd])
+
+  const zf = useCallback((fi: number) => (fi - 1.5) * (viewMode === 'exploded' ? 95 : 34) + (fi === activeFloorIndex && viewMode === 'exploded' ? 18 : 0), [viewMode, activeFloorIndex])
+
+  const planWalker = useCallback((t: number) => {
+    const c = pwr.current
+    if (t < 0 && c.out) return []
+    if (t >= 0 && !c.out && c.room && c.f === t) return []
+    const s: any[] = []
+    let f = c.f, x = c.x, y = c.y, hd = c.h
+    const hh = (a: number) => { hd += ((((a - hd + 180) % 360) + 360) % 360) - 180; return hd; }
+    const mv = (nx: number, ny: number, o?: any) => {
+      if (nx === x && ny === y) return
+      s.push({ x: nx, y: ny, ms: Math.round((Math.abs(nx - x) + Math.abs(ny - y)) * 5), w: 1, h: hh((Math.atan2(ny - y, nx - x) * 180) / Math.PI), ...o })
+      x = nx; y = ny
+    }
+    const H = (g: number) => Math.max(zf(g + 1) - zf(g), 6)
+    const bottom = () => { if (x !== 34 || y !== 289) { mv(x, 255); mv(34, 255); mv(34, 289); } }
+    const top = () => { if (x !== 214 || y !== 289) { mv(x, 255); mv(214, 255); mv(214, 289); } }
+    if (c.out) {
+      s.push({ x: 36, y: 380, f: 0, z: 0, v: 1, ms: 0 }, { d: 10, wait: 500 }); x = 36; y = 380; f = 0
+      mv(36, 312); mv(34, 289, { out: 0 }); s.push({ d: -1, wait: 300 })
+    } else if (c.room) {
+      s.push({ d: f, wait: 400 }); mv(120, 255, { room: 0 }); s.push({ d: -1, wait: 300 })
+    }
+    const end = Math.max(t, 0)
+    while (f !== end) {
+      if (end > f) {
+        bottom()
+        for (let i = 0; i < 14; i++) s.push({ x: 46 + i * 12, y: 289, z: ((i + 1) * H(f)) / 14, ms: 220, w: 1, h: hh(0) })
+        s.push({ x: 214, y: 289, z: H(f), ms: 220, w: 1, h: hh(0) }, { f: f + 1, z: 0, ms: 0 })
+        f++; x = 214; y = 289
+      } else {
+        const h = H(f - 1)
+        top(); s.push({ f: f - 1, z: h, ms: 0 })
+        for (let i = 13; i >= 0; i--) s.push({ x: 46 + i * 12, y: 289, z: ((i + 1) * h) / 14, ms: 220, w: 1, h: hh(180) })
+        s.push({ x: 34, y: 289, z: 0, ms: 220, w: 1, h: hh(180) })
+        f--; x = 34; y = 289
+      }
+    }
+    if (t < 0) {
+      bottom(); s.push({ d: 10, wait: 450 }); mv(36, 312); mv(36, 385, { out: 1 }); s.push({ d: -1, wait: 200 }, { v: 0, ms: 0 })
+    } else {
+      if (y !== 255) mv(x, 255)
+      mv(120, 255); s.push({ d: t, wait: 500 }); mv(120, 150, { room: 1 }); s.push({ d: -1, wait: 300 })
+    }
+    return s
+  }, [zf])
+
+  useEffect(() => {
+    if (visualizerMode !== '3d') { sq.current++; lb.current = null; upd(P0); setDoor(-1); return }
+    if (lb.current !== selectedBuildingId) { lb.current = selectedBuildingId; upd(P0); setDoor(-1) }
+    runWalker(planWalker(activeFloorIndex)).then((ok) => ok && upd({ w: 0 }))
+  }, [visualizerMode, selectedBuildingId, activeFloorIndex, planWalker, runWalker, P0, upd])
 
   // Interactive 3D Orbiting & Zoom State
   const [rotX, setRotX] = useState<number>(58)
@@ -752,6 +864,18 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--surf2)] p-1 rounded-xl border border-[var(--line)] text-xs font-bold">
           <button
             type="button"
+            onClick={() => setVisualizerMode('twin')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+              visualizerMode === 'twin'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-[var(--mute)] hover:text-[var(--ink)]'
+            }`}
+          >
+            <span>⚡</span>
+            <span>Digital Twin Facility</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setVisualizerMode('gis')}
             className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
               visualizerMode === 'gis'
@@ -920,6 +1044,13 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
         </div>
       </div>
 
+      {/* ── MODE: Full Cyberpunk Digital Twin Visualizer ── */}
+      {visualizerMode === 'twin' && (
+        <div className="my-3 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+          <DigitalTwinCyberpunk />
+        </div>
+      )}
+
       {/* ── MODE 0: GIS Campus Map ── */}
       {visualizerMode === 'gis' && (
         <div className="dt my-3 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
@@ -1057,6 +1188,13 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
               </>
             )}
 
+            {/* 3D Animated Walking Technician */}
+            <div className="pw" style={{ transform: `translate3d(${pw.x - 230}px,${pw.y - 155}px,${zf(pw.f) + pw.z}px)`, transition: `transform ${pw.ms}ms linear` }}>
+              <div className={'pr' + (pw.w ? ' wk' : '') + (pw.z > 0 ? ' cl' : '')} style={{ visibility: pw.v ? 'visible' : 'hidden', transform: `rotateZ(${pw.h}deg) scale3d(1.35,1.35,1.35)` }}>
+                <Walker />
+              </div>
+            </div>
+
             {/* Render Multi-tier 3D Floor Planes */}
             {selectedBuilding.floors.map((floor, fIdx) => {
               const zDistance = viewMode === 'exploded' ? fIdx * 90 : fIdx * 34
@@ -1085,6 +1223,16 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
                     transformStyle: 'preserve-3d',
                   }}
                 >
+                  {/* Physical 3D Stairs & Doors Animation */}
+                  <Stairs H={Math.max(zf(fIdx + 1) - zf(fIdx), 6)} up={fIdx < selectedBuilding.floors.length - 1} />
+                  {fIdx === 0 && (
+                    <b className={'dor' + (door === 10 ? ' op' : '')} style={{ left: 18, top: 310 }}>
+                      <i className="jl" /><i className="jr" /><i className="lt" /><i className="lf" />
+                    </b>
+                  )}
+                  <b className={'dor' + (door === fIdx ? ' op' : '')} style={{ left: 102, top: 236 }}>
+                    <i className="jl" /><i className="jr" /><i className="lt" /><i className="lf" />
+                  </b>
                   {/* Structural CAD Grid on Floor Slab */}
                   <div
                     className="absolute inset-0 rounded-2xl opacity-20 pointer-events-none"

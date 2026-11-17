@@ -9,6 +9,12 @@ declare module '*/digitalTwin/Gis' {
   export default Gis
 }
 
+declare module '*/digitalTwin/DigitalTwin' {
+  import type React from 'react'
+  const DigitalTwin: React.ComponentType<any>
+  export default DigitalTwin
+}
+
 declare module '*/digitalTwin/data' {
   export const COL: Record<string, string>
   export const FL: Array<{ n: string; z: string[] }>
