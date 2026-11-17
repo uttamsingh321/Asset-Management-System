@@ -180,6 +180,7 @@ export interface DigitalTwinFacility3DProps {
   onOpenAsset?: (asset: Asset) => void
   onNavigate?: (hash: string, assetCode?: string) => void
   onAddNewAssetOnFloor?: (building: string, floor: string) => void
+  initialMode?: 'twin' | '3d' | 'gis' | 'blueprint' | 'data'
 }
 
 type ViewMode3D = 'isometric' | 'perspective' | 'exploded' | 'blueprint'
@@ -264,12 +265,13 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
   onOpenAsset,
   onNavigate,
   onAddNewAssetOnFloor,
+  initialMode = '3d',
 }) => {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(
     activeBuildingFilter !== 'All' ? activeBuildingFilter : 'C39'
   )
   const [viewMode, setViewMode] = useState<ViewMode3D>('isometric')
-  const [visualizerMode, setVisualizerMode] = useState<'3d' | 'twin' | 'gis' | 'blueprint' | 'data'>('3d')
+  const [visualizerMode, setVisualizerMode] = useState<'3d' | 'twin' | 'gis' | 'blueprint' | 'data'>(initialMode)
   const [assetScope, setAssetScope] = useState<AssetScope>('all')
   const [activeFloorIndex, setActiveFloorIndex] = useState<number>(1) // default to 1st Floor / SMT
   const [activeNode, setActiveNode] = useState<Asset | null>(null)
@@ -927,121 +929,126 @@ export const DigitalTwinFacility3D: React.FC<DigitalTwinFacility3DProps> = ({
           </button>
         </div>
 
-        {/* Building Selector with Real Counts */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-[var(--mute)]">Complex:</span>
-          <div className="flex items-center rounded-xl bg-[var(--surf2)] p-1 border border-[var(--line)] text-xs">
-            {BUILDINGS.map((b) => {
-              const counts = buildingAssetCounts[b.id] || { total: 0, completed: 0, pending: 0 }
-              const displayCount =
-                assetScope === 'completed'
-                  ? counts.completed
-                  : assetScope === 'pending'
-                  ? counts.pending
-                  : counts.total
+        {/* Building Selector with Real Counts & Camera Controls - only when not in Cyberpunk Twin mode */}
+        {visualizerMode !== 'twin' && (
+          <>
+            {/* Building Selector with Real Counts */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--mute)]">Complex:</span>
+              <div className="flex items-center rounded-xl bg-[var(--surf2)] p-1 border border-[var(--line)] text-xs">
+                {BUILDINGS.map((b) => {
+                  const counts = buildingAssetCounts[b.id] || { total: 0, completed: 0, pending: 0 }
+                  const displayCount =
+                    assetScope === 'completed'
+                      ? counts.completed
+                      : assetScope === 'pending'
+                      ? counts.pending
+                      : counts.total
 
-              return (
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBuildingId(b.id)
+                        setActiveFloorIndex(0)
+                        setActiveNode(null)
+                        setSelectedZone(null)
+                        setLedgerPage(1)
+                        if (onSelectBuilding) onSelectBuilding(b.id)
+                      }}
+                      className={`relative px-3 py-1.5 rounded-lg font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
+                        selectedBuildingId === b.id
+                          ? 'bg-[var(--surf)] text-[var(--ink)] shadow-sm border border-[var(--line)]'
+                          : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
+                      <span>{b.id}</span>
+                      <span className="text-[11px] opacity-75 font-mono">({displayCount.toLocaleString()})</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 3D Camera Modes & Orbit Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Camera Preset Buttons */}
+              <div className="flex items-center rounded-xl bg-[var(--surf2)] p-1 border border-[var(--line)] text-xs">
+                {(
+                  [
+                    { id: 'isometric', label: 'Isometric 3D', icon: '📐' },
+                    { id: 'perspective', label: 'Perspective', icon: '🔭' },
+                    { id: 'exploded', label: 'Floor Split', icon: '🥞' },
+                    { id: 'blueprint', label: 'Blueprint', icon: '🗺️' },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setCameraPreset(m.id)}
+                    className={`px-2.5 py-1.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-1 cursor-pointer ${
+                      viewMode === m.id
+                        ? 'bg-blue-600 text-white font-bold shadow-xs'
+                        : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                    }`}
+                    title={`Switch camera to ${m.label}`}
+                  >
+                    <span>{m.icon}</span>
+                    <span className="hidden sm:inline">{m.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Zoom Buttons & Reset */}
+              <div className="flex items-center rounded-xl bg-[var(--surf2)] p-1 border border-[var(--line)] text-xs">
                 <button
-                  key={b.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedBuildingId(b.id)
-                    setActiveFloorIndex(0)
-                    setActiveNode(null)
-                    setSelectedZone(null)
-                    setLedgerPage(1)
-                    if (onSelectBuilding) onSelectBuilding(b.id)
-                  }}
-                  className={`relative px-3 py-1.5 rounded-lg font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-                    selectedBuildingId === b.id
-                      ? 'bg-[var(--surf)] text-[var(--ink)] shadow-sm border border-[var(--line)]'
-                      : 'text-[var(--mute)] hover:text-[var(--ink)]'
-                  }`}
+                  onClick={() => setZoom((z) => Math.min(1.8, z + 0.15))}
+                  className="px-2 py-1 hover:text-blue-500 transition font-bold"
+                  title="Zoom In (+)"
                 >
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
-                  <span>{b.id}</span>
-                  <span className="text-[11px] opacity-75 font-mono">({displayCount.toLocaleString()})</span>
+                  ＋
                 </button>
-              )
-            })}
-          </div>
-        </div>
+                <span className="px-1 text-[10px] font-mono text-[var(--mute)]">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.6, z - 0.15))}
+                  className="px-2 py-1 hover:text-blue-500 transition font-bold"
+                  title="Zoom Out (-)"
+                >
+                  －
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCameraPreset('isometric')}
+                  className="px-1.5 py-1 text-[10px] hover:text-blue-500 transition font-mono border-l border-[var(--line)] ml-1"
+                  title="Reset 3D Camera Angles"
+                >
+                  Reset
+                </button>
+              </div>
 
-        {/* 3D Camera Modes & Orbit Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Camera Preset Buttons */}
-          <div className="flex items-center rounded-xl bg-[var(--surf2)] p-1 border border-[var(--line)] text-xs">
-            {(
-              [
-                { id: 'isometric', label: 'Isometric 3D', icon: '📐' },
-                { id: 'perspective', label: 'Perspective', icon: '🔭' },
-                { id: 'exploded', label: 'Floor Split', icon: '🥞' },
-                { id: 'blueprint', label: 'Blueprint', icon: '🗺️' },
-              ] as const
-            ).map((m) => (
+              {/* Auto Rotate Toggle */}
               <button
-                key={m.id}
                 type="button"
-                onClick={() => setCameraPreset(m.id)}
-                className={`px-2.5 py-1.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-1 cursor-pointer ${
-                  viewMode === m.id
-                    ? 'bg-blue-600 text-white font-bold shadow-xs'
-                    : 'text-[var(--mute)] hover:text-[var(--ink)]'
+                onClick={() => setAutoRotate(!autoRotate)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  autoRotate
+                    ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 font-bold'
+                    : 'border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)] bg-[var(--surf2)]'
                 }`}
-                title={`Switch camera to ${m.label}`}
+                title="Toggle automated 3D rotation"
               >
-                <span>{m.icon}</span>
-                <span className="hidden sm:inline">{m.label}</span>
+                <span className={autoRotate ? 'animate-spin' : ''}>🔄</span>
+                <span className="hidden sm:inline">Spin</span>
               </button>
-            ))}
-          </div>
-
-          {/* Zoom Buttons & Reset */}
-          <div className="flex items-center rounded-xl bg-[var(--surf2)] p-1 border border-[var(--line)] text-xs">
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.min(1.8, z + 0.15))}
-              className="px-2 py-1 hover:text-blue-500 transition font-bold"
-              title="Zoom In (+)"
-            >
-              ＋
-            </button>
-            <span className="px-1 text-[10px] font-mono text-[var(--mute)]">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.max(0.6, z - 0.15))}
-              className="px-2 py-1 hover:text-blue-500 transition font-bold"
-              title="Zoom Out (-)"
-            >
-              －
-            </button>
-            <button
-              type="button"
-              onClick={() => setCameraPreset('isometric')}
-              className="px-1.5 py-1 text-[10px] hover:text-blue-500 transition font-mono border-l border-[var(--line)] ml-1"
-              title="Reset 3D Camera Angles"
-            >
-              Reset
-            </button>
-          </div>
-
-          {/* Auto Rotate Toggle */}
-          <button
-            type="button"
-            onClick={() => setAutoRotate(!autoRotate)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              autoRotate
-                ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 font-bold'
-                : 'border-[var(--line)] text-[var(--mute)] hover:text-[var(--ink)] bg-[var(--surf2)]'
-            }`}
-            title="Toggle automated 3D rotation"
-          >
-            <span className={autoRotate ? 'animate-spin' : ''}>🔄</span>
-            <span className="hidden sm:inline">Spin</span>
-          </button>
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── MODE: Full Cyberpunk Digital Twin Visualizer ── */}

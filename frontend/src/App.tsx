@@ -2347,6 +2347,7 @@ export function App() {
                 {/* 3D Spatial Digital Twin Facility Visualizer */}
                 <div className="mt-3">
                   <DigitalTwinFacility3D
+                    initialMode="twin"
                     assets={scopedAssets}
                     completedAssets={completedAssetsList}
                     activeBuildingFilter={dashBuildingFilter}
