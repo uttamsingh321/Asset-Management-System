@@ -1136,15 +1136,15 @@ export const MasterMappingView: React.FC<MasterMappingViewProps> = ({ currentUse
 
           {/* CRUD Table */}
           <div className="border border-[var(--line)] rounded-2xl overflow-hidden bg-[var(--surf)] shadow-xs">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] min-h-[350px] scrollbar-thin">
               <table className="w-full text-left border-collapse text-xs">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-[var(--surf2)] shadow-2xs">
                   <tr className="border-b border-[var(--line)] bg-[var(--surf2)] text-[var(--mute)] font-semibold">
-                    <th className="p-3">Entity Details</th>
-                    <th className="p-3">Unique Code</th>
-                    {selectedLevel !== 'company' && <th className="p-3">Parent Linkage</th>}
-                    <th className="p-3">State</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3 bg-[var(--surf2)]">Entity Details</th>
+                    <th className="p-3 bg-[var(--surf2)]">Unique Code</th>
+                    {selectedLevel !== 'company' && <th className="p-3 bg-[var(--surf2)]">Parent Linkage</th>}
+                    <th className="p-3 bg-[var(--surf2)]">State</th>
+                    <th className="p-3 text-right bg-[var(--surf2)]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">

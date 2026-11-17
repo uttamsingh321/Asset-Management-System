@@ -2538,19 +2538,19 @@ export function App() {
 
                   {/* Asset Table */}
                   {filteredDashboardAssets.length > 0 ? (
-                    <div className="overflow-x-auto mt-3">
+                    <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-360px)] min-h-[350px] mt-3 border border-[var(--line)] rounded-xl scrollbar-thin">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
-                            <th className="py-2.5 px-3">Picture</th>
-                            <th className="py-2.5 px-3">Asset Code</th>
-                            <th className="py-2.5 px-3">Category (四大核心)</th>
-                            <th className="py-2.5 px-3">Company</th>
-                            <th className="py-2.5 px-3">Building</th>
-                            <th className="py-2.5 px-3">Floor</th>
-                            <th className="py-2.5 px-3">Belong to Dept</th>
-                            <th className="py-2.5 px-3">Who in Charge (ID, Name)</th>
-                            <th className="py-2.5 px-3 text-right">Action</th>
+                        <thead className="sticky top-0 z-10 bg-[var(--surf)] border-b border-[var(--line)] shadow-xs">
+                          <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px] bg-[var(--surf)]">
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Picture</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Asset Code</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Category (四大核心)</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Company</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Building</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Floor</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Belong to Dept</th>
+                            <th className="py-2.5 px-3 bg-[var(--surf)]">Who in Charge (ID, Name)</th>
+                            <th className="py-2.5 px-3 text-right bg-[var(--surf)]">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--line)]">

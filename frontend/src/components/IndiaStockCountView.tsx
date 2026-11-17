@@ -1134,17 +1134,17 @@ export function IndiaStockCountView({
             </div>
 
             {filteredItemsList.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] min-h-[350px] border border-[var(--line)] rounded-xl scrollbar-thin">
                 <table className="w-full text-xs text-left border-collapse">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-[var(--surf2)] shadow-2xs">
                     <tr className="bg-[var(--surf2)] text-[var(--mute)] font-semibold border-b border-[var(--line)]">
-                      <th className="p-3">Asset Code</th>
-                      <th className="p-3">Asset Name & Model</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3">Expected Location</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Last Verified</th>
-                      <th className="p-3 text-right">Action</th>
+                      <th className="p-3 bg-[var(--surf2)]">Asset Code</th>
+                      <th className="p-3 bg-[var(--surf2)]">Asset Name & Model</th>
+                      <th className="p-3 bg-[var(--surf2)]">Category</th>
+                      <th className="p-3 bg-[var(--surf2)]">Expected Location</th>
+                      <th className="p-3 bg-[var(--surf2)]">Status</th>
+                      <th className="p-3 bg-[var(--surf2)]">Last Verified</th>
+                      <th className="p-3 text-right bg-[var(--surf2)]">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">

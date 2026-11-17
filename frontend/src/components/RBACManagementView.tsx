@@ -892,16 +892,16 @@ export default function RBACManagementView({ currentUser, lang = 'en', onSwitchU
 
           {/* Users Table */}
           <div className="bg-[var(--surf)] border border-[var(--line)] rounded-2xl overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[350px] scrollbar-thin">
               <table className="w-full text-left border-collapse text-xs">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-[var(--surf2)] shadow-2xs">
                   <tr className="border-b border-[var(--line)] bg-[var(--surf2)] text-[var(--mute)] font-semibold">
-                    <th className="p-3">Employee</th>
-                    <th className="p-3">Assigned Role</th>
-                    <th className="p-3">Master Mapping Hierarchy Scope</th>
-                    <th className="p-3">Security & 2FA</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3 text-right">Administrative Actions</th>
+                    <th className="p-3 bg-[var(--surf2)]">Employee</th>
+                    <th className="p-3 bg-[var(--surf2)]">Assigned Role</th>
+                    <th className="p-3 bg-[var(--surf2)]">Master Mapping Hierarchy Scope</th>
+                    <th className="p-3 bg-[var(--surf2)]">Security & 2FA</th>
+                    <th className="p-3 bg-[var(--surf2)]">Status</th>
+                    <th className="p-3 text-right bg-[var(--surf2)]">Administrative Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)] text-[var(--ink)]">

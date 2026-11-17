@@ -566,17 +566,17 @@ export const UserManagementView: React.FC<Props> = ({ currentUser, onSwitchUser,
         </div>
 
         {/* Users Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[350px] border border-[var(--line)] rounded-xl scrollbar-thin">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-3">User ID</th>
-                <th className="py-3 px-3">Full Name & Email</th>
-                <th className="py-3 px-3">Department</th>
-                <th className="py-3 px-3">RBAC Role</th>
-                <th className="py-3 px-3">Superuser Password</th>
-                <th className="py-3 px-3">Created By</th>
-                <th className="py-3 px-3 text-right">Actions</th>
+            <thead className="sticky top-0 z-10 bg-[var(--surf)] border-b border-[var(--line)] shadow-xs">
+              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px] bg-[var(--surf)]">
+                <th className="py-3 px-3 bg-[var(--surf)]">User ID</th>
+                <th className="py-3 px-3 bg-[var(--surf)]">Full Name & Email</th>
+                <th className="py-3 px-3 bg-[var(--surf)]">Department</th>
+                <th className="py-3 px-3 bg-[var(--surf)]">RBAC Role</th>
+                <th className="py-3 px-3 bg-[var(--surf)]">Superuser Password</th>
+                <th className="py-3 px-3 bg-[var(--surf)]">Created By</th>
+                <th className="py-3 px-3 text-right bg-[var(--surf)]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">

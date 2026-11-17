@@ -227,17 +227,17 @@ export const SuperuserSecurityView: React.FC<SuperuserSecurityViewProps> = ({ cu
             <span className="text-[11px] text-[var(--mute)]">Auto-unlocks after 15 minutes or manual unlock</span>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-48 border border-red-500/20 rounded-xl scrollbar-thin">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-red-500/20 text-[var(--mute)] uppercase tracking-wider text-[11px]">
-                  <th className="py-2.5 px-3">User ID</th>
-                  <th className="py-2.5 px-3">Name</th>
-                  <th className="py-2.5 px-3">Department</th>
-                  <th className="py-2.5 px-3">Failures</th>
-                  <th className="py-2.5 px-3">Lockout Reason</th>
-                  <th className="py-2.5 px-3">Locked Until</th>
-                  <th className="py-2.5 px-3 text-right">Superuser Action</th>
+              <thead className="sticky top-0 z-10 bg-[var(--surf)] border-b border-red-500/20 shadow-xs">
+                <tr className="border-b border-red-500/20 text-[var(--mute)] uppercase tracking-wider text-[11px] bg-[var(--surf)]">
+                  <th className="py-2.5 px-3 bg-[var(--surf)]">User ID</th>
+                  <th className="py-2.5 px-3 bg-[var(--surf)]">Name</th>
+                  <th className="py-2.5 px-3 bg-[var(--surf)]">Department</th>
+                  <th className="py-2.5 px-3 bg-[var(--surf)]">Failures</th>
+                  <th className="py-2.5 px-3 bg-[var(--surf)]">Lockout Reason</th>
+                  <th className="py-2.5 px-3 bg-[var(--surf)]">Locked Until</th>
+                  <th className="py-2.5 px-3 text-right bg-[var(--surf)]">Superuser Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-500/10">
@@ -308,17 +308,17 @@ export const SuperuserSecurityView: React.FC<SuperuserSecurityViewProps> = ({ cu
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[320px] border border-[var(--line)] rounded-xl scrollbar-thin">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px]">
-                <th className="py-2.5 px-3">Date & Time</th>
-                <th className="py-2.5 px-3">Security Action</th>
-                <th className="py-2.5 px-3">User ID & Name</th>
-                <th className="py-2.5 px-3">Client IP Address</th>
-                <th className="py-2.5 px-3">Factory Selected</th>
-                <th className="py-2.5 px-3">Device / Telemetry</th>
-                <th className="py-2.5 px-3">Security Details</th>
+            <thead className="sticky top-0 z-10 bg-[var(--surf)] border-b border-[var(--line)] shadow-xs">
+              <tr className="border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px] bg-[var(--surf)]">
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Date & Time</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Security Action</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">User ID & Name</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Client IP Address</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Factory Selected</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Device / Telemetry</th>
+                <th className="py-2.5 px-3 bg-[var(--surf)]">Security Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">

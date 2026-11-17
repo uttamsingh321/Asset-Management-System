@@ -1591,7 +1591,7 @@ export const AssetCodeWorkflow: React.FC<AssetCodeWorkflowProps> = ({
         </div>
 
         {/* Tasks Table / List */}
-        <div className="overflow-x-auto rounded-xl border border-[var(--line)] relative bg-[var(--surf)] shadow-2xs">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[350px] rounded-xl border border-[var(--line)] relative bg-[var(--surf)] shadow-2xs scrollbar-thin">
           <table className="w-full min-w-full text-left text-xs border-collapse table-fixed min-w-[760px]">
             <thead className="sticky top-0 z-10 bg-[var(--surf2)] border-b border-[var(--line)] text-[var(--mute)] uppercase tracking-wider text-[11px] shadow-2xs">
               <tr>
