@@ -3,87 +3,82 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { DigitalTwinFacility3D } from '../components/DigitalTwinFacility3D'
 import type { Asset } from '../types/asset'
 
-describe('3D Digital Twin Facility Visualizer Specification', () => {
-  const mockAssets: Asset[] = [
-    {
-      id: '1',
-      assetCode: '2005941',
-      serialNumber: '',
-      name: 'SMT High Speed Feeder',
-      currentCategory: 'Machinery',
-      currentDescription: 'SMT Feeder Line 1',
-      company: 'IIPL',
-      building: 'C39',
-      floor: '1st Floor (SMT)',
-      department: 'Production',
-      currentDepartment: 'Production',
-      status: 'Completed',
-      whoInCharge: 'Uttam Singh',
-      inChargeName: 'Uttam Singh',
-      assetCondition: 'Operational - Good',
-      date: '2026-11-16',
-      assetTag: '2005941',
-      category: 'Machinery',
-      purchaseDate: '2026-11-16',
-      purchaseCost: 10000,
-      currentValue: 10000,
-      assignedTo: 'Uttam Singh',
-      location: 'C39 · 1st Floor',
-      plant: 'C-39 Factory, Noida',
-    },
-    {
-      id: '2',
-      assetCode: '8107891',
-      serialNumber: '',
-      name: 'Reflow Soldering Oven',
-      currentCategory: 'Machinery',
-      currentDescription: 'Reflow Soldering Oven Unit',
-      company: 'IIPL',
-      building: 'C39',
-      floor: '1st Floor (SMT)',
-      department: 'Production',
-      currentDepartment: 'Production',
-      status: 'Pending Verification',
-      whoInCharge: '',
-      assetCondition: 'Good',
-      date: '2026-11-16',
-      assetTag: '8107891',
-      category: 'Machinery',
-      purchaseDate: '2026-11-16',
-      purchaseCost: 25000,
-      currentValue: 25000,
-      assignedTo: '',
-      location: 'C39 · 1st Floor',
-      plant: 'C-39 Factory, Noida',
-    },
-    {
-      id: '3',
-      assetCode: 'PDG-197-01',
-      serialNumber: '',
-      name: 'Automated Box Assembly Station',
-      currentCategory: 'Operations',
-      currentDescription: 'Chassis Box Assembly Unit',
-      company: 'Padget',
-      building: 'D197',
-      floor: 'Ground Assembly',
-      department: 'Operations',
-      currentDepartment: 'Operations',
-      status: 'Completed',
-      whoInCharge: 'Arbind Kumar Singh',
-      inChargeName: 'Arbind Kumar Singh',
-      assetCondition: 'Operational',
-      date: '2026-11-16',
-      assetTag: 'PDG-197-01',
-      category: 'Machinery',
-      purchaseDate: '2026-11-16',
-      purchaseCost: 15000,
-      currentValue: 15000,
-      assignedTo: 'Arbind Kumar Singh',
-      location: 'D197 · Ground Assembly',
-      plant: 'Padget Electronics, Noida',
-    },
-  ]
+const testAssets: Asset[] = [
+  {
+    id: 'AST-1',
+    assetCode: '2005941',
+    assetTag: 'TAG-1',
+    name: 'SMT Feeder Line 1',
+    category: 'Fixed assets',
+    currentCategory: 'Fixed assets',
+    currentDescription: 'SMT Feeder Line 1',
+    status: 'Completed',
+    company: 'IIPL',
+    plant: 'C39 Plant',
+    department: 'Production',
+    currentDepartment: 'Production',
+    assetCondition: 'Operational - Good',
+    building: 'C39',
+    floor: '1st Floor',
+    location: 'SMT Line 1',
+    assignedTo: 'Uttam Singh',
+    serialNumber: 'SN-001',
+    purchaseCost: 100000,
+    currentValue: 90000,
+    date: '2026-01-01',
+    purchaseDate: '2026-01-01',
+  },
+  {
+    id: 'AST-2',
+    assetCode: 'PDG-197-01',
+    assetTag: 'TAG-2',
+    name: 'Assembly Robot',
+    category: 'Tools',
+    currentCategory: 'Tools',
+    currentDescription: 'Assembly Robot',
+    status: 'Completed',
+    company: 'Padget',
+    plant: 'Padget Plant',
+    department: 'Production',
+    currentDepartment: 'Production',
+    assetCondition: 'Operational - Good',
+    building: 'D197',
+    floor: 'Ground Floor',
+    location: 'Assembly Area',
+    assignedTo: 'Operator A',
+    serialNumber: 'SN-002',
+    purchaseCost: 50000,
+    currentValue: 45000,
+    date: '2026-01-01',
+    purchaseDate: '2026-01-01',
+  },
+  {
+    id: 'AST-3',
+    assetCode: 'AST-PENDING-1',
+    assetTag: 'TAG-3',
+    name: 'Pending Machine',
+    category: 'Fixtures',
+    currentCategory: 'Fixtures',
+    currentDescription: 'Pending Machine',
+    status: 'Pending Verification',
+    company: 'IIPL',
+    plant: 'C39 Plant',
+    department: 'Production',
+    currentDepartment: 'Production',
+    assetCondition: 'Operational - Good',
+    building: 'C39',
+    floor: 'Ground Floor',
+    location: 'Storage',
+    assignedTo: 'Unassigned',
+    serialNumber: 'SN-003',
+    purchaseCost: 20000,
+    currentValue: 20000,
+    date: '2026-01-01',
+    purchaseDate: '2026-01-01',
+  },
+]
 
+describe('3D Digital Twin Facility Visualizer Specification', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -91,8 +86,8 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
   it('renders 3D Digital Twin with building selectors and real asset counts', () => {
     render(
       <DigitalTwinFacility3D
-        assets={mockAssets}
-        completedAssets={mockAssets.filter((a) => a.status === 'Completed')}
+        assets={[]}
+        completedAssets={[]}
       />
     )
 
@@ -109,8 +104,8 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
   it('allows switching between All Assets, Deployed Fleet, and Pending Queue scopes', () => {
     render(
       <DigitalTwinFacility3D
-        assets={mockAssets}
-        completedAssets={mockAssets.filter((a) => a.status === 'Completed')}
+        assets={testAssets}
+        completedAssets={testAssets.filter(a => a.status === 'Completed')}
       />
     )
 
@@ -131,7 +126,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     const onSelectBuilding = vi.fn()
     render(
       <DigitalTwinFacility3D
-        assets={mockAssets}
+        assets={testAssets}
         onSelectBuilding={onSelectBuilding}
       />
     )
@@ -150,7 +145,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
 
     render(
       <DigitalTwinFacility3D
-        assets={mockAssets}
+        assets={testAssets}
         onOpenAsset={onOpenAsset}
         onNavigate={onNavigate}
       />
@@ -178,7 +173,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
   })
 
   it('search & locate automatically focuses the matching asset in 3D', () => {
-    render(<DigitalTwinFacility3D assets={mockAssets} />)
+    render(<DigitalTwinFacility3D assets={testAssets} />)
 
     const searchInput = screen.getByPlaceholderText(/Locate code/i)
     fireEvent.change(searchInput, { target: { value: 'PDG-197' } })
@@ -198,7 +193,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     const onAddNewAssetOnFloor = vi.fn()
     render(
       <DigitalTwinFacility3D
-        assets={mockAssets}
+        assets={testAssets}
         onAddNewAssetOnFloor={onAddNewAssetOnFloor}
       />
     )
@@ -217,7 +212,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
   })
 
   it('allows switching perspective camera modes (Isometric, Perspective, Floor Split, Blueprint)', () => {
-    render(<DigitalTwinFacility3D assets={mockAssets} />)
+    render(<DigitalTwinFacility3D assets={[]} />)
 
     const explodedBtn = screen.getByRole('button', { name: /Floor Split/i })
     fireEvent.click(explodedBtn)
@@ -235,7 +230,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
   })
 
   it('prevents default page scroll on wheel zoom and updates scale', () => {
-    const { container } = render(<DigitalTwinFacility3D assets={mockAssets} />)
+    const { container } = render(<DigitalTwinFacility3D assets={[]} />)
 
     // Locate the 3D stage container
     const stage = container.querySelector('.touch-none') as HTMLDivElement
@@ -261,7 +256,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
   })
 
   it('supports touch interaction with touch-action none to prevent mobile page scrolling', () => {
-    const { container } = render(<DigitalTwinFacility3D assets={mockAssets} />)
+    const { container } = render(<DigitalTwinFacility3D assets={[]} />)
     const stage = container.querySelector('.touch-none') as HTMLDivElement
     expect(stage).not.toBeNull()
 
@@ -282,7 +277,7 @@ describe('3D Digital Twin Facility Visualizer Specification', () => {
     const onSelectBuilding = vi.fn()
     render(
       <DigitalTwinFacility3D
-        assets={mockAssets}
+        assets={[]}
         onSelectBuilding={onSelectBuilding}
       />
     )

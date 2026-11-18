@@ -791,50 +791,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               )}
             </button>
           </form>
-
-          {/* Quick Demo Credentials Help (Click-to-fill for instant access) */}
-          <div className="login-profiles-box p-3.5 rounded-xl bg-white/5 border border-white/10 text-[11px] space-y-2 text-white/70">
-            <div className="login-profiles-header font-semibold text-white/90 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <span>⚡</span>
-                <span>Quick Login Profiles:</span>
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">1-Click Autofill</span>
-            </div>
-            <div className="login-profiles-grid grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setUserId('USR-ADMIN')
-                  setPassword('AdminPassword2026!')
-                }}
-                className="login-profile-card p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/40 text-left transition cursor-pointer group shadow-2xs"
-                title="Click to fill Superuser credentials"
-              >
-                <div className="font-bold text-white text-[11px] group-hover:text-blue-400 transition-colors flex items-center justify-between">
-                  <span>👑 Superuser (Admin)</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-bold">ALL ACCESS</span>
-                </div>
-                <div className="font-mono text-[10px] text-white/60 mt-0.5">USR-ADMIN · Uttam Singh</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserId('SMT-101')
-                  setPassword('SmtLinePassword101!')
-                }}
-                className="login-profile-card p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/40 text-left transition cursor-pointer group shadow-2xs"
-                title="Click to fill SMT Operator credentials"
-              >
-                <div className="font-bold text-white text-[11px] group-hover:text-emerald-400 transition-colors flex items-center justify-between">
-                  <span>🔧 SMT Line In-Charge</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">PRODUCTION</span>
-                </div>
-                <div className="font-mono text-[10px] text-white/60 mt-0.5">SMT-101 · Rajesh Kumar</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* ──────────────────────────────────────────────────────────── */}

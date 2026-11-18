@@ -213,35 +213,34 @@ const DIM = {
   Tools: [13, 10, 8, '#d4a63a'], Fixtures: [19, 13, 11, '#7d95ab'],
 };
 function buildMachines() {
-  let seed = 7;
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const M = []; let id = 1;
-  BL.forEach((b) => {
-    const pls = PL.filter((p) => p.b === b);
-    FL.forEach((f, fi) => {
-      const rows = Math.ceil(f.z.length / 2);
-      f.z.forEach((zn, zi) => {
-        const c = zi % 2, r = Math.floor(zi / 2);
-        const x0 = c * 50 + 3, w = f.z.length === 1 ? 94 : 44;
-        const y0 = (r * 100) / rows + 5, h = 100 / rows - 10;
-        const n = fi === 0 && zi === 2 ? 0 : 3 + Math.floor(rnd() * 4);
-        const cols = Math.ceil(n / 2);
-        for (let k = 0; k < n; k++) {
-          const s = rnd(), p = pls[Math.floor(rnd() * pls.length)];
-          M.push({
-            id, b, co: p.co, p: p.c, u: p.u, code: '20' + String(5900 + id * 7), fi, zi, zone: zn,
-            cat: CAT[Math.floor(rnd() * 4)],
-            who: 'USR-' + String(10 + Math.floor(rnd() * 80)).padStart(3, '0'),
-            st: s < 0.62 ? 'Deployed' : s < 0.88 ? 'Pending' : 'Fault',
-            x: x0 + ((k % cols) + 0.5) * w / cols,
-            y: y0 + 12 + (Math.floor(k / cols) + 0.5) * (h - 12) / 2,
-          });
-          id++;
-        }
-      });
-    });
-  });
-  return M;
+  // Zero dummy data: only verified assets from system storage
+  try {
+    const raw = localStorage.getItem('meridian_assets') || localStorage.getItem('meridian_assets_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((a, i) => ({
+          id: i + 1,
+          b: a.building || 'C39',
+          co: a.company || 'Ismartu',
+          p: a.plant || 'TUW1',
+          u: 'Transmission',
+          code: a.assetCode || ('AST-' + (i + 1)),
+          fi: 0,
+          zi: 0,
+          zone: a.location || 'General',
+          cat: a.category || 'Fixed assets',
+          who: a.assignedTo || 'Unassigned',
+          st: a.status === 'Active' || a.status === 'Completed' ? 'Deployed' : a.status === 'Maintenance' ? 'Fault' : 'Pending',
+          x: 20 + ((i % 5) * 15),
+          y: 20 + (Math.floor(i / 5) * 15),
+        }));
+      }
+    }
+  } catch (e) {
+    console.warn('No cached assets found for digital twin', e);
+  }
+  return [];
 }
 
 const CC = {

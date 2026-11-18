@@ -15,9 +15,9 @@ export const meridianPages: Record<string, PageData> = {
     s: 'Asset types and templates: categories, models and specifications. Physical assets live in the Asset Gallery.',
     btn: 'Import assets',
     k: [
-      ['Categories', '7', 'Active categories'],
-      ['Asset types', '9', 'Standard models'],
-      ['Specification fields', '36', 'Structured specs'],
+      ['Categories', '0', 'Active categories'],
+      ['Asset types', '0', 'Standard models'],
+      ['Specification fields', '0', 'Structured specs'],
       ['Assets without a type', '0', 'All linked'],
     ],
     ah: 'Asset types',
