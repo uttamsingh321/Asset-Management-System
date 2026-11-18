@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:screenshot": "node scripts/test-screenshots.mjs",
+    "test:benchmark": "node scripts/benchmark-digital-twin.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
